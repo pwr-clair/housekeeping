@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PWR Housekeeping Manual</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Sans:wght@400;500;700&display=swap');
+:root{
+  --navy:#042C53;--ivory:#F7F6F3;--border:#D8D5D0;--text:#1A1814;--text2:#6B6660;--text3:#9E9A95;
+  --blue:#E6F1FB;--blue-t:#0C447C;--purple:#EEEDFE;--purple-t:#26215C;
+  --green-dark:#D4EDDA;--green-dark-t:#0A4A1F;--yellow:#FEF3C7;--yellow-t:#633806;
+  --pink:#FDEEF3;--pink-t:#7B1C3A;--sage:#F4F8F0;--sage-t:#3A5A28;--gray:#F5F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR','DM Sans',sans-serif;background:var(--ivory);color:var(--text);}
+.lang-bar{position:sticky;top:0;z-index:200;background:var(--navy);display:flex;align-items:center;justify-content:space-between;padding:10px 20px;}
+.lang-bar .logo{font-size:12px;font-weight:700;color:#E6F1FB;letter-spacing:.1em;}
+.lang-btns{display:flex;gap:6px;}
+.lang-btns button{padding:5px 14px;border-radius:100px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid rgba(255,255,255,.4);color:#E6F1FB;background:transparent;transition:.2s;}
+.lang-btns button.active{background:#E6F1FB;color:var(--navy);border-color:#E6F1FB;}
+.lang{display:none;}.lang.active{display:block;}
+.cover{background:var(--navy);color:#E6F1FB;text-align:center;padding:60px 24px 50px;}
+.cover .eyebrow{font-size:11px;letter-spacing:.18em;opacity:.6;text-transform:uppercase;margin-bottom:12px;}
+.cover h1{font-size:36px;font-weight:700;line-height:1.2;margin-bottom:8px;}
+.cover .sub{font-size:14px;opacity:.7;margin-bottom:28px;}
+.cover .url-chip{display:inline-block;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:100px;padding:6px 16px;font-size:12px;font-family:monospace;}
+.content{max-width:680px;margin:0 auto;padding:32px 20px 80px;}
+.section{margin-bottom:44px;}
+.section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1.5px solid var(--navy);}
+.section-num{width:28px;height:28px;border-radius:50%;background:var(--navy);color:#E6F1FB;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.section-title{font-size:17px;font-weight:700;color:var(--navy);}
+.card{background:#fff;border:0.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:10px;}
+.card-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.card-body{font-size:13px;color:var(--text2);line-height:1.7;}
+.tip{background:#EAF3DE;border-left:3px solid #82C896;border-radius:8px;padding:9px 13px;font-size:12px;color:#155F28;margin-top:10px;}
+.warn{background:var(--pink);border-left:3px solid #F5B7CC;border-radius:8px;padding:9px 13px;font-size:12px;color:var(--pink-t);margin-top:10px;}
+.steps{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.step{display:flex;gap:10px;align-items:flex-start;}
+.step-n{width:22px;height:22px;border-radius:50%;background:var(--navy);color:#E6F1FB;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.step-t{font-size:13px;color:var(--text2);flex:1;line-height:1.6;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:700;}
+.b-blue{background:var(--blue);color:var(--blue-t);}
+.b-purple{background:var(--purple);color:var(--purple-t);}
+.b-gd{background:var(--green-dark);color:var(--green-dark-t);}
+.b-yw{background:var(--yellow);color:var(--yellow-t);}
+.b-pk{background:var(--pink);color:var(--pink-t);}
+.b-sg{background:var(--sage);color:var(--sage-t);}
+.b-gr{background:var(--gray);color:#4A4845;}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0;}
+.flow-arrow{color:var(--text3);font-size:13px;}
+.flow-time{font-size:10px;color:var(--text3);white-space:nowrap;}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;}
+th{background:var(--navy);color:#E6F1FB;padding:8px 10px;text-align:left;font-weight:600;}
+td{padding:8px 10px;border-bottom:0.5px solid var(--border);color:var(--text2);}
+tr:last-child td{border-bottom:none;}
+tr:nth-child(even) td{background:#F9F8F6;}
+
+/* 앱 UI 모크업 */
+.mockup-wrap{background:#E8E6E2;border-radius:14px;padding:12px;margin:14px 0;position:relative;}
+.mockup-title{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+.phone-frame{background:var(--ivory);border-radius:10px;overflow:hidden;border:0.5px solid var(--border);}
+.app-header{padding:8px 10px 6px;background:var(--ivory);border-bottom:0.5px solid var(--border);}
+.app-brand{font-size:8px;font-weight:600;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;}
+.app-title{font-size:14px;font-weight:700;color:var(--text);}
+.app-header-row{display:flex;align-items:center;justify-content:space-between;}
+.app-date{font-size:9px;color:var(--text2);}
+.app-chip{font-size:9px;background:#EAF3DE;color:#155F28;border-radius:100px;padding:2px 7px;display:flex;align-items:center;gap:3px;}
+.app-dot{width:5px;height:5px;border-radius:50%;background:#639922;}
+.app-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 8px;background:var(--ivory);border-bottom:0.5px solid var(--border);}
+.app-tab{padding:5px 2px;border-radius:6px;font-size:9px;font-weight:600;text-align:center;color:var(--text2);background:#fff;border:0.5px solid var(--border);}
+.app-tab.active{background:var(--navy);color:#E6F1FB;border-color:var(--navy);}
+.app-counters{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:6px 8px;}
+.app-counter{background:#fff;border:0.5px solid var(--border);border-radius:6px;padding:5px 2px;text-align:center;}
+.app-counter-num{font-size:14px;font-weight:700;}
+.app-counter-label{font-size:7px;color:var(--text2);margin-top:1px;}
+.cnt-co{color:#c0392b;}.cnt-yw{color:var(--yellow-t);}.cnt-pk{color:var(--pink-t);}.cnt-bl{color:var(--blue-t);}.cnt-gd{color:var(--green-dark-t);}
+.app-floor-label{font-size:9px;font-weight:700;color:var(--text2);background:#E8E6E2;border-radius:4px;display:inline-block;padding:2px 7px;margin:4px 8px 4px;}
+.app-room-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:0 8px 8px;}
+.app-room-card{border-radius:8px;padding:7px 5px 5px;text-align:center;border:0.5px solid transparent;position:relative;}
+.app-room-num{font-size:11px;font-weight:700;}
+.app-room-status{font-size:7px;margin-top:1px;font-weight:500;}
+.app-room-pw{font-size:8px;margin-top:3px;padding:1px 5px;border-radius:100px;display:inline-block;font-weight:600;}
+.app-room-icon{position:absolute;top:4px;right:4px;font-size:9px;}
+.rm-checkin{background:var(--blue);border-color:#B5D4F4;}.rm-checkin .app-room-num{color:var(--blue-t);}.rm-checkin .app-room-status{color:#185FA5;}.rm-checkin .app-room-pw{background:#B5D4F4;color:var(--blue-t);}
+.rm-checkout_confirm{background:var(--purple);border-color:#CECBF6;}.rm-checkout_confirm .app-room-num{color:var(--purple-t);}.rm-checkout_confirm .app-room-status{color:#534AB7;}.rm-checkout_confirm .app-room-pw{background:#CECBF6;color:var(--purple-t);}
+.rm-vacant{background:var(--green-dark);border-color:#82C896;}.rm-vacant .app-room-num{color:var(--green-dark-t);}.rm-vacant .app-room-status{color:#155F28;}.rm-vacant .app-room-pw{background:#82C896;color:var(--green-dark-t);}
+.rm-checkout_done{background:var(--yellow);border-color:#FCD34D;}.rm-checkout_done .app-room-num{color:var(--yellow-t);}.rm-checkout_done .app-room-status{color:#854F0B;}.rm-checkout_done .app-room-pw{background:#FCD34D;color:var(--yellow-t);}
+.rm-cleaning{background:var(--pink);border-color:#F5B7CC;}.rm-cleaning .app-room-num{color:var(--pink-t);}.rm-cleaning .app-room-status{color:#9C2448;}.rm-cleaning .app-room-pw{background:#F5B7CC;color:var(--pink-t);}
+.rm-clean_done{background:var(--sage);border-color:#D8E8C8;}.rm-clean_done .app-room-num{color:var(--sage-t);}.rm-clean_done .app-room-status{color:#4A6E30;}.rm-clean_done .app-room-pw{background:#D8E8C8;color:var(--sage-t);}
+.rm-blocked{background:var(--gray);border-color:#D0CECC;}.rm-blocked .app-room-num{color:#4A4845;}.rm-blocked .app-room-status{color:#6E6B67;}.rm-blocked .app-room-pw{background:#D0CECC;color:#4A4845;}
+.app-modal{background:#fff;border-radius:10px;margin:8px;border:0.5px solid var(--border);}
+.app-modal-top{display:flex;gap:6px;padding:8px;align-items:stretch;}
+.app-modal-room{flex:0 0 30%;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;min-height:44px;}
+.app-modal-doorpw{flex:1;background:var(--ivory);border-radius:8px;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;}
+.app-modal-doorpw-label{font-size:8px;color:var(--text2);}
+.app-modal-doorpw-val{font-size:14px;font-weight:700;letter-spacing:4px;}
+.app-status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:0 8px 6px;}
+.app-status-opt{padding:5px 2px;border-radius:6px;font-size:9px;font-weight:600;text-align:center;border:0.5px solid var(--border);}
+.so-yw{background:var(--yellow);color:var(--yellow-t);border-color:#FCD34D;}
+.so-pk{background:var(--pink);color:var(--pink-t);border-color:#F5B7CC;}
+.so-sg{background:var(--sage);color:var(--sage-t);border-color:#D8E8C8;}
+.so-pu{background:var(--purple);color:var(--purple-t);border-color:#CECBF6;outline:2px solid var(--navy);}
+.so-gd{background:var(--green-dark);color:var(--green-dark-t);border-color:#82C896;}
+.so-bl{background:var(--blue);color:var(--blue-t);border-color:#B5D4F4;}
+.app-toggle-row{display:grid;grid-template-columns:1fr 1fr;margin:0 8px 6px;border-radius:8px;overflow:hidden;border:0.5px solid var(--border);}
+.app-toggle-half{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:8px;font-weight:600;}
+.app-toggle-half.left{background:var(--gray);color:#4A4845;border-right:0.5px solid var(--border);}
+.app-toggle-half.right{background:var(--yellow);color:#92400E;}
+.app-toggle-sw{width:24px;height:13px;background:#D1D5DB;border-radius:10px;position:relative;flex-shrink:0;}
+.app-toggle-sw.on{background:#F59E0B;}
+.app-toggle-knob{width:10px;height:10px;background:#fff;border-radius:50%;position:absolute;top:1.5px;left:1.5px;}
+.app-toggle-sw.on .app-toggle-knob{left:12.5px;}
+.app-booking-cur{background:var(--blue);border:0.5px solid #B5D4F4;border-radius:8px;margin:0 8px 6px;padding:8px 10px;}
+.app-booking-nxt{background:var(--yellow);border:0.5px solid #FCD34D;border-radius:8px;margin:0 8px 6px;padding:8px 10px;}
+.app-booking-guest{font-size:11px;font-weight:700;color:var(--text);}
+.app-booking-date{font-size:9px;color:var(--text2);margin-top:2px;}
+.app-booking-time{font-size:10px;font-weight:700;color:#c0392b;margin-top:2px;}
+.app-booking-note{font-size:9px;color:#c0392b;font-weight:600;margin-top:2px;}
+.app-supply-section{margin:0 8px 6px;padding:8px 10px;background:var(--ivory);border-radius:8px;border:0.5px solid var(--border);}
+.app-supply-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+.app-supply-input{flex:1;background:#fff;border:0.5px solid var(--border);border-radius:4px;padding:3px 6px;font-size:9px;color:var(--text);}
+.app-supply-btn-confirm{background:#EAF3DE;border:0.5px solid #C0DD97;border-radius:4px;padding:3px 6px;font-size:9px;color:#27500A;}
+.app-notice{background:#fff;border:0.5px solid var(--border);border-radius:8px;margin:6px 8px;padding:8px 10px;}
+.app-notice-label{font-size:8px;font-weight:700;color:var(--navy);margin-bottom:2px;}
+.app-notice-text{font-size:11px;font-weight:700;color:var(--text);}
+.app-supply-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-bottom:0.5px solid var(--border);}
+.app-supply-dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--border);flex-shrink:0;}
+.app-supply-dot.done{background:#639922;border-color:#639922;}
+.app-supply-name{font-size:11px;color:var(--text);}
+.app-login{padding:24px 16px;text-align:center;}
+.app-login-brand{font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin-bottom:6px;}
+.app-login-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:16px;}
+.app-login-pw{border:0.5px solid var(--border);border-radius:8px;padding:10px;font-size:18px;letter-spacing:8px;text-align:center;color:var(--text2);margin-bottom:8px;background:#fff;}
+.app-login-btn{background:var(--navy);color:#E6F1FB;border-radius:8px;padding:10px;font-size:12px;font-weight:700;width:100%;}
+.app-auto-btn{background:var(--ivory);border:0.5px solid var(--border);border-radius:8px;padding:8px;font-size:11px;font-weight:600;width:100%;margin-top:6px;color:var(--text);}
+.app-log-item{padding:8px 10px;border-bottom:0.5px solid var(--border);}
+.app-log-who{font-size:10px;font-weight:700;color:var(--navy);}
+.app-log-what{font-size:11px;color:var(--text);margin-top:1px;}
+.app-log-when{font-size:9px;color:var(--text3);}
+/* 라벨 오버레이 */
+.label-overlay{position:absolute;z-index:10;}
+.label-tag{background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;}
+.label-line{display:flex;align-items:center;gap:4px;}
+.label-dot{width:6px;height:6px;border-radius:50%;background:var(--navy);flex-shrink:0;}
+.label-connector{width:1px;background:var(--navy);opacity:.5;}
+@media(max-width:480px){.cover h1{font-size:24px;}}
+</style>
+</head>
+<body>
+
+<div class="lang-bar">
+  <div class="logo">PWR Housekeeping</div>
+  <div class="lang-btns">
+    <button class="active" onclick="setLang('ko',this)">한국어</button>
+    <button onclick="setLang('en',this)">English</button>
+  </div>
+</div>
+
+<!-- ══════════════ 한국어 ══════════════ -->
+<div class="lang active" id="lang-ko">
+  <div class="cover">
+    <div class="eyebrow">Paradise Walk Residence</div>
+    <h1>Housekeeping<br>사용자 매뉴얼</h1>
+    <div class="sub">하우스키핑 팀을 위한 객실 관리 시스템 안내서</div>
+    <div class="url-chip">pwr-clair.github.io/housekeeping</div>
+  </div>
+
+  <div class="content">
+
+    <!-- 1. 로그인 -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">1</div><div class="section-title">로그인</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-lock"></i> 개인 비밀번호로 입장</div>
+        <div class="card-body">각자에게 배정된 개인 비밀번호(4자리)를 입력하면 이름이 자동으로 인식돼요. 모든 변경 내역에 내 이름이 기록되기 때문에 <strong>반드시 본인 비밀번호로만 로그인</strong>해주세요.</div>
+        <div class="tip">💡 한 번 로그인하면 기기가 기억해서, 다음엔 버튼 한 번으로 바로 입장돼요!</div>
+        <div class="warn">⚠️ 비밀번호는 관리자에게 개별 안내됩니다. 타인의 비밀번호로 로그인하지 마세요.</div>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mockup-title">로그인 화면</div>
+        <div class="phone-frame">
+          <div class="app-login">
+            <div class="app-login-brand">Paradise Walk Residence</div>
+            <div class="app-login-title">Housekeeping<br>System</div>
+            <div class="app-login-pw">· · · ·</div>
+            <button class="app-login-btn">입장</button>
+            <button class="app-auto-btn">👤 내 이름으로 입장 (자동로그인)</button>
+            <div style="font-size:9px;color:var(--text3);margin-top:6px;">다른 계정으로 로그인</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 메인 화면 -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">2</div><div class="section-title">메인 화면</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-layout-grid"></i> 화면 구성</div>
+        <div class="card-body">메인 화면은 4가지 영역으로 구성돼 있어요. 아래 화면에서 각 영역을 확인해보세요.</div>
+      </div>
+      <div class="mockup-wrap" style="padding-right:130px;">
+        <div class="mockup-title">메인 화면 — 객실 탭</div>
+        <div class="phone-frame">
+          <div class="app-header">
+            <div class="app-brand">Paradise Walk Residence</div>
+            <div class="app-header-row">
+              <div class="app-title">Housekeeping</div>
+              <div class="app-chip"><div class="app-dot"></div>실시간 연결됨</div>
+            </div>
+            <div class="app-date">2026년 6월 1일 (월)</div>
+          </div>
+          <div class="app-notice">
+            <div class="app-notice-label">📢 공지</div>
+            <div class="app-notice-text">오늘 1031호 에어컨 점검 — 오후 2시 이후 입실 가능</div>
+          </div>
+          <div class="app-tabs" style="grid-template-columns:repeat(5,1fr);">
+            <div class="app-tab active">객실</div>
+            <div class="app-tab">청소</div>
+            <div class="app-tab">비품</div>
+            <div class="app-tab">예약</div>
+            <div class="app-tab">이력</div>
+          </div>
+          <div class="app-counters">
+            <div class="app-counter"><div class="app-counter-num cnt-co">3</div><div class="app-counter-label">오늘퇴실</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-gd">1</div><div class="app-counter-label">청소완료</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-pk">2</div><div class="app-counter-label">오늘입실</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-bl">4</div><div class="app-counter-label">입실중</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-yw">2</div><div class="app-counter-label">내일입실</div></div>
+          </div>
+          <div class="app-floor-label">6F</div>
+          <div class="app-room-grid">
+            <div class="app-room-card rm-checkin"><i class="ti ti-user app-room-icon"></i><div class="app-room-num">620</div><div class="app-room-status">입실중</div><div class="app-room-pw">🔒 1011</div></div>
+            <div class="app-room-card rm-checkout_confirm"><i class="ti ti-clock app-room-icon"></i><div class="app-room-num">628</div><div class="app-room-status">퇴실확인중</div><div class="app-room-pw">🔒 2345</div></div>
+          </div>
+          <div class="app-floor-label">9F</div>
+          <div class="app-room-grid">
+            <div class="app-room-card rm-checkout_done"><i class="ti ti-wash app-room-icon"></i><div class="app-room-num">920</div><div class="app-room-status">청소필요</div><div class="app-room-pw">🔒 4041</div></div>
+            <div class="app-room-card rm-cleaning"><i class="ti ti-sparkles app-room-icon"></i><div class="app-room-num">930</div><div class="app-room-status">청소중</div><div class="app-room-pw">🔒 3032</div></div>
+          </div>
+        </div>
+        <!-- 라벨 -->
+        <div style="position:absolute;right:12px;top:30px;display:flex;flex-direction:column;gap:12px;width:110px;">
+          <div style="display:flex;align-items:center;gap:6px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">① 공지</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:28px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">② 탭</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:12px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">③ 카운터</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:32px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">④ 객실 카드</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">① 공지</div>
+        <div class="card-body">오늘의 중요한 내용을 팀 전체에 공유해요. 상단 네이비 배너로 표시되며, 하루가 지나면 자동으로 지난 공지로 이동돼요.</div>
+        <div class="tip">💡 공지 입력 시 엔터로 줄바꿈하면 메인 화면에도 그대로 반영돼요!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">② 탭</div>
+        <div class="card-body">객실 / 청소 / 비품 / 예약 / 이력 5가지 탭으로 구성돼요. 미처리 비품이 있으면 비품 탭이 핑크색으로 바뀌어요.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">③ 카운터</div>
+        <div class="card-body">오늘 퇴실 · 청소완료 · 오늘 입실 · 입실중 · 내일 입실 건수를 한눈에 확인할 수 있어요.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">④ 객실 카드</div>
+        <div class="card-body">각 방의 현재 상태, 날짜, 도어락 번호를 보여줘요. 카드를 탭하면 상세 관리 화면이 열려요. 관리 객실은 6F(620·628), 9F(920·930), 10F(1031·1037), 12F(1230·1236·1240)이에요.</div>
+      </div>
+    </div>
+
+    <!-- 3. 객실 카드 눌렀을 때 (모달) -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">3</div><div class="section-title">객실 카드를 눌렀을 때</div></div>
+      <div class="card">
+        <div class="card-body">객실 카드를 탭하면 아래 화면이 열려요. 도어락 비밀번호 변경, 객실 상태 변경, 현재 및 다음 예약 확인, 비품 등록 등을 관리할 수 있어요.</div>
+      </div>
+
+      <div class="mockup-wrap">
+        <div class="mockup-title">객실 모달 (920호 예시 — 퇴실확인중)</div>
+        <div class="phone-frame">
+          <div class="app-modal">
+            <!-- 호실 + 도어락 -->
+            <div class="app-modal-top">
+              <div class="app-modal-room rm-checkout_confirm">920호</div>
+              <div class="app-modal-doorpw">
+                <div class="app-modal-doorpw-label">🔒 도어락 비밀번호</div>
+                <div class="app-modal-doorpw-val">4041</div>
+              </div>
+            </div>
+            <!-- 상태 -->
+            <div style="font-size:8px;color:var(--text2);padding:0 8px 4px;">객실 상태</div>
+            <div class="app-status-grid">
+              <div class="app-status-opt so-yw">🧺 청소필요</div>
+              <div class="app-status-opt so-pk">✨ 청소중</div>
+              <div class="app-status-opt so-sg">✓ 청소완료</div>
+              <div class="app-status-opt so-pu">🕐 퇴실확인중</div>
+              <div class="app-status-opt so-gd">🚪 퇴실완료</div>
+              <div class="app-status-opt so-bl">👤 입실중</div>
+            </div>
+            <!-- 현재 예약 -->
+            <div style="font-size:8px;color:var(--text2);padding:0 8px 4px;">현재 예약</div>
+            <div class="app-booking-cur">
+              <div style="display:flex;justify-content:space-between;align-items:start;">
+                <div>
+                  <div class="app-booking-guest">이윤지</div>
+                  <div class="app-booking-date">05/30 → 06/01</div>
+                  <div class="app-booking-time">IN 14:00</div>
+                  <div class="app-booking-note">⚠ 주차 요청</div>
+                </div>
+                <div style="display:flex;gap:3px;">
+                  <div style="width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;">✏️</div>
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);border:0.5px solid #B5D4F4;display:flex;align-items:center;justify-content:center;font-size:9px;">↔</div>
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--pink);border:0.5px solid #F5B7CC;display:flex;align-items:center;justify-content:center;font-size:9px;">🗑</div>
+                </div>
+              </div>
+            </div>
+            <!-- 다음 예약 -->
+            <div style="font-size:8px;color:var(--text2);padding:0 8px 4px;">다음 예약 <span style="opacity:.6;">(최대 3개)</span></div>
+            <div class="app-booking-nxt">
+              <div style="display:flex;justify-content:space-between;align-items:start;">
+                <div>
+                  <div class="app-booking-guest">Yuh Iwamoto</div>
+                  <div class="app-booking-date">06/02 → 06/05</div>
+                  <div class="app-booking-time">OUT 10:00</div>
+                </div>
+                <div style="display:flex;gap:3px;">
+                  <div style="width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;">✏️</div>
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);border:0.5px solid #B5D4F4;display:flex;align-items:center;justify-content:center;font-size:9px;">↔</div>
+                  <div style="width:20px;height:20px;border-radius:50%;background:var(--pink);border:0.5px solid #F5B7CC;display:flex;align-items:center;justify-content:center;font-size:9px;">🗑</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin:0 8px 6px;border:0.5px dashed var(--border);border-radius:6px;padding:5px;text-align:center;font-size:9px;color:var(--text3);">+ 다음 예약 추가</div>
+            <!-- 토글 -->
+            <div class="app-toggle-row">
+              <div class="app-toggle-half left"><span>🔧 객실정비중</span><div class="app-toggle-sw"><div class="app-toggle-knob"></div></div></div>
+              <div class="app-toggle-half right"><span>E 얼리</span><div class="app-toggle-sw on"><div class="app-toggle-knob"></div></div></div>
+            </div>
+            <!-- 청소 담당자 -->
+            <div style="margin:0 8px 6px;background:var(--ivory);border-radius:6px;padding:6px 10px;font-size:8px;color:var(--text2);">청소 담당자: <span style="font-weight:700;color:var(--text);">최은주 ▾</span></div>
+            <!-- 비품 -->
+            <div style="font-size:8px;color:var(--text2);padding:0 8px 4px;">비품 메모</div>
+            <div class="app-supply-section">
+              <div class="app-supply-row">
+                <div class="app-supply-input">샴푸 2개</div>
+                <div class="app-supply-btn-confirm">✓</div>
+                <div style="font-size:9px;padding:3px 5px;background:#fff;border:0.5px solid var(--border);border-radius:4px;color:var(--text2);">✕</div>
+              </div>
+              <div style="border:0.5px dashed var(--border);border-radius:4px;padding:4px;text-align:center;font-size:8px;color:var(--text3);">+ 비품 추가</div>
+            </div>
+            <!-- 저장/닫기 -->
+            <div style="display:flex;gap:5px;padding:6px 8px 8px;">
+              <div style="flex:1;background:var(--navy);color:#E6F1FB;border-radius:6px;padding:8px;font-size:10px;font-weight:700;text-align:center;">✓ 저장</div>
+              <div style="flex:1;background:#fff;border:0.5px solid var(--border);border-radius:6px;padding:8px;font-size:10px;font-weight:700;text-align:center;color:var(--text2);">닫기</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">🔒 도어락 비밀번호</div>
+        <div class="card-body">청소 완료 후 매일 비밀번호를 변경해요. 새 번호를 입력하고 저장 버튼을 누르면 업데이트돼요.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🎨 객실 상태 변경</div>
+        <div class="card-body">6가지 상태 중 현재 상황에 맞는 것을 선택해요. 퇴실 후에는 청소필요 → 청소중 → 청소완료 순서로 변경해주세요.</div>
+        <div class="tip">💡 오전 11시, 낮 12시에는 자동으로 상태가 바뀌어요. 직접 누르지 않아도 돼요!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📅 현재 / 다음 예약</div>
+        <div class="card-body">현재 투숙객 정보(파란 카드)와 다음 예약(노란 카드)을 확인할 수 있어요. 특이사항(⚠)이 있으면 빨간색으로 표시돼요. 각 예약 카드 오른쪽의 버튼으로 수정·방이동·삭제가 가능해요.</div>
+        <div class="tip">💡 ⠿ 아이콘을 드래그하면 다음 예약 순서를 바꿀 수 있어요. 현재예약 ↔ 다음예약[1번] 사이도 드래그로 교체 가능해요!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔧 객실정비중 / E 얼리 토글</div>
+        <div class="card-body">
+          <strong>객실정비중</strong> — 수리·점검 등으로 사용 불가한 경우 켜두세요. 메인 카드에 정비중 표시가 떠요.<br><br>
+          <strong>E 얼리</strong> — 기본 체크인 시간(15:00)보다 일찍 입실하는 손님이면 켜두세요. 카드에 노란 E 배지가 떠요.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">👤 청소 담당자</div>
+        <div class="card-body">이 방의 청소를 맡은 담당자를 지정해요. 청소 탭에서 담당자별로 체크리스트가 표시돼요.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📦 비품 메모</div>
+        <div class="card-body">부족한 비품을 입력해두면 비품 탭에서 한눈에 확인하고 처리할 수 있어요.</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">+ 비품 추가 버튼 탭</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">비품명 입력 후 ✓ 버튼 탭하거나 엔터</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">저장 버튼 탭 → 비품 탭에 반영됨</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 객실 상태 종류 -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">4</div><div class="section-title">객실 상태 종류</div></div>
+      <div class="card">
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-yw" style="min-width:90px;justify-content:center;">🧺 청소필요</span><span style="font-size:12px;color:var(--text2);">퇴실 후 청소가 필요한 상태. 오전 11~12시 자동 전환.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-pk" style="min-width:90px;justify-content:center;">✨ 청소중</span><span style="font-size:12px;color:var(--text2);">청소 진행 중. 직접 변경해주세요.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-sg" style="min-width:90px;justify-content:center;">✓ 청소완료</span><span style="font-size:12px;color:var(--text2);">청소 완료, 입실 준비됨. 체크리스트 전체 체크 시 자동 변경.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-purple" style="min-width:90px;justify-content:center;">🕐 퇴실확인중</span><span style="font-size:12px;color:var(--text2);">퇴실 여부 확인 중. 오전 11시 자동 전환.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-gd" style="min-width:90px;justify-content:center;">🚪 퇴실완료</span><span style="font-size:12px;color:var(--text2);">고객이 이미 퇴실한 상태.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-blue" style="min-width:90px;justify-content:center;">👤 입실중</span><span style="font-size:12px;color:var(--text2);">현재 투숙 중.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-gr" style="min-width:90px;justify-content:center;">🔧 객실정비중</span><span style="font-size:12px;color:var(--text2);">수리·점검 등으로 사용 불가. 토글로 설정.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-clock"></i> 자동 상태 변경 흐름</div>
+        <div class="flow">
+          <span class="badge b-blue">입실중</span>
+          <span class="flow-arrow">→</span><span class="flow-time">오전 11:00</span><span class="flow-arrow">→</span>
+          <span class="badge b-purple">퇴실확인중</span>
+          <span class="flow-arrow">→</span><span class="flow-time">낮 12:00</span><span class="flow-arrow">→</span>
+          <span class="badge b-yw">청소필요</span>
+        </div>
+        <div class="tip">💡 이미 퇴실완료 상태인 방은 오전 11시에 바로 청소필요로 바뀌어요.</div>
+      </div>
+    </div>
+
+    <!-- 5. 비품 탭 -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">5</div><div class="section-title">비품 탭</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-clipboard-list"></i> 비품 탭이란?</div>
+        <div class="card-body">각 방에서 등록한 부족 비품을 한 화면에서 모아 볼 수 있어요. 처리 완료한 비품은 체크하거나 삭제하면 돼요.</div>
+        <div class="warn">⚠️ 미처리 비품이 있으면 탭이 핑크색으로 바뀌고 빨간 점이 표시돼요!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">비품 등록하는 방법</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">메인 화면에서 해당 객실 카드 탭</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">모달 하단 "비품 메모" 섹션 → <strong>+ 비품 추가</strong> 탭</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">부족한 비품명 입력 (예: 샴푸 2개, 수건 3장) → ✓ 버튼 탭하거나 엔터</div></div>
+          <div class="step"><div class="step-n">4</div><div class="step-t">하단 <strong>저장</strong> 버튼 탭 → 비품 탭에 자동 반영</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">비품 처리하는 방법</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">상단 <strong>비품 탭</strong> 탭 (핑크색이면 미처리 있음)</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">방별로 비품 목록이 표시됨</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">비품을 보충했으면 항목을 탭해서 ✓ 체크</div></div>
+          <div class="step"><div class="step-n">4</div><div class="step-t">X 버튼으로 개별 삭제, 또는 모두 체크 후 "완료 항목 삭제"</div></div>
+        </div>
+        <div class="tip">💡 비품이 모두 처리되면 탭 색상이 자동으로 원래대로 돌아와요!</div>
+      </div>
+
+      <div class="mockup-wrap">
+        <div class="mockup-title">비품 탭 화면</div>
+        <div class="phone-frame">
+          <div class="app-tabs" style="grid-template-columns:repeat(5,1fr);margin-bottom:0;">
+            <div class="app-tab">객실</div>
+            <div class="app-tab">청소</div>
+            <div class="app-tab active" style="background:var(--pink);color:var(--pink-t);border-color:#F5B7CC;position:relative;">비품<span style="position:absolute;top:3px;right:3px;width:5px;height:5px;background:#c0392b;border-radius:50%;display:block;"></span></div>
+            <div class="app-tab">예약</div>
+            <div class="app-tab">이력</div>
+          </div>
+          <div style="padding:8px;">
+            <div style="background:#fff;border:0.5px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+              <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px;">920호</div>
+              <div class="app-supply-item"><div class="app-supply-dot"></div><div class="app-supply-name">샴푸 2개</div><div style="margin-left:auto;font-size:9px;color:var(--text3);">✕</div></div>
+              <div class="app-supply-item"><div class="app-supply-dot done"></div><div class="app-supply-name" style="text-decoration:line-through;opacity:.5;">수건 3장</div><div style="margin-left:auto;font-size:9px;color:var(--text3);">✕</div></div>
+            </div>
+            <div style="background:#fff;border:0.5px solid var(--border);border-radius:8px;padding:8px 10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);">1037호</div>
+                <div style="font-size:9px;background:var(--sage);color:var(--sage-t);border-radius:100px;padding:2px 7px;font-weight:600;">완료</div>
+              </div>
+              <div class="app-supply-item"><div class="app-supply-dot done"></div><div class="app-supply-name" style="text-decoration:line-through;opacity:.5;">미니바 생수</div><div style="margin-left:auto;font-size:9px;color:var(--text3);">✕</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5-1. 예약 탭 -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">5</div><div class="section-title">예약 탭 — Upcoming</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-calendar-event"></i> 예약 탭이란?</div>
+        <div class="card-body">모든 객실의 현재 및 다음 예약을 날짜순으로 한눈에 볼 수 있어요. 이름 · 날짜 · 호실 형식으로 표시되며, 오늘/내일 예약은 별도 표시돼요.</div>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mockup-title">예약 탭 화면</div>
+        <div class="phone-frame">
+          <div class="app-tabs" style="grid-template-columns:repeat(5,1fr);margin-bottom:0;">
+            <div class="app-tab">객실</div>
+            <div class="app-tab">청소</div>
+            <div class="app-tab">비품</div>
+            <div class="app-tab active">예약</div>
+            <div class="app-tab">이력</div>
+          </div>
+          <div style="padding:10px 8px;display:flex;flex-direction:column;gap:6px;">
+            <div>
+              <div style="font-size:9px;font-weight:700;color:var(--text2);padding:2px 0 4px;letter-spacing:.04em;">오늘 · 06/02</div>
+              <div style="display:flex;align-items:center;gap:8px;background:var(--blue);border-radius:6px;padding:7px 10px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);min-width:48px;">Lee, Yunji</div>
+                <div style="flex:1;font-size:9px;color:var(--text2);">06/02 → 06/04</div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);background:var(--ivory);border-radius:5px;padding:2px 7px;">620호</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;color:var(--text2);padding:2px 0 4px;letter-spacing:.04em;">내일 · 06/03</div>
+              <div style="display:flex;align-items:center;gap:8px;background:var(--sage);border-radius:6px;padding:7px 10px;margin-bottom:4px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);min-width:48px;">Hammad, A.</div>
+                <div style="flex:1;font-size:9px;color:var(--text2);">06/03 → 06/05</div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);background:var(--ivory);border-radius:5px;padding:2px 7px;">920호</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;background:var(--sage);border-radius:6px;padding:7px 10px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);min-width:48px;">Iwamoto, Y.</div>
+                <div style="flex:1;font-size:9px;color:var(--text2);">06/03 → 06/06</div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);background:var(--ivory);border-radius:5px;padding:2px 7px;">1037호</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 변경 알림 (번호 조정) -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">6</div><div class="section-title">변경 알림</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-bell"></i> 변경 로그</div>
+        <div class="card-body">상단 🔔 벨 아이콘을 누르면 누가 언제 어떤 방을 어떤 상태로 바꿨는지 확인할 수 있어요. 다른 팀원이 변경하면 빨간 점이 떠요.</div>
+        <div class="tip">💡 내가 바꾼 건 내 화면에 알림이 안 떠요. 다른 팀원의 변경사항만 표시돼요.</div>
+      </div>
+    </div>
+
+    <!-- 7. 홈화면 추가 -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">7</div><div class="section-title">앱처럼 사용하기 (아이폰)</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-device-mobile"></i> 홈 화면에 추가하면 앱처럼 사용 가능해요</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">Safari에서 <strong>pwr-clair.github.io/housekeeping</strong> 접속</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">하단 공유 버튼 📤 탭</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">"홈 화면에 추가" 탭</div></div>
+          <div class="step"><div class="step-n">4</div><div class="step-t">추가 버튼 탭 → 홈 화면에 PWR 아이콘 생성!</div></div>
+        </div>
+        <div class="tip">💡 한 번 추가하면 앱 업데이트 시에도 삭제하고 다시 추가할 필요 없어요!</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ English ══════════════ -->
+<div class="lang" id="lang-en">
+  <div class="cover">
+    <div class="eyebrow">Paradise Walk Residence</div>
+    <h1>Housekeeping<br>User Manual</h1>
+    <div class="sub">Room Management System Guide for the Housekeeping Team</div>
+    <div class="url-chip">pwr-clair.github.io/housekeeping</div>
+  </div>
+
+  <div class="content">
+
+    <!-- 1. Login -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">1</div><div class="section-title">Login</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-lock"></i> Personal Password Login</div>
+        <div class="card-body">Enter your personal 4-digit password to be recognized by name. All changes are recorded under your name, so <strong>always use your own password only.</strong></div>
+        <div class="tip">💡 Once logged in, your device remembers you — just tap once to enter next time!</div>
+        <div class="warn">⚠️ Your password will be given to you individually by the manager. Never log in with someone else's password.</div>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mockup-title">Login Screen</div>
+        <div class="phone-frame">
+          <div class="app-login">
+            <div class="app-login-brand">Paradise Walk Residence</div>
+            <div class="app-login-title">Housekeeping<br>System</div>
+            <div class="app-login-pw">· · · ·</div>
+            <button class="app-login-btn">Enter</button>
+            <button class="app-auto-btn">👤 Enter as [My Name] (Auto-login)</button>
+            <div style="font-size:9px;color:var(--text3);margin-top:6px;">Log in with a different account</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Main Screen -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">2</div><div class="section-title">Main Screen</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-layout-grid"></i> Screen Layout</div>
+        <div class="card-body">The main screen has 4 areas. See the labels on the screen below to identify each one.</div>
+      </div>
+      <div class="mockup-wrap" style="padding-right:130px;">
+        <div class="mockup-title">Main Screen — Rooms Tab</div>
+        <div class="phone-frame">
+          <div class="app-header">
+            <div class="app-brand">Paradise Walk Residence</div>
+            <div class="app-header-row">
+              <div class="app-title">Housekeeping</div>
+              <div class="app-chip"><div class="app-dot"></div>Connected</div>
+            </div>
+            <div class="app-date">June 1, 2026 (Mon)</div>
+          </div>
+          <div class="app-notice">
+            <div class="app-notice-label">📢 Notice</div>
+            <div class="app-notice-text">Room 1031 A/C check today — check-in available after 2 PM</div>
+          </div>
+          <div class="app-tabs" style="grid-template-columns:repeat(5,1fr);">
+            <div class="app-tab active">Rooms</div>
+            <div class="app-tab">Clean</div>
+            <div class="app-tab">Supply</div>
+            <div class="app-tab">Bookings</div>
+            <div class="app-tab">History</div>
+          </div>
+          <div class="app-counters">
+            <div class="app-counter"><div class="app-counter-num cnt-co">3</div><div class="app-counter-label">Checkout</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-gd">1</div><div class="app-counter-label">Clean Done</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-pk">2</div><div class="app-counter-label">Check-in</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-bl">4</div><div class="app-counter-label">Occupied</div></div>
+            <div class="app-counter"><div class="app-counter-num cnt-yw">2</div><div class="app-counter-label">Tomorrow</div></div>
+          </div>
+          <div class="app-floor-label">6F</div>
+          <div class="app-room-grid">
+            <div class="app-room-card rm-checkin"><i class="ti ti-user app-room-icon"></i><div class="app-room-num">620</div><div class="app-room-status">Occupied</div><div class="app-room-pw">🔒 1011</div></div>
+            <div class="app-room-card rm-checkout_confirm"><i class="ti ti-clock app-room-icon"></i><div class="app-room-num">628</div><div class="app-room-status">Checkout Chk</div><div class="app-room-pw">🔒 2345</div></div>
+          </div>
+          <div class="app-floor-label">9F</div>
+          <div class="app-room-grid">
+            <div class="app-room-card rm-checkout_done"><i class="ti ti-wash app-room-icon"></i><div class="app-room-num">920</div><div class="app-room-status">Needs Clean</div><div class="app-room-pw">🔒 4041</div></div>
+            <div class="app-room-card rm-cleaning"><i class="ti ti-sparkles app-room-icon"></i><div class="app-room-num">930</div><div class="app-room-status">Cleaning</div><div class="app-room-pw">🔒 3032</div></div>
+          </div>
+        </div>
+        <div style="position:absolute;right:12px;top:30px;display:flex;flex-direction:column;gap:12px;width:110px;">
+          <div style="display:flex;align-items:center;gap:6px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">① Notice</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:28px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">② Tabs</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:12px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">③ Counters</span></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:32px;"><div style="width:20px;height:1px;background:var(--navy);opacity:.5;"></div><span style="background:var(--navy);color:#E6F1FB;font-size:9px;font-weight:700;padding:3px 8px;border-radius:100px;white-space:nowrap;">④ Room Cards</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">① Notice</div>
+        <div class="card-body">Important info shared with the whole team. Shown as a bold banner at the top. Auto-archives after the day ends.</div>
+        <div class="tip">💡 Line breaks in notices are reflected on the main screen exactly as typed!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">② Tabs</div>
+        <div class="card-body">Rooms / Cleaning / Supplies / Bookings / History — 5 tabs total. The Supplies tab turns pink when there are unresolved requests.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">③ Counters</div>
+        <div class="card-body">Quick overview: today's checkouts, cleaning done, today's check-ins, occupied rooms, and tomorrow's arrivals.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">④ Room Cards</div>
+        <div class="card-body">Shows each room's status, dates, and door code. Tap a card to open the detail management screen. Managed rooms: 6F (620·628), 9F (920·930), 10F (1031·1037), 12F (1230·1236·1240).</div>
+      </div>
+    </div>
+
+    <!-- 3. Room Modal -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">3</div><div class="section-title">Tapping a Room Card</div></div>
+      <div class="card">
+        <div class="card-body">Tap any room card to open the detail screen. From here you can change the door code, update room status, view reservations, and manage supply requests.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔒 Door Lock Code</div>
+        <div class="card-body">Change the door code after every cleaning. Type the new code and tap Save.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🎨 Room Status</div>
+        <div class="card-body">Select the correct status from 6 options. After checkout, change in order: Needs Cleaning → Cleaning → Clean.</div>
+        <div class="tip">💡 Status changes automatically at 11 AM and 12 PM on checkout day!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📅 Current / Next Reservations</div>
+        <div class="card-body">Blue card = current guest. Yellow card = upcoming booking. Special notes appear in red (⚠). Use the buttons on each card to edit, move to another room, or delete.</div>
+        <div class="tip">💡 Drag the ⠿ icon to reorder upcoming bookings. You can also swap the current booking ↔ first upcoming booking by dragging!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔧 Maintenance / E Early Toggles</div>
+        <div class="card-body">
+          <strong>Maintenance</strong> — Turn on when the room is under repair and unavailable.<br><br>
+          <strong>E Early</strong> — Turn on for guests checking in before the standard 3 PM time. A yellow E badge appears on the card.
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">👤 Cleaning Assignee</div>
+        <div class="card-body">Assign the cleaner responsible for this room. They'll see it in their checklist on the Cleaning tab.</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📦 Supply Memo</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">Tap "+ Add Supply" at the bottom of the room modal</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">Type the item (e.g. "2 shampoos") → tap ✓ or press Enter</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">Tap Save → appears in the Supplies tab</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Room Status Types -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">4</div><div class="section-title">Room Status Types</div></div>
+      <div class="card">
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-yw" style="min-width:110px;justify-content:center;">🧺 Needs Cleaning</span><span style="font-size:12px;color:var(--text2);">After checkout. Auto-changes 11 AM–12 PM.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-pk" style="min-width:110px;justify-content:center;">✨ Cleaning</span><span style="font-size:12px;color:var(--text2);">Cleaning in progress.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-sg" style="min-width:110px;justify-content:center;">✓ Clean</span><span style="font-size:12px;color:var(--text2);">Ready for next guest. Auto when checklist done.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-purple" style="min-width:110px;justify-content:center;">🕐 Checkout Check</span><span style="font-size:12px;color:var(--text2);">Checking if guest has left. Auto at 11 AM.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-gd" style="min-width:110px;justify-content:center;">🚪 Checked Out</span><span style="font-size:12px;color:var(--text2);">Guest has already left.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-blue" style="min-width:110px;justify-content:center;">👤 Occupied</span><span style="font-size:12px;color:var(--text2);">Guest currently staying.</span></div>
+            <div style="display:flex;align-items:center;gap:10px;"><span class="badge b-gr" style="min-width:110px;justify-content:center;">🔧 Maintenance</span><span style="font-size:12px;color:var(--text2);">Under repair, unavailable.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-clock"></i> Automatic Status Flow</div>
+        <div class="flow">
+          <span class="badge b-blue">Occupied</span>
+          <span class="flow-arrow">→</span><span class="flow-time">11:00 AM</span><span class="flow-arrow">→</span>
+          <span class="badge b-purple">Checkout Check</span>
+          <span class="flow-arrow">→</span><span class="flow-time">12:00 PM</span><span class="flow-arrow">→</span>
+          <span class="badge b-yw">Needs Cleaning</span>
+        </div>
+        <div class="tip">💡 Rooms already "Checked Out" skip straight to "Needs Cleaning" at 11 AM.</div>
+      </div>
+    </div>
+
+    <!-- 5. Supplies Tab -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">5</div><div class="section-title">Supplies Tab</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-clipboard-list"></i> What is the Supplies Tab?</div>
+        <div class="card-body">All supply requests from every room are collected here in one view. Check off or delete items once handled.</div>
+        <div class="warn">⚠️ When there are unresolved supplies, the tab turns pink with a red dot!</div>
+      </div>
+      <div class="card">
+        <div class="card-title">How to Add a Supply Request</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">Tap the room card on the main screen</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">Scroll to "Supply Memo" → tap <strong>+ Add Supply</strong></div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">Type the item name → tap ✓ or press Enter</div></div>
+          <div class="step"><div class="step-n">4</div><div class="step-t">Tap <strong>Save</strong> → automatically appears in Supplies tab</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">How to Process Supplies</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">Tap the <strong>Supplies tab</strong> (pink = unresolved items)</div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">Supply list is shown by room</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">Tap an item to check ✓ when restocked</div></div>
+          <div class="step"><div class="step-n">4</div><div class="step-t">Tap X to delete, or tap "Delete completed" to clear all done items</div></div>
+        </div>
+        <div class="tip">💡 When all items are handled, the tab returns to its normal color automatically!</div>
+      </div>
+    </div>
+
+    <!-- 5-1. Bookings Tab -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">5</div><div class="section-title">Bookings Tab — Upcoming</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-calendar-event"></i> What is the Bookings Tab?</div>
+        <div class="card-body">See all current and upcoming reservations across every room in one place, sorted by date. Shown as Name · Dates · Room. Today's and tomorrow's arrivals are highlighted.</div>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mockup-title">Bookings Tab</div>
+        <div class="phone-frame">
+          <div class="app-tabs" style="grid-template-columns:repeat(5,1fr);margin-bottom:0;">
+            <div class="app-tab">Rooms</div>
+            <div class="app-tab">Clean</div>
+            <div class="app-tab">Supply</div>
+            <div class="app-tab active">Bookings</div>
+            <div class="app-tab">History</div>
+          </div>
+          <div style="padding:10px 8px;display:flex;flex-direction:column;gap:6px;">
+            <div>
+              <div style="font-size:9px;font-weight:700;color:var(--text2);padding:2px 0 4px;letter-spacing:.04em;">Today · 06/02</div>
+              <div style="display:flex;align-items:center;gap:8px;background:var(--blue);border-radius:6px;padding:7px 10px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);min-width:48px;">Lee, Yunji</div>
+                <div style="flex:1;font-size:9px;color:var(--text2);">06/02 → 06/04</div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);background:var(--ivory);border-radius:5px;padding:2px 7px;">Rm 620</div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:9px;font-weight:700;color:var(--text2);padding:2px 0 4px;letter-spacing:.04em;">Tomorrow · 06/03</div>
+              <div style="display:flex;align-items:center;gap:8px;background:var(--sage);border-radius:6px;padding:7px 10px;margin-bottom:4px;">
+                <div style="font-size:11px;font-weight:700;color:var(--text);min-width:48px;">Hammad, A.</div>
+                <div style="flex:1;font-size:9px;color:var(--text2);">06/03 → 06/05</div>
+                <div style="font-size:10px;font-weight:700;color:var(--text3);background:var(--ivory);border-radius:5px;padding:2px 7px;">Rm 920</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Change Alerts -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">6</div><div class="section-title">Change Alerts</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-bell"></i> Change Log</div>
+        <div class="card-body">Tap the 🔔 bell icon at the top to see who changed what room and when. A red dot appears when a teammate makes a change.</div>
+        <div class="tip">💡 Your own changes won't show as alerts — only changes made by other team members.</div>
+      </div>
+    </div>
+
+    <!-- 7. Add to Home -->
+    <div class="section">
+      <div class="section-header"><div class="section-num">7</div><div class="section-title">Using as an App (iPhone)</div></div>
+      <div class="card">
+        <div class="card-title"><i class="ti ti-device-mobile"></i> Add to Home Screen</div>
+        <div class="steps">
+          <div class="step"><div class="step-n">1</div><div class="step-t">Open Safari → go to <strong>pwr-clair.github.io/housekeeping</strong></div></div>
+          <div class="step"><div class="step-n">2</div><div class="step-t">Tap the Share button 📤 at the bottom</div></div>
+          <div class="step"><div class="step-n">3</div><div class="step-t">Tap "Add to Home Screen"</div></div>
+          <div class="step"><div class="step-n">4</div><div class="step-t">Tap Add → PWR icon appears on your home screen!</div></div>
+        </div>
+        <div class="tip">💡 No need to re-add when the app is updated — the icon stays the same!</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function setLang(lang,btn){
+  document.querySelectorAll('.lang').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.lang-btns button').forEach(el=>el.classList.remove('active'));
+  document.getElementById('lang-'+lang).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>
