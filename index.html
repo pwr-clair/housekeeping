@@ -2495,7 +2495,7 @@ function renderSendTab(){
   const mkRow=(num,bk,isToday)=>{
     const r=rooms[num]||{};
     const sentKey=num+'_'+today;
-    const isSent=checkedSentSet.has(sentKey)||logHit(bk.bookingId,'s3_checkin');
+    const isSent=(isToday&&checkedSentSet.has(sentKey))||logHit(bk.bookingId,'s3_checkin')||logHit(bk.bookingId,'s34_combined');
     const isEarly=bk.checkinTime&&bk.checkinTime<'15:00';
     const bid=bk.bookingId||'';
     // 청소완료면 호실 비리디안, 아니면 남색
