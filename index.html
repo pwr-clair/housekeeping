@@ -350,6 +350,29 @@ input,select,button,textarea{font-family:inherit;}
     </div>
   </div>
 
+  <!-- 입실안내 미리보기 모달 -->
+  <div class="modal-overlay" id="checkin-preview-modal" onclick="if(event.target===this)closeModal('checkin-preview-modal')">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">
+        <div id="cpv-title" style="font-size:14px;font-weight:700;color:var(--text);line-height:1.4;"></div>
+        <button onclick="closeModal('checkin-preview-modal')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:0;flex-shrink:0;"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="cpv-warn" style="display:none;background:#FEF3C7;color:#92400E;border:0.5px solid #F0D98A;border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;font-weight:600;margin-bottom:10px;">⚠️ 이미 발송됨 — 발송 시 재발송됩니다</div>
+      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">제목</div>
+      <input type="text" id="cpv-subject" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">한국어 본문</div>
+      <textarea id="cpv-bodyko" style="width:100%;height:240px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
+      <div id="cpv-bodyen-wrap" style="display:none;">
+        <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">영문 본문</div>
+        <textarea id="cpv-bodyen" style="width:100%;height:200px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="sendCheckinPreview()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">발송</button>
+        <button onclick="closeModal('checkin-preview-modal')" style="flex:1;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">취소</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 객실 모달 -->
   <div class="modal-overlay" id="room-modal" onclick="if(event.target===this)closeModal('room-modal')">
     <div class="modal">
@@ -2479,7 +2502,7 @@ function renderSendTab(){
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
     const Rc='#185FA5',I='#185FA5';
     const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'manualStage(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
-    const lblCheckin=stageLabel('입실',isSent,(isToday&&bk.guestEmail)?'manualSend(\''+num+'\',false)':'',I,'내일 발송 가능');
+    const lblCheckin=stageLabel('입실',isSent,(isToday&&bk.guestEmail)?'openCheckinPreview(\''+num+'\')':'',I,'내일 발송 가능');
     const waSt='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;background:#042C53;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
     const ph=cleanPhone(bk.guestPhone);
     let waPart='';
@@ -2597,17 +2620,48 @@ async function dismissCancelled(key){
 }
 window.dismissCancelled=dismissCancelled;
 
-async function manualSend(num,isResend){
+// 입실안내: '입실' 클릭 → 미리보기·편집 모달 → 편집본 저장 후 발송
+let checkinPreviewRoom=null,checkinPreviewAlreadySent=false;
+async function openCheckinPreview(num){
   if(GAS_URL.indexOf('http')!==0){alert('GAS_URL이 설정되지 않았어요. index.html 상단의 GAS_URL을 교체해주세요.');return;}
-  if(isResend&&!confirm(num+'호에 입실안내를 다시 보낼까요?'))return;
-  if(!isResend&&!confirm(num+'호에 입실안내를 지금 발송할까요?'))return;
+  let data;
   try{
-    const res=await fetch(GAS_URL+'?action=sendRoom&room='+num+'&token='+encodeURIComponent(GAS_TOKEN)+(isResend?'&force=1':''));
-    const txt=await res.text();
-    alert(txt);
-  }catch(e){alert('발송 요청 실패: '+e);}
+    const res=await fetch(GAS_URL+'?action=previewRoom&room='+num+'&token='+encodeURIComponent(GAS_TOKEN));
+    data=await res.json();
+  }catch(e){alert('미리보기 요청 실패: '+e);return;}
+  if(!data||!data.ok){alert((data&&data.msg)||'미리보기를 불러오지 못했습니다.');return;}
+  checkinPreviewRoom=num;
+  checkinPreviewAlreadySent=!!data.alreadySent;
+  document.getElementById('cpv-title').textContent='입실안내 미리보기 — '+num+'호 '+(data.guest||'');
+  document.getElementById('cpv-warn').style.display=data.alreadySent?'block':'none';
+  document.getElementById('cpv-subject').value=data.subject||'';
+  document.getElementById('cpv-bodyko').value=data.bodyKo||'';
+  const enWrap=document.getElementById('cpv-bodyen-wrap');
+  if(data.bodyEn){document.getElementById('cpv-bodyen').value=data.bodyEn;enWrap.style.display='block';}
+  else{document.getElementById('cpv-bodyen').value='';enWrap.style.display='none';}
+  document.getElementById('checkin-preview-modal').classList.add('open');
 }
-window.manualSend=manualSend;
+window.openCheckinPreview=openCheckinPreview;
+
+async function sendCheckinPreview(){
+  const num=checkinPreviewRoom;
+  if(!num)return;
+  const subject=document.getElementById('cpv-subject').value;
+  const bodyKo=document.getElementById('cpv-bodyko').value;
+  const enWrap=document.getElementById('cpv-bodyen-wrap');
+  const bodyEn=(enWrap.style.display==='none')?'':document.getElementById('cpv-bodyen').value;
+  const today=todayStr();
+  try{
+    await set(ref(db,'app/sendOverrides/'+num+'_'+today),{subject,bodyKo,bodyEn});
+  }catch(e){alert('편집 내용 저장 실패: '+e);return;}
+  try{
+    const res=await fetch(GAS_URL+'?action=sendRoomEdited&room='+num+'&token='+encodeURIComponent(GAS_TOKEN)+(checkinPreviewAlreadySent?'&force=1':''));
+    alert(await res.text());
+  }catch(e){alert('발송 요청 실패: '+e);return;}
+  closeModal('checkin-preview-modal');
+  renderSendTab();
+}
+window.sendCheckinPreview=sendCheckinPreview;
 
 async function manualStage(bid,room,stage,label){
   if(GAS_URL.indexOf('http')!==0){alert('GAS_URL이 설정되지 않았어요.');return;}
