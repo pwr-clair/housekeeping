@@ -216,8 +216,7 @@ input,select,button,textarea{font-family:inherit;}
       <div class="date" id="today-date"></div>
     </div>
     <div class="header-right">
-      <div id="user-name-chip" style="font-size:11px;font-weight:600;color:var(--text2);background:var(--bg2);padding:3px 8px;border-radius:100px;"></div>
-      <button class="icon-btn" onclick="openAssigneeModal()"><i class="ti ti-users"></i></button>
+      <div id="user-name-chip" onclick="openAssigneeModal()" style="font-size:11px;font-weight:600;color:var(--text2);background:var(--bg2);padding:3px 8px;border-radius:100px;cursor:pointer;"></div>
       <button class="icon-btn" onclick="openLogModal()" style="position:relative;"><i class="ti ti-bell"></i><div class="notif-badge" id="notif-badge" style="display:none;"></div></button>
       <button class="icon-btn" onclick="window.open('manual.html','_blank')" title="매뉴얼"><i class="ti ti-help"></i></button>
       <button class="icon-btn" onclick="toggleLang()" id="lang-btn" style="font-size:10px;font-weight:700;padding:4px 8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg2);">EN</button>
@@ -500,20 +499,11 @@ input,select,button,textarea{font-family:inherit;}
   <div class="modal-overlay" id="assignee-modal" onclick="if(event.target===this)closeModal('assignee-modal')">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title" id="assignee-modal-title">인력 관리</span>
+        <span class="modal-title" id="assignee-modal-title">청소 담당자</span>
         <button class="modal-close" onclick="closeModal('assignee-modal')"><i class="ti ti-x"></i></button>
       </div>
-      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;" id="assignee-sub-title">팀원 및 개인 비밀번호</div>
-      <div style="font-size:10px;color:var(--text3);margin-bottom:8px;" id="assignee-note-txt">각자 비밀번호로 로그인하면 변경 로그에 이름이 기록돼요.</div>
       <div id="assignee-list"></div>
       <button class="add-btn" onclick="addAssignee()" id="assignee-add-btn"><i class="ti ti-plus"></i> 팀원 추가</button>
-      <hr class="section-divider">
-      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;" id="notif-title-txt"><i class="ti ti-bell" style="font-size:13px;"></i> 알림 설정</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:8px;">
-        <div style="font-size:12px;font-weight:500;color:var(--text);" id="notif-browser-txt">브라우저 알림</div>
-        <button onclick="requestBrowserNotif()" id="notif-btn" style="font-size:11px;padding:4px 10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;cursor:pointer;color:var(--text2);">허용하기</button>
-      </div>
-      <div style="height:12px;"></div>
       <button class="modal-btn primary" style="width:100%;padding:10px;" onclick="saveAssignees()" id="assignee-save-btn">저장</button>
     </div>
   </div>
@@ -526,6 +516,12 @@ input,select,button,textarea{font-family:inherit;}
         <button class="modal-close" onclick="closeModal('log-modal')"><i class="ti ti-x"></i></button>
       </div>
       <div id="log-list" style="max-height:60vh;overflow-y:auto;border-radius:var(--radius-sm);border:0.5px solid var(--border);"></div>
+      <hr class="section-divider">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:8px;" id="notif-title-txt"><i class="ti ti-bell" style="font-size:13px;"></i> 알림 설정</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:500;color:var(--text);" id="notif-browser-txt">브라우저 알림</div>
+        <button onclick="requestBrowserNotif()" id="notif-btn" style="font-size:11px;padding:4px 10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;cursor:pointer;color:var(--text2);">허용하기</button>
+      </div>
     </div>
   </div>
 
@@ -608,8 +604,8 @@ const COLOR_MAP = {
   blocked:'background:#F5F4F2;color:#4A4845'
 };
 
-let APP_PW='1234', assignees=['최은주'], rooms={}, cleanTasks={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
-let members=[{name:'Bibian',pw:'0001'},{name:'Dennis',pw:'0002'},{name:'Claire',pw:'0003'}];
+let assignees=['최은주'], rooms={}, cleanTasks={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
+let members=[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}];
 let currentUser=null;
 let currentRoomNum=null, currentStatus=null, originalStatus=null, currentBookingType=null, currentNextBookingIdx=0;
 let calYear, calMonth, calCiDate=null, calCoDate=null, calSelectStep=0;
@@ -780,14 +776,14 @@ async function initFirebaseData(){
     await set(ref(db,'app'),{
       password:'1234',
       assignees:{0:'최은주'},
-      members:[{name:'Bibian',pw:'0001'},{name:'Dennis',pw:'0002'},{name:'Claire',pw:'0003'}],
+      members:[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}],
       rooms:initRooms,cleanTasks:{},schedules:{},bookingHistory:{},changeLogs:{}
     });
   } else {
     // members 없으면 초기화
     const d=snap.val();
     if(!d.members){
-      await set(ref(db,'app/members'),[{name:'Bibian',pw:'0001'},{name:'Dennis',pw:'0002'},{name:'Claire',pw:'0003'}]);
+      await set(ref(db,'app/members'),[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}]);
     }
     if(!d.changeLogs){
       await set(ref(db,'app/changeLogs'),{});
@@ -811,7 +807,6 @@ async function initFirebaseData(){
 }
 
 function startListeners(){
-  onValue(ref(db,'app/password'),snap=>{if(snap.exists())APP_PW=snap.val();});
   onValue(ref(db,'app/members'),snap=>{
     if(snap.exists()){const v=snap.val();members=Array.isArray(v)?v:Object.values(v);}
   });
@@ -2182,8 +2177,7 @@ function renderAssigneeList(){
   list.innerHTML=members.map((m,i)=>`
     <div class="assignee-row">
       <div class="assignee-avatar" style="background:${AC[i%5]};color:${AT[i%5]}">${m.name.slice(0,2)}</div>
-      <input class="assignee-name-input" type="text" value="${m.name}" id="asgn-name-${i}" placeholder="${currentLang==='ko'?'이름':'Name'}" style="flex:1.5;">
-      <input class="assignee-name-input" type="password" value="${m.pw}" id="asgn-pw-${i}" placeholder="${currentLang==='ko'?'비번':'PW'}" style="flex:1;letter-spacing:3px;" maxlength="8">
+      <input class="assignee-name-input" type="text" value="${m.name}" id="asgn-name-${i}" placeholder="${currentLang==='ko'?'이름':'Name'}" style="flex:1;">
       <button class="assignee-del" onclick="saveAssigneeRow(${i})" style="color:#27AE60;" title="저장"><i class="ti ti-check"></i></button>
       <button class="assignee-del" onclick="removeAssignee(${i})" title="팀원 삭제"><i class="ti ti-trash"></i></button>
     </div>`).join('');
@@ -2192,8 +2186,7 @@ async function saveAssigneeRow(i){
   const list=[];let j=0;
   while(document.getElementById('asgn-name-'+j)){
     const name=document.getElementById('asgn-name-'+j).value.trim();
-    const pw=document.getElementById('asgn-pw-'+j).value.trim();
-    if(name)list.push({name,pw:pw||'0000'});
+    if(name)list.push({name});
     j++;
   }
   if(!list.length)return;
@@ -2207,7 +2200,7 @@ async function saveAssigneeRow(i){
 window.saveAssigneeRow=saveAssigneeRow;
 
 function addAssignee(){
-  members.push({name:currentLang==='ko'?'새 팀원':'New Member',pw:''});
+  members.push({name:currentLang==='ko'?'새 팀원':'New Member'});
   renderAssigneeList();
   const el=document.getElementById('asgn-name-'+(members.length-1));
   if(el){el.focus();el.select();}
@@ -2217,8 +2210,7 @@ async function saveAssignees(){
   const list=[];let i=0;
   while(document.getElementById('asgn-name-'+i)){
     const name=document.getElementById('asgn-name-'+i).value.trim();
-    const pw=document.getElementById('asgn-pw-'+i).value.trim();
-    if(name)list.push({name,pw:pw||'0000'});
+    if(name)list.push({name});
     i++;
   }
   members=list.length?list:members;
@@ -2228,13 +2220,7 @@ async function saveAssignees(){
   await set(ref(db,'app/assignees'),obj);
   closeModal('assignee-modal');
 }
-async function changeAppPw(){
-  const inp=document.getElementById('new-pw-inp');
-  if(!inp||!inp.value.trim())return;
-  await set(ref(db,'app/password'),inp.value.trim());
-  inp.value='';alert(currentLang==='ko'?'비밀번호가 변경되었습니다.':'Password changed.');
-}
-window.openAssigneeModal=openAssigneeModal; window.addAssignee=addAssignee; window.removeAssignee=removeAssignee; window.saveAssignees=saveAssignees; window.changeAppPw=changeAppPw;
+window.openAssigneeModal=openAssigneeModal; window.addAssignee=addAssignee; window.removeAssignee=removeAssignee; window.saveAssignees=saveAssignees;
 
 // ════════════ 발송 탭 (0003 전용) ════════════
 function toggleSendMode(){
@@ -2715,7 +2701,7 @@ const TEXTS = {
     bk_ci_time: '체크인 시간', bk_co_time: '체크아웃 시간',
     bk_notes: '특이사항', bk_save: '저장', bk_cancel: '취소',
     auto_badge: '자동반영',
-    assignee_title: '인력 관리', assignee_sub: '팀원 및 개인 비밀번호',
+    assignee_title: '청소 담당자', assignee_sub: '팀원 및 개인 비밀번호',
     assignee_note: '각자 비밀번호로 로그인하면 변경 로그에 이름이 기록돼요.',
     assignee_add: '+ 팀원 추가', assignee_save: '저장',
     notif_title: '알림 설정', notif_browser: '브라우저 알림',
@@ -2768,7 +2754,7 @@ const TEXTS = {
     bk_ci_time: 'Check-in Time', bk_co_time: 'Check-out Time',
     bk_notes: 'Special Notes', bk_save: 'Save', bk_cancel: 'Cancel',
     auto_badge: 'Auto',
-    assignee_title: 'Staff', assignee_sub: 'Team & Passwords',
+    assignee_title: 'Cleaners', assignee_sub: 'Team & Passwords',
     assignee_note: 'Login with your own password — changes are logged by name.',
     assignee_add: '+ Add Member', assignee_save: 'Save',
     notif_title: 'Notifications', notif_browser: 'Browser Alerts',
