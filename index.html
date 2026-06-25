@@ -2453,7 +2453,7 @@ function renderSendTab(){
     return '<span onclick="'+clickJs+'" style="'+base+'border:1px solid #999;color:var(--text2);cursor:pointer;background:#fff;" title="클릭하면 지금 발송">'+n+'</span>';
   };
 
-  // 단계 라벨 버튼 (확정/리마인더/입실)
+  // 단계 라벨 버튼 (리마인더/입실)
   const stageLabel=(text,done,clickJs,fillColor,why)=>{
     const base='height:22px;box-sizing:border-box;padding:0 7px;font-size:9px;border-radius:5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
     if(done)return '<span style="'+base+'background:'+fillColor+';color:#fff;" title="발송됨">'+text+'</span>';
@@ -2477,8 +2477,7 @@ function renderSendTab(){
     const bid=bk.bookingId||'';
     // 청소완료면 호실 비리디안, 아니면 남색
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
-    const C='#85B7EB',Rc='#185FA5',I='#185FA5';
-    const lblConfirm=stageLabel('확정',true,'',C);
+    const Rc='#185FA5',I='#185FA5';
     const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'manualStage(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
     const lblCheckin=stageLabel('입실',isSent,(isToday&&bk.guestEmail)?'manualSend(\''+num+'\',false)':'',I,'내일 발송 가능');
     const waSt='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;background:#042C53;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
@@ -2498,7 +2497,7 @@ function renderSendTab(){
       +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
       +srcBadge(bk.source)
       +note
-      +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+lblConfirm+lblReminder+lblCheckin+waPart+'</span>'
+      +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+waPart+lblReminder+lblCheckin+'</span>'
       +'</div>';
   };
   const todayRows=[],tomorrowRows=[];
