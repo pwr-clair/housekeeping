@@ -2499,8 +2499,8 @@ function renderSendTab(){
     }
     let note='';
     if(isToday&&!bk.guestEmail)note='<span style="font-size:9px;color:#C0392B;font-weight:500;flex-shrink:0;">메일없음</span>';
-    else if(!isToday&&bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">IN '+fmtTimeKo(bk.checkinTime)+'</span>';
-    else if(isToday&&isEarly)note='<span style="font-size:9px;color:#92400E;font-weight:500;flex-shrink:0;">⏰'+bk.checkinTime+'</span>';
+    else if(!isToday&&bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
+    else if(isToday&&isEarly)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
     return '<div style="display:flex;align-items:center;gap:6px;border:0.5px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;background:#fff;">'
       +'<span style="font-size:13px;font-weight:700;color:'+numColor+';flex-shrink:0;">'+num+'</span>'
       +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
