@@ -2661,7 +2661,7 @@ async function openStagePreview(bid,room,stage,label){
   }catch(e){alert('미리보기 요청 실패: '+e);return;}
   if(!data||!data.ok){alert((data&&data.msg)||'미리보기를 불러오지 못했습니다.');return;}
   stagePreview={bid:bid||'',room:rm,stage:stage,alreadySent:!!data.alreadySent};
-  document.getElementById('cpv-title').textContent=(label||'메일')+' 미리보기 — '+(rm?rm+'호 ':'')+(data.guest||'');
+  document.getElementById('cpv-title').textContent=(label||'메일')+' 미리보기 — '+(data.guest||'');
   document.getElementById('cpv-warn').style.display=data.alreadySent?'block':'none';
   document.getElementById('cpv-subject').value=data.subject||'';
   document.getElementById('cpv-bodyko').value=data.bodyKo||'';
