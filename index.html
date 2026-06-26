@@ -2482,7 +2482,6 @@ function renderSendTab(){
     const r=rooms[num]||{};
     const sentKey=num+'_'+today;
     const isSent=(isToday&&checkedSentSet.has(sentKey))||logHit(bk.bookingId,'s3_checkin')||logHit(bk.bookingId,'s34_combined');
-    const isEarly=bk.checkinTime&&bk.checkinTime<'15:00';
     const bid=bk.bookingId||'';
     // 청소완료면 호실 비리디안, 아니면 남색
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
@@ -2498,9 +2497,8 @@ function renderSendTab(){
         +'<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'en')+'" target="_blank" title="WhatsApp English" style="'+waSt+'">EN</a>';
     }
     let note='';
-    if(isToday&&!bk.guestEmail)note='<span style="font-size:9px;color:#C0392B;font-weight:500;flex-shrink:0;">메일없음</span>';
-    else if(!isToday&&bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
-    else if(isToday&&isEarly)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
+    if(bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
+    if(isToday&&!bk.guestEmail)note+='<span style="font-size:9px;color:#C0392B;font-weight:500;flex-shrink:0;">메일없음</span>';
     return '<div style="display:flex;align-items:center;gap:6px;border:0.5px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;background:#fff;">'
       +'<span style="font-size:13px;font-weight:700;color:'+numColor+';flex-shrink:0;">'+num+'</span>'
       +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
