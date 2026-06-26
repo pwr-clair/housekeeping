@@ -2542,12 +2542,13 @@ function renderSendTab(){
   coRows.sort((a,c)=>String(c.bk.checkoutDate).localeCompare(String(a.bk.checkoutDate)));
   const mkCoRow=({num,bk})=>{
     const bid=bk.bookingId||'';
-    const can=stg=>bid&&bk.guestEmail?'openStagePreview(\''+bid+'\',\''+num+'\',\''+stg+'\',\''+({'s4_checkout':'퇴실 안내','s5_checkoutConfirm':'퇴실 확인','s6_review':'후기 요청'})[stg]+'\')':'';
+    const can=stg=>bid&&bk.guestEmail?'openStagePreview(\''+bid+'\',\''+num+'\',\''+stg+'\',\''+({'s4_checkout':'퇴실 안내','s5_checkoutConfirm':'방문고지','s6_review':'후기'})[stg]+'\')':'';
     const why=bk.guestEmail?'웹훅 예약 아님':'이메일 없음';
+    const nights=Math.round((new Date(bk.checkoutDate)-new Date(bk.checkinDate))/86400000);
     const dots='<span style="display:inline-flex;gap:4px;">'
-      +stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why)
-      +stageLabel('퇴실후방문',logHit(bid,'s5_checkoutConfirm'),can('s5_checkoutConfirm'),GREEN,why)
-      +stageLabel('후기요청',logHit(bid,'s6_review'),can('s6_review'),GREEN,why)
+      +(nights>=2?stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why):'')
+      +stageLabel('방문고지',logHit(bid,'s5_checkoutConfirm'),can('s5_checkoutConfirm'),GREEN,why)
+      +stageLabel('후기',logHit(bid,'s6_review'),can('s6_review'),GREEN,why)
       +'</span>';
     const dayLabel=bk.checkoutDate===today?'오늘':'어제';
     return '<div style="display:flex;align-items:center;gap:8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 10px;margin-bottom:6px;background:#fff;">'
