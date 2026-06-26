@@ -390,9 +390,12 @@ input,select,button,textarea{font-family:inherit;}
         <option value="s4_checkout">퇴실안내</option>
         <option value="s5_checkoutConfirm">방문고지</option>
         <option value="s6_review">후기</option>
+        <option value="__wa__">왓츠앱 안내(KR/EN)</option>
       </select>
-      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">제목</div>
-      <input type="text" id="tpl-subject" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
+      <div id="tpl-subject-wrap">
+        <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">제목</div>
+        <input type="text" id="tpl-subject" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
+      </div>
       <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">한국어 본문</div>
       <textarea id="tpl-bodyko" style="width:100%;height:240px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
       <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">영문 본문</div>
@@ -650,6 +653,7 @@ const GAS_URL='https://script.google.com/macros/s/AKfycbz0cmhe3lT-xPlFgHLH5b2aun
 const GAS_TOKEN='joi0917hurricane';  // ← Code.gs의 APPROVE_TOKEN과 동일하게
 let canSendMail=false;
 let pendingBookings={}, sendMode='approve', mailLogs={}, changeAcks={};
+let waMessages={};
 const SOURCE_LABEL={booking:'Booking.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};
 const ADMIN_NAMES=['Clara','Dennis']; // 관리자(배정/발송 탭) — 이 이름들이 관리자
 let unreadLogs=0;
@@ -839,6 +843,7 @@ async function initFirebaseData(){
 }
 
 function startListeners(){
+  onValue(ref(db,'app/waMessages'),snap=>{waMessages=snap.exists()?(snap.val()||{}):{};if(isLoggedIn)renderSendTab();});
   onValue(ref(db,'app/members'),snap=>{
     if(snap.exists()){const v=snap.val();members=Array.isArray(v)?v:Object.values(v);}
   });
@@ -2468,9 +2473,10 @@ function renderSendTab(){
     return p;
   };
   const waMsg=(guest,lang)=>{
-    const txt=lang==='ko'
+    const fallback=lang==='ko'
       ? '[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
       : '[Incheon Airport T1 Residence] Hello, we\'ve sent your check-in details via your booking platform\'s message. Please check it. Contact: 010-8227-2845';
+    const txt=(waMessages&&waMessages[lang])?waMessages[lang]:fallback;
     return encodeURIComponent(txt);
   };
   const waBtn=(bk)=>{
@@ -2733,6 +2739,19 @@ window.openTemplateManager=openTemplateManager;
 
 async function loadTemplateForStage(){
   const stage=document.getElementById('tpl-stage').value;
+  const subjWrap=document.getElementById('tpl-subject-wrap');
+  if(stage==='__wa__'){
+    subjWrap.style.display='none';
+    let w={};
+    try{
+      const snap=await get(ref(db,'app/waMessages'));
+      w=snap.exists()?(snap.val()||{}):{};
+    }catch(e){alert('왓츠앱 안내 불러오기 실패: '+e);return;}
+    document.getElementById('tpl-bodyko').value=w.ko||'';
+    document.getElementById('tpl-bodyen').value=w.en||'';
+    return;
+  }
+  subjWrap.style.display='';
   let v={};
   try{
     const snap=await get(ref(db,'app/mailTemplates/'+stage));
@@ -2747,6 +2766,15 @@ window.loadTemplateForStage=loadTemplateForStage;
 async function saveTemplate(){
   const stage=document.getElementById('tpl-stage').value;
   if(!confirm('이 단계 템플릿을 덮어씁니다. 계속할까요?'))return;
+  if(stage==='__wa__'){
+    const ko=document.getElementById('tpl-bodyko').value;
+    const en=document.getElementById('tpl-bodyen').value;
+    try{
+      await update(ref(db,'app/waMessages'),{ko,en});
+      alert('저장되었습니다.');
+    }catch(e){alert('저장 실패: '+e);}
+    return;
+  }
   const subject=document.getElementById('tpl-subject').value;
   const bodyKo=document.getElementById('tpl-bodyko').value;
   const bodyEn=document.getElementById('tpl-bodyen').value;
