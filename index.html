@@ -366,7 +366,7 @@ input,select,button,textarea{font-family:inherit;}
         <textarea id="cpv-bodyen" style="width:100%;height:200px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;">
-        <button onclick="sendCheckinPreview()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">발송</button>
+        <button id="cpv-send-btn" onclick="sendCheckinPreview()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">발송</button>
         <button onclick="closeModal('checkin-preview-modal')" style="flex:1;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">취소</button>
       </div>
     </div>
@@ -2487,7 +2487,7 @@ function renderSendTab(){
     // 청소완료면 호실 비리디안, 아니면 남색
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
     const Rc='#185FA5',I='#185FA5';
-    const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'manualStage(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
+    const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
     const lblCheckin=stageLabel('입실',isSent,(isToday&&bk.guestEmail)?'openCheckinPreview(\''+num+'\')':'',I,'내일 발송 가능');
     const waSt='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;background:#042C53;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
     const ph=cleanPhone(bk.guestPhone);
@@ -2542,7 +2542,7 @@ function renderSendTab(){
   coRows.sort((a,c)=>String(c.bk.checkoutDate).localeCompare(String(a.bk.checkoutDate)));
   const mkCoRow=({num,bk})=>{
     const bid=bk.bookingId||'';
-    const can=stg=>bid&&bk.guestEmail?'manualStage(\''+bid+'\',\''+num+'\',\''+stg+'\',\''+({'s4_checkout':'퇴실 안내','s5_checkoutConfirm':'퇴실 확인','s6_review':'후기 요청'})[stg]+'\')':'';
+    const can=stg=>bid&&bk.guestEmail?'openStagePreview(\''+bid+'\',\''+num+'\',\''+stg+'\',\''+({'s4_checkout':'퇴실 안내','s5_checkoutConfirm':'퇴실 확인','s6_review':'후기 요청'})[stg]+'\')':'';
     const why=bk.guestEmail?'웹훅 예약 아님':'이메일 없음';
     const dots='<span style="display:inline-flex;gap:4px;">'
       +dot(4,logHit(bid,'s4_checkout'),can('s4_checkout'),why)
@@ -2625,6 +2625,7 @@ async function openCheckinPreview(num){
   const enWrap=document.getElementById('cpv-bodyen-wrap');
   if(data.bodyEn){document.getElementById('cpv-bodyen').value=data.bodyEn;enWrap.style.display='block';}
   else{document.getElementById('cpv-bodyen').value='';enWrap.style.display='none';}
+  document.getElementById('cpv-send-btn').onclick=sendCheckinPreview;
   document.getElementById('checkin-preview-modal').classList.add('open');
 }
 window.openCheckinPreview=openCheckinPreview;
@@ -2648,6 +2649,49 @@ async function sendCheckinPreview(){
   renderSendTab();
 }
 window.sendCheckinPreview=sendCheckinPreview;
+
+// 단계 메일(s2/s4/s5/s6): 버튼 클릭 → 미리보기·편집 모달(checkin-preview-modal 재사용) → 편집본 저장 후 발송
+let stagePreview=null;
+async function openStagePreview(bid,room,stage,label){
+  if(GAS_URL.indexOf('http')!==0){alert('GAS_URL이 설정되지 않았어요. index.html 상단의 GAS_URL을 교체해주세요.');return;}
+  const rm=(room&&room!=='—')?room:'';
+  let data;
+  try{
+    const res=await fetch(GAS_URL+'?action=previewStage&stage='+stage+'&bid='+encodeURIComponent(bid)+'&room='+encodeURIComponent(rm)+'&token='+encodeURIComponent(GAS_TOKEN));
+    data=await res.json();
+  }catch(e){alert('미리보기 요청 실패: '+e);return;}
+  if(!data||!data.ok){alert((data&&data.msg)||'미리보기를 불러오지 못했습니다.');return;}
+  stagePreview={bid:bid||'',room:rm,stage:stage,alreadySent:!!data.alreadySent};
+  document.getElementById('cpv-title').textContent=(label||'메일')+' 미리보기 — '+(rm?rm+'호 ':'')+(data.guest||'');
+  document.getElementById('cpv-warn').style.display=data.alreadySent?'block':'none';
+  document.getElementById('cpv-subject').value=data.subject||'';
+  document.getElementById('cpv-bodyko').value=data.bodyKo||'';
+  const enWrap=document.getElementById('cpv-bodyen-wrap');
+  if(data.bodyEn){document.getElementById('cpv-bodyen').value=data.bodyEn;enWrap.style.display='block';}
+  else{document.getElementById('cpv-bodyen').value='';enWrap.style.display='none';}
+  document.getElementById('cpv-send-btn').onclick=sendStagePreview;
+  document.getElementById('checkin-preview-modal').classList.add('open');
+}
+window.openStagePreview=openStagePreview;
+
+async function sendStagePreview(){
+  if(!stagePreview)return;
+  const {bid,room,stage,alreadySent}=stagePreview;
+  const subject=document.getElementById('cpv-subject').value;
+  const bodyKo=document.getElementById('cpv-bodyko').value;
+  const enWrap=document.getElementById('cpv-bodyen-wrap');
+  const bodyEn=(enWrap.style.display==='none')?'':document.getElementById('cpv-bodyen').value;
+  try{
+    await set(ref(db,'app/sendOverrides/stage_'+(bid||room||'x')+'_'+stage),{subject,bodyKo,bodyEn});
+  }catch(e){alert('편집 내용 저장 실패: '+e);return;}
+  try{
+    const res=await fetch(GAS_URL+'?action=sendStageEdited&stage='+stage+'&bid='+encodeURIComponent(bid)+'&room='+encodeURIComponent(room)+'&token='+encodeURIComponent(GAS_TOKEN)+(alreadySent?'&force=1':''));
+    alert(await res.text());
+  }catch(e){alert('발송 요청 실패: '+e);return;}
+  closeModal('checkin-preview-modal');
+  renderSendTab();
+}
+window.sendStagePreview=sendStagePreview;
 
 async function manualStage(bid,room,stage,label){
   if(GAS_URL.indexOf('http')!==0){alert('GAS_URL이 설정되지 않았어요.');return;}
