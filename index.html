@@ -296,7 +296,11 @@ input,select,button,textarea{font-family:inherit;}
       <div id="send-tomorrow-list"></div>
     </details>
     <details open style="margin-bottom:12px;">
-      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">체크아웃 추적 <span style="font-size:10px;font-weight:400;color:var(--text3);">내일·오늘·어제 체크아웃</span></summary>
+      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">내일 체크아웃 <span style="font-size:10px;font-weight:400;color:var(--text3);">퇴실안내(전날 발송)</span></summary>
+      <div id="send-checkout-tmr-list"></div>
+    </details>
+    <details open style="margin-bottom:12px;">
+      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">체크아웃 추적 <span style="font-size:10px;font-weight:400;color:var(--text3);">오늘·어제 체크아웃</span></summary>
       <div id="send-checkout-list"></div>
     </details>
   </div>
@@ -2619,8 +2623,12 @@ function renderSendTab(){
       +'<div style="font-size:10px;color:var(--text3);">'+srcLabel(bk.source)+' | '+dayPart+'</div></div>'
       +dots+'</div>';
   };
+  const coTmr=coRows.filter(x=>x.bk.checkoutDate===tomorrow);
+  const coRest=coRows.filter(x=>x.bk.checkoutDate!==tomorrow);
+  const coTmrEl=document.getElementById('send-checkout-tmr-list');
+  if(coTmrEl)coTmrEl.innerHTML=coTmr.length?coTmr.map(mkCoRow).join(''):'<div class="empty-msg">내일 체크아웃 예약이 없어요</div>';
   const co=document.getElementById('send-checkout-list');
-  if(co)co.innerHTML=coRows.length?coRows.map(mkCoRow).join(''):'<div class="empty-msg">내일·오늘·어제 체크아웃 예약이 없어요</div>';
+  if(co)co.innerHTML=coRest.length?coRest.map(mkCoRow).join(''):'<div class="empty-msg">오늘·어제 체크아웃 예약이 없어요</div>';
 }
 
 async function assignPending(key){
