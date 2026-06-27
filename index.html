@@ -296,7 +296,7 @@ input,select,button,textarea{font-family:inherit;}
       <div id="send-tomorrow-list"></div>
     </details>
     <details open style="margin-bottom:12px;">
-      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">체크아웃 추적 <span style="font-size:10px;font-weight:400;color:var(--text3);">오늘·어제 체크아웃</span></summary>
+      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">체크아웃 추적 <span style="font-size:10px;font-weight:400;color:var(--text3);">내일·오늘·어제 체크아웃</span></summary>
       <div id="send-checkout-list"></div>
     </details>
   </div>
@@ -2582,19 +2582,19 @@ function renderSendTab(){
   const tm=document.getElementById('send-tomorrow-list');
   if(tm)tm.innerHTML=tomorrowRows.length?tomorrowRows.join(''):'<div class="empty-msg">내일 체크인 예약이 없어요</div>';
 
-  // 체크아웃 추적 (오늘 + 어제)
+  // 체크아웃 추적 (내일 + 오늘 + 어제)
   const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
   const coRows=[];const seenBid=new Set();
   for(const num of ROOM_NUMS){
     const r=rooms[num];const cb=r&&r.currentBooking;
-    if(cb&&cb.guest&&(cb.checkoutDate===today||cb.checkoutDate===yesterday)){
+    if(cb&&cb.guest&&(cb.checkoutDate===today||cb.checkoutDate===yesterday||cb.checkoutDate===tomorrow)){
       coRows.push({num,bk:cb});
       if(cb.bookingId)seenBid.add(String(cb.bookingId));
     }
   }
   for(const b of Object.values(pendingBookings)){
     if(!b||b.cancelled)continue;
-    if(b.checkoutDate!==today&&b.checkoutDate!==yesterday)continue;
+    if(b.checkoutDate!==today&&b.checkoutDate!==yesterday&&b.checkoutDate!==tomorrow)continue;
     if(b.bookingId&&seenBid.has(String(b.bookingId)))continue;
     coRows.push({num:(b.assignedRoom&&b.assignedRoom!=='manual')?b.assignedRoom:'—',bk:b});
   }
@@ -2604,20 +2604,23 @@ function renderSendTab(){
     const can=stg=>bid&&bk.guestEmail?'openStagePreview(\''+bid+'\',\''+num+'\',\''+stg+'\',\''+({'s4_checkout':'퇴실 안내','s5_checkoutConfirm':'방문고지','s6_review':'후기'})[stg]+'\')':'';
     const why=bk.guestEmail?'웹훅 예약 아님':'이메일 없음';
     const nights=Math.round((new Date(bk.checkoutDate)-new Date(bk.checkinDate))/86400000);
+    const isTmrCo=bk.checkoutDate===tomorrow;
     const dots='<span style="display:inline-flex;gap:4px;">'
       +(nights>=2?stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why):'')
-      +stageLabel('방문고지',logHit(bid,'s5_checkoutConfirm'),can('s5_checkoutConfirm'),GREEN,why)
-      +stageLabel('후기',logHit(bid,'s6_review'),can('s6_review'),GREEN,why)
+      +(isTmrCo?''
+        :stageLabel('방문고지',logHit(bid,'s5_checkoutConfirm'),can('s5_checkoutConfirm'),GREEN,why)
+         +stageLabel('후기',logHit(bid,'s6_review'),can('s6_review'),GREEN,why))
       +'</span>';
-    const dayLabel=bk.checkoutDate===today?'오늘':'어제';
+    const dayLabel=isTmrCo?'내일':(bk.checkoutDate===today?'오늘':'어제');
+    const dayPart=isTmrCo?'<span style="color:#185FA5;font-weight:700;">'+dayLabel+' 체크아웃</span>':dayLabel+' 체크아웃';
     return '<div style="display:flex;align-items:center;gap:8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 10px;margin-bottom:6px;background:#fff;">'
       +'<span style="font-size:13px;font-weight:800;min-width:44px;">'+num+'</span>'
       +'<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+bk.guest+'</div>'
-      +'<div style="font-size:10px;color:var(--text3);">'+srcLabel(bk.source)+' | '+dayLabel+' 체크아웃</div></div>'
+      +'<div style="font-size:10px;color:var(--text3);">'+srcLabel(bk.source)+' | '+dayPart+'</div></div>'
       +dots+'</div>';
   };
   const co=document.getElementById('send-checkout-list');
-  if(co)co.innerHTML=coRows.length?coRows.map(mkCoRow).join(''):'<div class="empty-msg">오늘·어제 체크아웃 예약이 없어요</div>';
+  if(co)co.innerHTML=coRows.length?coRows.map(mkCoRow).join(''):'<div class="empty-msg">내일·오늘·어제 체크아웃 예약이 없어요</div>';
 }
 
 async function assignPending(key){
