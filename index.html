@@ -2626,19 +2626,21 @@ function renderSendTab(){
     const why=bk.guestEmail?'웹훅 예약 아님':'이메일 없음';
     const nights=Math.round((new Date(bk.checkoutDate)-new Date(bk.checkinDate))/86400000);
     const isTmrCo=bk.checkoutDate===tomorrow;
-    const dots='<span style="display:inline-flex;gap:4px;">'
-      +(nights>=2?stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why):'')
+    const btns=(nights>=2?stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why):'')
       +(isTmrCo?''
         :stageLabel('방문고지',logHit(bid,'s5_checkoutConfirm'),can('s5_checkoutConfirm'),GREEN,why)
-         +stageLabel('후기',logHit(bid,'s6_review'),can('s6_review'),GREEN,why))
-      +'</span>';
-    const dayLabel=isTmrCo?'내일':(bk.checkoutDate===today?'오늘':'어제');
-    const dayPart=isTmrCo?'<span style="color:#185FA5;font-weight:700;">'+dayLabel+' 체크아웃</span>':dayLabel+' 체크아웃';
-    return '<div style="display:flex;align-items:center;gap:8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 10px;margin-bottom:6px;background:#fff;">'
-      +'<span style="font-size:13px;font-weight:800;min-width:44px;">'+num+'</span>'
-      +'<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+bk.guest+'</div>'
-      +'<div style="font-size:10px;color:var(--text3);">'+srcLabel(bk.source)+' | '+dayPart+'</div></div>'
-      +dots+'</div>';
+         +stageLabel('후기',logHit(bid,'s6_review'),can('s6_review'),GREEN,why));
+    // 체크인 줄과 동일한 표기: 일자칩(오늘/어제, '내일 체크아웃' 탭은 생략) + 퇴실 시간칩
+    let note='';
+    if(!isTmrCo){const isTd=bk.checkoutDate===today;note+='<span style="font-size:9px;font-weight:600;flex-shrink:0;color:'+(isTd?'#C0392B':'var(--text3)')+';">'+(isTd?'오늘':'어제')+'</span>';}
+    if(bk.checkoutTime)note+='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkoutTime)+'</span>';
+    return '<div style="display:flex;align-items:center;gap:6px;border:0.5px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;background:#fff;">'
+      +'<span style="font-size:13px;font-weight:700;color:#042C53;flex-shrink:0;">'+num+'</span>'
+      +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
+      +srcBadge(bk.source)
+      +note
+      +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+btns+'</span>'
+      +'</div>';
   };
   const coTmr=coRows.filter(x=>x.bk.checkoutDate===tomorrow);
   const coRest=coRows.filter(x=>x.bk.checkoutDate!==tomorrow);
