@@ -277,32 +277,39 @@ input,select,button,textarea{font-family:inherit;}
 
   <!-- 발송 탭 (0003 전용) -->
   <div class="page" id="page-send">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-      <div class="section-title" style="margin:0;">입실안내 발송 모드</div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button onclick="openTemplateManager()" style="cursor:pointer;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;border:0.5px solid var(--border);background:#fff;color:var(--text2);"><i class="ti ti-template" style="font-size:13px;"></i> 템플릿 관리</button>
-        <div id="send-mode-toggle-a" onclick="toggleSendModeA()" style="cursor:pointer;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;border:0.5px solid var(--border);">...</div>
-        <div id="send-mode-toggle-b" onclick="toggleSendModeB()" style="cursor:pointer;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:700;border:0.5px solid var(--border);">...</div>
-      </div>
+    <!-- 발송 서브탭 (체크인/체크아웃) — 상단 탭과 동일 디자인, 오른쪽 정렬 -->
+    <div style="display:flex;justify-content:flex-end;gap:5px;margin-bottom:8px;">
+      <div id="send-sub-checkin" onclick="switchSendSub('checkin')" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;text-align:center;cursor:pointer;border:0.5px solid var(--accent);background:var(--accent);color:#E6F1FB;"><i class="ti ti-login"></i> 체크인</div>
+      <div id="send-sub-checkout" onclick="switchSendSub('checkout')" style="padding:8px 18px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;text-align:center;cursor:pointer;border:0.5px solid var(--border);background:#fff;color:var(--text2);"><i class="ti ti-logout"></i> 체크아웃</div>
     </div>
-    <div style="font-size:10px;color:var(--text3);margin-bottom:14px;" id="send-mode-desc"></div>
+    <!-- 발송 모드 토글 + 템플릿 관리(맨 오른쪽) — 오른쪽 정렬 -->
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:5px;margin-bottom:6px;">
+      <div id="send-mode-toggle-a" onclick="toggleSendModeA()" style="cursor:pointer;padding:8px 14px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;text-align:center;border:0.5px solid var(--border);">...</div>
+      <div id="send-mode-toggle-b" onclick="toggleSendModeB()" style="cursor:pointer;padding:8px 14px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;text-align:center;border:0.5px solid var(--border);">...</div>
+      <button onclick="openTemplateManager()" style="cursor:pointer;padding:8px 14px;border-radius:var(--radius-sm);font-size:11px;font-weight:600;border:0.5px solid var(--border);background:#fff;color:var(--text2);"><i class="ti ti-template" style="font-size:13px;"></i> 템플릿 관리</button>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-bottom:14px;text-align:right;" id="send-mode-desc"></div>
 
-    <details open style="margin-bottom:12px;">
-      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">오늘 체크인</summary>
-      <div id="send-today-list"></div>
-    </details>
-    <details open style="margin-bottom:12px;">
-      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">내일 체크인</summary>
-      <div id="send-tomorrow-list"></div>
-    </details>
-    <details open style="margin-bottom:12px;">
-      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">내일 체크아웃 <span style="font-size:10px;font-weight:400;color:var(--text3);">퇴실안내(전날 발송)</span></summary>
-      <div id="send-checkout-tmr-list"></div>
-    </details>
-    <details open style="margin-bottom:12px;">
-      <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">체크아웃 추적 <span style="font-size:10px;font-weight:400;color:var(--text3);">오늘·어제 체크아웃</span></summary>
-      <div id="send-checkout-list"></div>
-    </details>
+    <div id="send-pane-checkin">
+      <details open style="margin-bottom:12px;">
+        <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">오늘 체크인</summary>
+        <div id="send-today-list"></div>
+      </details>
+      <details open style="margin-bottom:12px;">
+        <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">내일 체크인</summary>
+        <div id="send-tomorrow-list"></div>
+      </details>
+    </div>
+    <div id="send-pane-checkout" style="display:none;">
+      <details open style="margin-bottom:12px;">
+        <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">내일 체크아웃 <span style="font-size:10px;font-weight:400;color:var(--text3);">퇴실안내(전날 발송)</span></summary>
+        <div id="send-checkout-tmr-list"></div>
+      </details>
+      <details open style="margin-bottom:12px;">
+        <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">체크아웃 추적 <span style="font-size:10px;font-weight:400;color:var(--text3);">오늘·어제 체크아웃</span></summary>
+        <div id="send-checkout-list"></div>
+      </details>
+    </div>
   </div>
 
   <div class="page" id="page-cleaning">
@@ -2285,6 +2292,16 @@ function toggleSendModeB(){
   update(ref(db,'app/mailConfig/stages'),upd);
 }
 window.toggleSendModeB=toggleSendModeB;
+function switchSendSub(mode){
+  // 발송탭 내부 서브탭: 체크인 / 체크아웃 페인 전환 (상단 탭과 동일 디자인)
+  document.getElementById('send-pane-checkin').style.display=mode==='checkin'?'':'none';
+  document.getElementById('send-pane-checkout').style.display=mode==='checkout'?'':'none';
+  const ci=document.getElementById('send-sub-checkin');
+  const co=document.getElementById('send-sub-checkout');
+  if(ci){ci.style.background=mode==='checkin'?'var(--accent)':'#fff';ci.style.color=mode==='checkin'?'#E6F1FB':'var(--text2)';ci.style.borderColor=mode==='checkin'?'var(--accent)':'var(--border)';}
+  if(co){co.style.background=mode==='checkout'?'var(--accent)':'#fff';co.style.color=mode==='checkout'?'#E6F1FB':'var(--text2)';co.style.borderColor=mode==='checkout'?'var(--accent)':'var(--border)';}
+}
+window.switchSendSub=switchSendSub;
 
 function srcLabel(src){
   const k=String(src||'').toLowerCase();
