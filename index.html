@@ -257,10 +257,32 @@ input,select,button,textarea{font-family:inherit;}
       <div class="stat" style="background:#E6F1FB;cursor:pointer;" onclick="openCounterModal('checkin')"><div class="stat-num" style="color:#0C447C;" id="cnt-checkin">0</div><div class="stat-label">입실중</div></div>
       <div class="stat" style="background:#FEF3C7;cursor:pointer;" onclick="openCounterModal('tomorrow')"><div class="stat-num" style="color:#92400E;" id="cnt-early">0</div><div class="stat-label">내일입실</div></div>
     </div>
-    <div class="floor-section"><div class="floor-label">6F</div><div class="room-grid" id="rg-6"></div></div>
-    <div class="floor-section"><div class="floor-label">9F</div><div class="room-grid" id="rg-9"></div></div>
-    <div class="floor-section"><div class="floor-label">10F</div><div class="room-grid" id="rg-10"></div></div>
-    <div class="floor-section"><div class="floor-label">12F</div><div class="room-grid" id="rg-12"></div></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button onclick="openRoomManager()" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;"><i class="ti ti-settings"></i> 객실 관리</button>
+    </div>
+    <div id="floor-sections"></div>
+  </div>
+
+  <!-- 객실 관리 모달 -->
+  <div class="modal-overlay" id="room-manager-modal" onclick="if(event.target===this)closeModal('room-manager-modal')">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);">객실 관리</div>
+        <button onclick="closeModal('room-manager-modal')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:0;flex-shrink:0;"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">객실 추가</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input type="text" id="rm-add-num" inputmode="numeric" placeholder="방번호 (예: 622)" style="flex:1;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;">
+        <button onclick="addRoomManaged()" style="padding:9px 16px;border:none;border-radius:var(--radius-sm);background:#042C53;color:#fff;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">추가</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-bottom:14px;">'정비중' 상태로 추가됩니다. 객실 카드에서 정비중을 해제하면 운영을 시작합니다.</div>
+      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">객실 삭제</div>
+      <div style="display:flex;gap:6px;">
+        <select id="rm-del-num" style="flex:1;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;"></select>
+        <button onclick="removeRoomManaged()" style="padding:9px 16px;border:0.5px solid #E74C3C;border-radius:var(--radius-sm);background:#fff;color:#C0392B;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;">삭제</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;">예약이 있는 객실은 삭제할 수 없습니다.</div>
+    </div>
   </div>
 
   <!-- 청소 탭 -->
@@ -676,8 +698,23 @@ const emailToName=(email)=>{
   return {bibian:'Bibian',dennis:'Dennis',clara:'Clara'}[local]||local;
 };
 
-const ROOM_NUMS = ['620','628','920','930','1031','1037','1230','1236','1240'];
-const FLOORS = {'6':['620','628'],'9':['920','930'],'10':['1031','1037'],'12':['1230','1236','1240']};
+// 방번호 → 층 숫자 (3자리=앞1글자, 4자리=앞2글자)
+function floorOf(num){
+  const s=String(num);
+  return s.length>=4 ? s.slice(0,2) : s.slice(0,1);
+}
+// 객실 목록 = app/rooms 키를 숫자 오름차순 정렬 (단일 출처)
+function roomNums(){
+  return Object.keys(rooms||{}).sort((a,b)=>(+a)-(+b));
+}
+// 층별 그룹 = roomNums를 floorOf로 묶고, 층도 숫자 오름차순 정렬
+function floorGroups(){
+  const g={};
+  roomNums().forEach(num=>{ const f=floorOf(num); (g[f]=g[f]||[]).push(num); });
+  const sorted={};
+  Object.keys(g).sort((a,b)=>(+a)-(+b)).forEach(f=>{ sorted[f]=g[f]; });
+  return sorted;
+}
 const CHECK_ITEMS_KO = ['침구 교체','욕실 청소','진공 청소','쓰레기 수거','미니바 보충'];
 function getCheckItems(){ return t('check_items') || CHECK_ITEMS_KO; }
 const AC = ['#E6F1FB','#EAF3DE','#EEEDFE','#FAEEDA','#FAECE7'];
@@ -737,7 +774,7 @@ async function runMissedTransitions(){
   const todayS=todayStr();
   const nowMin=new Date().getHours()*60+new Date().getMinutes();
 
-  for(const num of ROOM_NUMS){
+  for(const num of roomNums()){
     const r=rooms[num];
     if(!r||r.blocked)continue;
     const cur=r.currentBooking;
@@ -778,7 +815,7 @@ function scheduleAutoTransitions(){
     const snap=await get(ref(db,'app/rooms'));
     if(!snap.exists())return;
     const freshRooms=snap.val();
-    for(const num of ROOM_NUMS){
+    for(const num of roomNums()){
       const r=freshRooms[num];
       if(!r||r.blocked)continue;
       const cur=r.currentBooking;
@@ -809,7 +846,7 @@ function scheduleAutoTransitions(){
         }
       }
     }
-    for(const num of ROOM_NUMS){
+    for(const num of roomNums()){
       const r=freshRooms[num];
       if(!r||r.blocked)continue;
       const cur=r.currentBooking;
@@ -846,7 +883,7 @@ function scheduleAutoTransitions(){
     if(!snap.exists())return;
     const freshRooms=snap.val();
     const todayS2=todayStr();
-    for(const num of ROOM_NUMS){
+    for(const num of roomNums()){
       const r=freshRooms[num];
       if(!r||r.blocked)continue;
       const cur=r.currentBooking;
@@ -864,7 +901,7 @@ async function initFirebaseData(){
   const snap=await get(ref(db,'app'));
   if(!snap.exists()){
     const initRooms={};
-    ROOM_NUMS.forEach(num=>{
+    ['620','628','920','930','1031','1037','1230','1236','1240'].forEach(num=>{
       initRooms[num]={num,status:'need_clean',blocked:false,doorPw:'',assignee:'최은주',currentBooking:null,nextBookings:[]};
     });
     await set(ref(db,'app'),{
@@ -881,21 +918,6 @@ async function initFirebaseData(){
     }
     if(!d.changeLogs){
       await set(ref(db,'app/changeLogs'),{});
-    }
-    // ROOM_NUMS에 있지만 Firebase에 없는 객실 자동 추가
-    const existingRooms=d.rooms||{};
-    const missingRooms={};
-    ROOM_NUMS.forEach(num=>{
-      if(!existingRooms[num]){
-        missingRooms[num]={num,status:'need_clean',blocked:false,doorPw:'',assignee:'최은주',currentBooking:null,nextBookings:[]};
-      }
-    });
-    if(Object.keys(missingRooms).length>0){
-      const updates={};
-      Object.entries(missingRooms).forEach(([num,data])=>{
-        updates[num]=data;
-      });
-      await update(ref(db,'app/rooms'),updates);
     }
   }
 }
@@ -1035,8 +1057,71 @@ window.logout=logout;
 
 function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHistory();renderNotice();renderUpcoming();if(canSendMail)renderSendTab();}
 
+// ── 객실 추가/삭제 관리 ──
+function openRoomManager(){
+  const sel=document.getElementById('rm-del-num');
+  if(sel)sel.innerHTML=roomNums().map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
+  const inp=document.getElementById('rm-add-num');if(inp)inp.value='';
+  document.getElementById('room-manager-modal').classList.add('open');
+}
+window.openRoomManager=openRoomManager;
+
+async function addRoomManaged(){
+  const inp=document.getElementById('rm-add-num');
+  const num=(inp?inp.value:'').trim();
+  if(!num||!/^\d+$/.test(num)){alert('숫자로 된 방번호를 입력해주세요.');return;}
+  if(rooms[num]){alert(num+'호는 이미 있는 객실이에요.');return;}
+  try{
+    await set(ref(db,'app/rooms/'+num),{num:num,status:'need_clean',blocked:true,doorPw:'',assignee:'최은주',currentBooking:null,nextBookings:[]});
+  }catch(e){alert('추가 실패: '+e);return;}
+  alert(num+"호가 '정비중'으로 추가됐어요. 객실 카드에서 정비중을 해제하면 운영을 시작합니다.");
+  closeModal('room-manager-modal');
+}
+window.addRoomManaged=addRoomManaged;
+
+async function removeRoomManaged(){
+  const sel=document.getElementById('rm-del-num');
+  const num=sel?sel.value:'';
+  if(!num){alert('삭제할 객실을 선택해주세요.');return;}
+  const r=rooms[num]||{};
+  const hasCur=r.currentBooking&&r.currentBooking.guest;
+  const hasNext=Array.isArray(r.nextBookings)?r.nextBookings.length>0:(r.nextBookings&&Object.keys(r.nextBookings).length>0);
+  if(hasCur||hasNext){ alert(num+'호에 예약이 있어 삭제할 수 없어요. 예약을 먼저 정리해주세요.'); return; }
+  if(!confirm(num+'호를 완전히 삭제할까요? 되돌릴 수 없어요.')) return;
+  try{
+    await remove(ref(db,'app/rooms/'+num));
+  }catch(e){alert('삭제 실패: '+e);return;}
+  closeModal('room-manager-modal');
+}
+window.removeRoomManaged=removeRoomManaged;
+
 function renderRooms(){
-  Object.entries(FLOORS).forEach(([floor,nums])=>{
+  const groups=floorGroups();
+  // 층칸(.floor-section) 동적 생성: 현재 존재하는 층만, 순서대로
+  const host=document.getElementById('floor-sections');
+  if(host){
+    const wantIds=Object.keys(groups).map(f=>'rg-'+f);
+    // 없는 층칸 추가
+    Object.keys(groups).forEach(floor=>{
+      if(!document.getElementById('rg-'+floor)){
+        const sec=document.createElement('div');
+        sec.className='floor-section';
+        sec.dataset.floor=floor;
+        sec.innerHTML='<div class="floor-label">'+floor+'F</div><div class="room-grid" id="rg-'+floor+'"></div>';
+        host.appendChild(sec);
+      }
+    });
+    // 삭제된 층칸 제거 (방이 다 빠진 층)
+    [...host.querySelectorAll('.floor-section')].forEach(sec=>{
+      if(!wantIds.includes('rg-'+sec.dataset.floor)) sec.remove();
+    });
+    // 층 순서 재정렬 (번호 오름차순)
+    Object.keys(groups).forEach(floor=>{
+      const sec=host.querySelector('.floor-section[data-floor="'+floor+'"]');
+      if(sec) host.appendChild(sec);
+    });
+  }
+  Object.entries(groups).forEach(([floor,nums])=>{
     const grid=document.getElementById('rg-'+floor);
     if(!grid)return;
     grid.innerHTML=nums.map(num=>{
@@ -1132,7 +1217,7 @@ function renderRooms(){
 
   // 오늘 퇴실 - 방 번호 기준으로 중복 없이 카운트
   const todayCheckouts=new Set();
-  ROOM_NUMS.forEach(n=>{
+  roomNums().forEach(n=>{
     const r=rooms[n];if(!r)return;
     if(r.currentBooking&&r.currentBooking.checkoutDate===today){todayCheckouts.add(n);return;}
     getNextBookings(r).forEach(bk=>{if(bk.checkoutDate===today)todayCheckouts.add(n);});
@@ -1142,17 +1227,17 @@ function renderRooms(){
   });
   document.getElementById('cnt-checkout-today').textContent=todayCheckouts.size;
   // 청소완료
-  document.getElementById('cnt-done').textContent=ROOM_NUMS.filter(n=>rooms[n]&&!rooms[n].blocked&&rooms[n].status==='clean_done').length;
+  document.getElementById('cnt-done').textContent=roomNums().filter(n=>rooms[n]&&!rooms[n].blocked&&rooms[n].status==='clean_done').length;
   // 오늘 입실
-  document.getElementById('cnt-checkin-today').textContent=ROOM_NUMS.filter(n=>{
+  document.getElementById('cnt-checkin-today').textContent=roomNums().filter(n=>{
     const r=rooms[n];if(!r||r.blocked)return false;
     const hasToday=(r.currentBooking&&r.currentBooking.checkinDate===today)||getNextBookings(r).some(bk=>bk.checkinDate===today);
     return hasToday;
   }).length;
   // 입실중
-  document.getElementById('cnt-checkin').textContent=ROOM_NUMS.filter(n=>rooms[n]&&!rooms[n].blocked&&rooms[n].status==='checkin').length;
+  document.getElementById('cnt-checkin').textContent=roomNums().filter(n=>rooms[n]&&!rooms[n].blocked&&rooms[n].status==='checkin').length;
   // 내일 입실
-  document.getElementById('cnt-early').textContent=ROOM_NUMS.filter(n=>{
+  document.getElementById('cnt-early').textContent=roomNums().filter(n=>{
     const r=rooms[n];if(!r||r.blocked)return false;
     return (r.currentBooking&&r.currentBooking.checkinDate===tmrStr)||getNextBookings(r).some(bk=>bk.checkinDate===tmrStr);
   }).length;
@@ -1458,7 +1543,7 @@ async function openMoveNextBookingModal(i){
   if(!nxt)return;
   document.querySelector('#move-booking-modal .modal-title').textContent=t('move_title_nxt');
   const grid=document.getElementById('move-room-grid');
-  grid.innerHTML=ROOM_NUMS.filter(n=>n!==currentRoomNum).map(n=>{
+  grid.innerHTML=roomNums().filter(n=>n!==currentRoomNum).map(n=>{
     const rm=rooms[n]||{};
     const cls=rm.blocked?'blocked':rm.status||'need_clean';
     return `<div class="room-card ${cls}" style="cursor:pointer;padding:8px;" onclick="moveNextBookingToRoomAt('${n}')">
@@ -1732,7 +1817,7 @@ function openMoveCurrentBookingModal(){
   const grid=document.getElementById('move-room-grid');
   // 모달 타이틀 변경
   document.querySelector('#move-booking-modal .modal-title').textContent=t('move_title_cur');
-  grid.innerHTML=ROOM_NUMS.filter(n=>n!==currentRoomNum).map(n=>{
+  grid.innerHTML=roomNums().filter(n=>n!==currentRoomNum).map(n=>{
     const rm=rooms[n]||{};
     const cls=rm.blocked?'blocked':rm.status||'need_clean';
     return `<div class="room-card ${cls}" style="cursor:pointer;padding:8px;" onclick="moveCurrentBookingToRoom('${n}')">
@@ -1824,7 +1909,7 @@ function openCounterModal(type){
   let title='';
   let list=[];
 
-  ROOM_NUMS.forEach(num=>{
+  roomNums().forEach(num=>{
     const r=rooms[num];if(!r||r.blocked)return;
     const cur=r.currentBooking;
     const nextArr=getNextBookings(r);
@@ -1930,7 +2015,7 @@ function renderUpcoming(){
   const tmrD=new Date();tmrD.setDate(tmrD.getDate()+1);
   const tmrStr=tmrD.getFullYear()+'-'+String(tmrD.getMonth()+1).padStart(2,'0')+'-'+String(tmrD.getDate()).padStart(2,'0');
   const list=[];
-  ROOM_NUMS.forEach(num=>{
+  roomNums().forEach(num=>{
     const r=rooms[num];if(!r)return;
     // currentBooking: 체크인이 오늘 이전이면 지난예약, 오늘 이후면 현재/예정
     if(r.currentBooking&&r.currentBooking.guest){
@@ -2043,7 +2128,7 @@ function getSupplyItemsFromModal(){
 }
 
 function updateSupplyTabBadge(){
-  const hasUnresolved=ROOM_NUMS.some(num=>roomSupplies[num]&&Object.values(roomSupplies[num]).some(s=>!s.done));
+  const hasUnresolved=roomNums().some(num=>roomSupplies[num]&&Object.values(roomSupplies[num]).some(s=>!s.done));
   const tab=document.getElementById('tab-supplies');
   const dot=document.getElementById('supply-dot');
   if(tab){
@@ -2062,7 +2147,7 @@ function updateSupplyTabBadge(){
 
 function renderSupplies(){
   const el=document.getElementById('supplies-list');if(!el)return;
-  const roomsWithSupplies=ROOM_NUMS.filter(num=>roomSupplies[num]&&Object.keys(roomSupplies[num]).length>0);
+  const roomsWithSupplies=roomNums().filter(num=>roomSupplies[num]&&Object.keys(roomSupplies[num]).length>0);
   if(!roomsWithSupplies.length){
     el.innerHTML=`<div class="empty-msg">${t("empty_supply")}</div>`;
     updateSupplyTabBadge();
@@ -2365,7 +2450,7 @@ const safeBid=b=>String(b).replace(/[.#$\[\]\/]/g,'_');
 function findRoomBookingsByBid(){
   // bookingId → {num, where:'current'|index, bk} 매핑
   const map={};
-  for(const num of ROOM_NUMS){
+  for(const num of roomNums()){
     const r=rooms[num];if(!r)continue;
     if(r.currentBooking&&r.currentBooking.bookingId)map[String(r.currentBooking.bookingId)]={num,where:'current',bk:r.currentBooking};
     getNextBookings(r).forEach((b,i)=>{if(b&&b.bookingId)map[String(b.bookingId)]={num,where:i,bk:b};});
@@ -2446,7 +2531,7 @@ function renderAssignCalendar(){
   }
   html+='</tr>';
   // 객실별 행
-  for(const num of ROOM_NUMS){
+  for(const num of roomNums()){
     const r=rooms[num];if(!r)continue;
     const books=[r.currentBooking,...getNextBookings(r)].filter(b=>b&&b.guest&&b.checkinDate&&b.checkoutDate);
     html+='<tr><td style="position:sticky;left:0;background:#fff;border:0.5px solid var(--border);padding:6px 8px;font-weight:800;font-size:11px;z-index:1;">'+num+'</td>';
@@ -2511,7 +2596,7 @@ function renderSendTab(){
     const groups={};
     for(const [gk,gb] of items){const gm=(gb.checkinDate||'').slice(0,7)||'날짜미정';(groups[gm]=groups[gm]||[]).push([gk,gb]);}
     const cardHtml=([key,b])=>{
-      const opts=ROOM_NUMS.map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
+      const opts=roomNums().map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
       return '<div style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;background:var(--bg2);">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
         +'<span style="font-size:13px;font-weight:700;">'+b.guest+'</span>'
@@ -2629,7 +2714,7 @@ function renderSendTab(){
       +'</div>';
   };
   const todayRows=[],tomorrowRows=[];
-  for(const num of ROOM_NUMS){
+  for(const num of roomNums()){
     const r=rooms[num];if(!r)continue;
     const cands=[r.currentBooking,...getNextBookings(r)].filter(b=>b&&b.guest);
     for(const bk of cands){
@@ -2645,7 +2730,7 @@ function renderSendTab(){
   // 체크아웃 추적 (내일 + 오늘 + 어제)
   const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
   const coRows=[];const seenBid=new Set();
-  for(const num of ROOM_NUMS){
+  for(const num of roomNums()){
     const r=rooms[num];const cb=r&&r.currentBooking;
     if(cb&&cb.guest&&(cb.checkoutDate===today||cb.checkoutDate===yesterday||cb.checkoutDate===tomorrow)){
       coRows.push({num,bk:cb});
