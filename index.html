@@ -2616,7 +2616,12 @@ function renderSendTab(){
     const groups={};
     for(const [gk,gb] of items){const gm=(gb.checkinDate||'').slice(0,7)||'날짜미정';(groups[gm]=groups[gm]||[]).push([gk,gb]);}
     const cardHtml=([key,b])=>{
-      const opts=roomNums().map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
+      // 운영중인 방 + (정비중이지만 운영예정일이 잡혀 있고 이 예약 체크인이 그 날 이후인) 방만 선택지로
+      const opts=roomNums().filter(n=>{
+        const r=rooms[n]||{};
+        if(!r.blocked)return true;
+        return !!r.operatingFrom && !!b.checkinDate && b.checkinDate>=r.operatingFrom;
+      }).map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
       return '<div style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;background:var(--bg2);">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
         +'<span style="font-size:13px;font-weight:700;">'+b.guest+'</span>'
