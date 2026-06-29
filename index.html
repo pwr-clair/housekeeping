@@ -282,31 +282,30 @@ input,select,button,textarea{font-family:inherit;}
       <div id="send-sub-checkin" onclick="switchSendSub('checkin')" style="flex:1;height:32px;border-radius:7px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:var(--accent);color:#E6F1FB;font-weight:700;border:none;"><i class="ti ti-login"></i> 체크인</div>
       <div id="send-sub-checkout" onclick="switchSendSub('checkout')" style="flex:1;height:32px;border-radius:7px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:#fff;color:var(--text2);font-weight:500;border:0.5px solid var(--border);"><i class="ti ti-logout"></i> 체크아웃</div>
     </div>
-    <!-- 2) 자동발송 박스 (흰 카드) -->
-    <div style="border:0.5px solid var(--border);border-radius:9px;background:#fff;padding:0 12px;margin-top:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--text);">입실 자동발송</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크인 시각에 맞춰 자동 발송</div>
-        </div>
-        <div id="send-mode-toggle-a" onclick="toggleSendModeA()" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
-          <div id="send-knob-a" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
-        <div>
-          <div style="font-size:12px;font-weight:600;color:var(--text);">나머지 자동발송</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:1px;">리마인더·퇴실·방문고지·후기</div>
-        </div>
-        <div id="send-mode-toggle-b" onclick="toggleSendModeB()" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
-          <div id="send-knob-b" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
-        </div>
-      </div>
-    </div>
     <!-- 3) 템플릿 관리 (박스 밖, 가로 꽉) -->
     <button onclick="openTemplateManager()" style="width:100%;height:30px;border:0.5px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text2);font-size:11px;font-weight:500;cursor:pointer;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:4px;"><i class="ti ti-template" style="font-size:13px;"></i> 템플릿 관리</button>
 
     <div id="send-pane-checkin">
+      <div style="border:0.5px solid var(--border);border-radius:9px;background:#fff;padding:0 12px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);">리마인더 자동발송</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;">입실일 다가올 때 안내 (KST 7시)</div>
+          </div>
+          <div id="tg-s2" onclick="toggleStage('s2_reminder')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+            <div id="knob-s2" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);">입실 자동발송</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크인 시각에 맞춰 자동 발송</div>
+          </div>
+          <div id="send-mode-toggle-a" onclick="toggleSendModeA()" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+            <div id="send-knob-a" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+      </div>
       <details open style="margin-bottom:12px;">
         <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">오늘 체크인</summary>
         <div id="send-today-list"></div>
@@ -317,6 +316,35 @@ input,select,button,textarea{font-family:inherit;}
       </details>
     </div>
     <div id="send-pane-checkout" style="display:none;">
+      <div style="border:0.5px solid var(--border);border-radius:9px;background:#fff;padding:0 12px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);">퇴실안내 자동발송</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 전날 발송 (2박 이상)</div>
+          </div>
+          <div id="tg-s4" onclick="toggleStage('s4_checkout')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+            <div id="knob-s4" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);">방문고지 자동발송</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 당일 청소방문 안내</div>
+          </div>
+          <div id="tg-s5" onclick="toggleStage('s5_checkoutConfirm')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+            <div id="knob-s5" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);">후기 자동발송</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 다음날 후기 요청</div>
+          </div>
+          <div id="tg-s6" onclick="toggleStage('s6_review')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+            <div id="knob-s6" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          </div>
+        </div>
+      </div>
       <details open style="margin-bottom:12px;">
         <summary class="section-title" style="cursor:pointer;margin-bottom:8px;">내일 체크아웃 <span style="font-size:10px;font-weight:400;color:var(--text3);">퇴실안내(전날 발송)</span></summary>
         <div id="send-checkout-tmr-list"></div>
@@ -2299,15 +2327,12 @@ function toggleSendModeA(){
   set(ref(db,'app/config/sendMode'), sendMode==='auto'?'manual':'auto');
 }
 window.toggleSendModeA=toggleSendModeA;
-function toggleSendModeB(){
-  // 나머지 자동: 4개 단계 키를 전부 true(켤 때)/false(끌 때)로 부분갱신(update)
-  const allOn=MAILCFG_STAGE_KEYS.every(k=>mailConfigStages[k]===true);
-  const val=!allOn;
-  const upd={};
-  MAILCFG_STAGE_KEYS.forEach(k=>upd[k]=val);
-  update(ref(db,'app/mailConfig/stages'),upd);
+function toggleStage(key){
+  // 단계별 개별 자동발송 토글: 해당 키만 true/false 반전
+  const cur=mailConfigStages[key]===true;
+  update(ref(db,'app/mailConfig/stages'),{[key]:!cur});
 }
-window.toggleSendModeB=toggleSendModeB;
+window.toggleStage=toggleStage;
 function switchSendSub(mode){
   // 발송탭 내부 서브탭: 체크인 / 체크아웃 페인 전환 (상단 탭과 동일 디자인)
   document.getElementById('send-pane-checkin').style.display=mode==='checkin'?'':'none';
@@ -2461,17 +2486,19 @@ function renderSendTab(){
   renderAssignCalendar();
   renderChangeAlerts();
   // 모드 토글 (A: 입실 자동 / B: 나머지 자동)
-  const aOn=sendMode==='auto';
-  const bOn=MAILCFG_STAGE_KEYS.every(k=>mailConfigStages[k]===true);
-  // iOS식 스위치: ON=초록 트랙·노브 오른쪽 / OFF=회색 트랙·노브 왼쪽
-  const tgA=document.getElementById('send-mode-toggle-a');
-  const knobA=document.getElementById('send-knob-a');
-  if(tgA)tgA.style.background=aOn?'#2E9E6B':'var(--border)';
-  if(knobA){knobA.style.left=aOn?'auto':'2.5px';knobA.style.right=aOn?'2.5px':'auto';}
-  const tgB=document.getElementById('send-mode-toggle-b');
-  const knobB=document.getElementById('send-knob-b');
-  if(tgB)tgB.style.background=bOn?'#2E9E6B':'var(--border)';
-  if(knobB){knobB.style.left=bOn?'auto':'2.5px';knobB.style.right=bOn?'2.5px':'auto';}
+  // iOS식 스위치 헬퍼: ON=초록·노브 오른쪽 / OFF=회색·노브 왼쪽
+  const paintToggle=(tgId,knobId,on)=>{
+    const tg=document.getElementById(tgId), kn=document.getElementById(knobId);
+    if(tg)tg.style.background=on?'#2E9E6B':'var(--border)';
+    if(kn){kn.style.left=on?'auto':'2.5px';kn.style.right=on?'2.5px':'auto';}
+  };
+  // 입실(A) = sendMode
+  paintToggle('send-mode-toggle-a','send-knob-a',sendMode==='auto');
+  // 단계별 개별: 리마인더/퇴실/방문고지/후기
+  paintToggle('tg-s2','knob-s2',mailConfigStages['s2_reminder']===true);
+  paintToggle('tg-s4','knob-s4',mailConfigStages['s4_checkout']===true);
+  paintToggle('tg-s5','knob-s5',mailConfigStages['s5_checkoutConfirm']===true);
+  paintToggle('tg-s6','knob-s6',mailConfigStages['s6_review']===true);
 
   // 미배정 예약
   const pl=document.getElementById('pending-list');
