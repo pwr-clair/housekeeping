@@ -2573,8 +2573,8 @@ function renderAssignCalendar(){
       const startsBefore=bk.checkinDate<days[i].ymd;
       const endsAfter=bk.checkoutDate>days[days.length-1].ymd;
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;">'
-        +'<div style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="'+bk.guest+' ('+bk.checkinDate+'~'+bk.checkoutDate+')'+(bk.amount?(' · ₩'+Number(bk.amount).toLocaleString('ko-KR')):'')+'">'
-        +(startsBefore?'…':'')+bk.guest+(bk.amount?(' <span style="opacity:.6;font-weight:400;">|</span> <span style="opacity:.85;font-weight:600;">₩'+Number(bk.amount).toLocaleString('ko-KR')+'</span>'):'')+'</div></td>';
+        +'<div style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;" title="'+bk.guest+' ('+bk.checkinDate+'~'+bk.checkoutDate+')">'
+        +(startsBefore?'…':'')+bk.guest+'</div></td>';
       i+=span;
     }
     html+='</tr>';
@@ -2624,7 +2624,7 @@ function renderSendTab(){
       }).map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
       return '<div style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;background:var(--bg2);">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-        +'<span style="font-size:13px;font-weight:700;">'+b.guest+'</span>'
+        +'<span style="font-size:13px;font-weight:700;">'+b.guest+(b.amount?(' <span style="font-weight:400;color:var(--text3);">|</span> <span style="font-size:12px;font-weight:600;color:var(--text2);">₩'+Number(b.amount).toLocaleString('ko-KR')+'</span>'):'')+'</span>'
         +'<span style="font-size:10px;font-weight:600;color:var(--text2);">'+srcLabel(b.source)+'</span></div>'
         +'<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">'+(b.checkinDate||'?')+' → '+(b.checkoutDate||'?')+(b.eta?' | ETA '+b.eta:'')+'</div>'
         +'<div style="font-size:10px;color:'+(b.guestEmail?'var(--text3)':'#C0392B')+';margin-bottom:8px;">'+(b.guestEmail?'📧 '+b.guestEmail:'⚠️ 이메일 없음 — 수기 입력 필요')+'</div>'
