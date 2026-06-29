@@ -513,8 +513,14 @@ input,select,button,textarea{font-family:inherit;}
           <label class="toggle-sw"><input type="checkbox" id="rm-blocked" onchange="onBlockedToggle()"><div class="t-track"></div><div class="t-knob"></div></label>
         </div>
         <div class="toggle-half" style="background:#FDEEF3;flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 12px;gap:8px;">
-          <input type="text" id="rm-room-note" maxlength="5" placeholder="특이사항 5자이내" style="width:100%;border:0.5px solid #F5B7CC;border-radius:var(--radius-sm);padding:5px 8px;font-size:11px;font-family:inherit;background:#fff;color:var(--text);box-sizing:border-box;">
+          <input type="text" id="rm-room-note" maxlength="10" placeholder="특이사항 10자이내" style="width:100%;border:0.5px solid #F5B7CC;border-radius:var(--radius-sm);padding:5px 8px;font-size:11px;font-family:inherit;background:#fff;color:var(--text);box-sizing:border-box;">
         </div>
+      </div>
+
+      <!-- 운영예정일 (정비중일 때만 표시) -->
+      <div id="rm-operating-row" style="display:none;margin-bottom:8px;background:#F5F4F2;border:0.5px solid #D0CECC;border-radius:var(--radius-sm);padding:8px 12px;">
+        <div style="font-size:10px;font-weight:600;color:#6E6B67;margin-bottom:4px;"><i class="ti ti-calendar" style="font-size:11px;"></i> 운영 예정일 <span style="font-weight:400;opacity:.7;">(이 날짜부터 운영 시작 · 미입력 시 계속 정비중 표시)</span></div>
+        <input type="date" id="rm-operating-from" style="width:100%;border:0.5px solid #D0CECC;border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:#fff;color:var(--text);box-sizing:border-box;">
       </div>
 
       <!-- 비품 메모 -->
@@ -1257,6 +1263,8 @@ function openRoomModal(num){
   renderStatusOpts(r.status);
   document.getElementById('rm-doorpw').value=r.doorPw||'';
   document.getElementById('rm-room-note').value=r.roomNote||'';
+  document.getElementById('rm-operating-from').value=r.operatingFrom||'';
+  document.getElementById('rm-operating-row').style.display=(r.blocked||false)?'':'none';
   const asel=document.getElementById('rm-assignee');
   asel.innerHTML=[(currentLang==='ko'?'미배정':'Unassigned'),...assignees].map(a=>`<option value="${a}"${a===(r.assignee||assignees[0])?' selected':''}>${a}</option>`).join('');
   renderCurrentBooking(r.currentBooking);
@@ -1715,7 +1723,11 @@ function updateAutoStatusBadge(cur){
   if(badge)badge.style.display='none';
 }
 
-function onBlockedToggle(){}
+function onBlockedToggle(){
+  const on=document.getElementById('rm-blocked').checked;
+  const row=document.getElementById('rm-operating-row');
+  if(row)row.style.display=on?'':'none';
+}
 window.onBlockedToggle=onBlockedToggle;
 
 async function applyRoomChanges(){
@@ -1724,6 +1736,7 @@ async function applyRoomChanges(){
     doorPw:document.getElementById('rm-doorpw').value.trim(),
     assignee:document.getElementById('rm-assignee').value,
     roomNote:document.getElementById('rm-room-note').value.trim(),
+    operatingFrom:document.getElementById('rm-operating-from').value||'',
   };
   // 사용자가 상태 버튼을 실제로 눌러서 바꿨을 때만 status를 저장.
   // (모달 열려있는 동안 GAS 자동전환 등으로 상태가 바뀌어도 덮어쓰지 않도록)
@@ -2541,7 +2554,13 @@ function renderAssignCalendar(){
       const d=days[i];
       const bk=books.find(b=>b.checkinDate<=d.ymd&&d.ymd<b.checkoutDate);
       if(!bk){
-        html+='<td style="border:0.5px solid var(--border);padding:0;height:30px;background:'+(d.ymd===today?'#FFFBF2':'#fff')+';"></td>';
+        // 정비중 방: 운영예정일 전(또는 미설정)이면 회색 막힌 칸
+        const _isBlockedDay = r.blocked && (!r.operatingFrom || d.ymd < r.operatingFrom);
+        if(_isBlockedDay){
+          html+='<td style="border:0.5px solid var(--border);padding:0;height:30px;background:repeating-linear-gradient(45deg,#EDEBE9,#EDEBE9 4px,#F5F4F2 4px,#F5F4F2 8px);" title="정비중'+(r.operatingFrom?(' · '+r.operatingFrom+' 운영예정'):'')+'"></td>';
+        } else {
+          html+='<td style="border:0.5px solid var(--border);padding:0;height:30px;background:'+(d.ymd===today?'#FFFBF2':'#fff')+';"></td>';
+        }
         i++;continue;
       }
       // 같은 예약이 이어지는 길이 계산 (colspan)
