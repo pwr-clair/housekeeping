@@ -257,9 +257,6 @@ input,select,button,textarea{font-family:inherit;}
       <div class="stat" style="background:#E6F1FB;cursor:pointer;" onclick="openCounterModal('checkin')"><div class="stat-num" style="color:#0C447C;" id="cnt-checkin">0</div><div class="stat-label">입실중</div></div>
       <div class="stat" style="background:#FEF3C7;cursor:pointer;" onclick="openCounterModal('tomorrow')"><div class="stat-num" style="color:#92400E;" id="cnt-early">0</div><div class="stat-label">내일입실</div></div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-      <button onclick="openRoomManager()" style="padding:6px 12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;"><i class="ti ti-settings"></i> 객실 관리</button>
-    </div>
     <div id="floor-sections"></div>
   </div>
 
@@ -618,6 +615,7 @@ input,select,button,textarea{font-family:inherit;}
       <div id="assignee-list"></div>
       <button class="add-btn" onclick="addAssignee()" id="assignee-add-btn"><i class="ti ti-plus"></i> 팀원 추가</button>
       <button class="modal-btn primary" style="width:100%;padding:10px;" onclick="saveAssignees()" id="assignee-save-btn">저장</button>
+      <button id="assignee-room-mgr-btn" onclick="closeModal('assignee-modal');openRoomManager();" style="display:none;width:100%;padding:10px;margin-top:8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;"><i class="ti ti-settings"></i> 객실 관리</button>
     </div>
   </div>
 
@@ -1059,6 +1057,7 @@ function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHisto
 
 // ── 객실 추가/삭제 관리 ──
 function openRoomManager(){
+  if(!ADMIN_NAMES.includes(currentUser)){alert('관리자만 사용할 수 있어요.');return;}
   const sel=document.getElementById('rm-del-num');
   if(sel)sel.innerHTML=roomNums().map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
   const inp=document.getElementById('rm-add-num');if(inp)inp.value='';
@@ -2354,6 +2353,8 @@ function openAssigneeModal(){
   renderAssigneeList();
   const btn=document.getElementById('notif-btn');
   if(btn)btn.textContent=Notification.permission==='granted'?'✓ 허용됨':'허용하기';
+  const rm=document.getElementById('assignee-room-mgr-btn');
+  if(rm)rm.style.display=ADMIN_NAMES.includes(currentUser)?'':'none';  // 관리자(Clara/Dennis)만 노출
   document.getElementById('assignee-modal').classList.add('open');
 }
 function renderAssigneeList(){
