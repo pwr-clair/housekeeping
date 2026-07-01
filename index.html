@@ -2422,8 +2422,11 @@ window.openAssigneeModal=openAssigneeModal; window.addAssignee=addAssignee; wind
 
 // ════════════ 발송 탭 (0003 전용) ════════════
 function toggleSendModeA(){
-  // 입실 자동: ON='auto' / OFF='manual'
-  set(ref(db,'app/config/sendMode'), sendMode==='auto'?'manual':'auto');
+  // 입실 자동: ON='auto'+stages.s3_checkin:true / OFF='manual'+stages.s3_checkin:false
+  // (GAS는 sendMode=auto AND mailConfig/stages/s3_checkin 둘 다 필요 → 한 토글로 동기화해 고아 방지)
+  const on=sendMode!=='auto';
+  set(ref(db,'app/config/sendMode'), on?'auto':'manual');
+  update(ref(db,'app/mailConfig/stages'),{s3_checkin:on});
 }
 window.toggleSendModeA=toggleSendModeA;
 function toggleStage(key){
@@ -2598,7 +2601,7 @@ function renderSendTab(){
     if(kn){kn.style.left=on?'auto':'2.5px';kn.style.right=on?'2.5px':'auto';}
   };
   // 입실(A) = sendMode
-  paintToggle('send-mode-toggle-a','send-knob-a',sendMode==='auto');
+  paintToggle('send-mode-toggle-a','send-knob-a',sendMode==='auto' && mailConfigStages['s3_checkin']===true);
   // 단계별 개별: 리마인더/퇴실/방문고지/후기
   paintToggle('tg-s2','knob-s2',mailConfigStages['s2_reminder']===true);
   paintToggle('tg-s4','knob-s4',mailConfigStages['s4_checkout']===true);
