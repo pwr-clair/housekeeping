@@ -1848,6 +1848,14 @@ async function moveCurrentBookingToRoom(targetNum){
   const r=rooms[currentRoomNum];
   const cur=r&&r.currentBooking;
   if(!cur)return;
+  // 가드: 대상 방에 현재 예약이 있으면 확인 후 진행 (무경고 덮어쓰기 방지, 2026-07-02 사고 재발방지)
+  const tgt=rooms[targetNum]||{};
+  if(tgt.currentBooking&&tgt.currentBooking.guest){
+    const msg=currentLang==='ko'
+      ?targetNum+'호에는 이미 \''+tgt.currentBooking.guest+'\' 현재 예약이 있습니다.\n이동하면 해당 예약이 삭제됩니다. 계속할까요?'
+      :'Room '+targetNum+' already has a current booking for \''+tgt.currentBooking.guest+'\'.\nMoving will DELETE that booking. Continue?';
+    if(!confirm(msg))return;
+  }
   await update(ref(db,`app/rooms/${targetNum}`),{currentBooking:cur});
   await update(ref(db,`app/rooms/${currentRoomNum}`),{currentBooking:null});
   closeModal('move-booking-modal');
