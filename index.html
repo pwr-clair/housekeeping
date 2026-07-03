@@ -756,12 +756,36 @@ let mailConfigStages={};
 const MAILCFG_STAGE_KEYS=['s2_reminder','s4_checkout','s5_checkoutConfirm','s6_review'];
 const SOURCE_LABEL={booking:'Booking.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};
 const ADMIN_NAMES=['Clara','Dennis']; // 관리자(배정/발송 탭) — 이 이름들이 관리자
+// 금액 열람 권한 — 관리자와 별개 개념. 명단에 없으면 금액이 어디에도 안 보이는 게 의도된 동작.
+const AMOUNT_VIEWERS=['clara','dennis','bibian'];
+function canViewAmount(){return AMOUNT_VIEWERS.includes(String(currentUser||'').toLowerCase());}
 let unreadLogs=0;
 
 function toMin(t){if(!t)return null;const p=t.split(':');if(p.length<2||isNaN(+p[0])||isNaN(+p[1]))return null;return +p[0]*60+ +p[1];}
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function ymdToStr(y,m,d){return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
 function fmtDate(s){if(!s)return currentLang==='ko'?'미설정':'Not set';const p=s.split('-');return p[1]+'/'+p[2];}
+// 예약 원본(pendingBookings)에서 이 방/예약의 sv_ 레코드 찾기 — 복사 아닌 참조(원본이 single source of truth)
+function svRecordOf(booking, roomNum){
+  if(!booking||!booking.bookingId)return null;
+  const bid=String(booking.bookingId), pend=pendingBookings||{};
+  if(pend['sv_'+bid])return pend['sv_'+bid];                 // 1) sv_{bid} 정확 일치
+  const prefix='sv_'+bid+'_'; let first=null;                // 2/3) 멀티룸 분할 키 대응
+  for(const k of Object.keys(pend)){
+    if(k.indexOf(prefix)!==0)continue;
+    const rec=pend[k]; if(!rec)continue;
+    if(first===null)first=rec;
+    if(roomNum!=null&&String(rec.assignedRoom)===String(roomNum))return rec;  // 2) assignedRoom 일치
+  }
+  return first;                                              // 3) 첫 분할 키
+}
+// 이 예약의 "지금" 금액: 원본(sv.amount) 우선 → 수기(amountManual) 폴백 → 없으면 null
+function amountOf(booking, roomNum){
+  const sv=svRecordOf(booking, roomNum);
+  if(sv&&sv.amount!=null&&sv.amount!==''&&Number(sv.amount)>0)return Number(sv.amount);
+  if(booking&&booking.amountManual!=null&&booking.amountManual!==''&&Number(booking.amountManual)>0)return Number(booking.amountManual);
+  return null;
+}
 function nightsOf(ci,co){if(!ci||!co)return 0;return Math.round((new Date(co)-new Date(ci))/86400000);}
 function longStayDot(ci,co){return nightsOf(ci,co)>=2?'<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#E53935;margin-left:5px;vertical-align:middle;"></span>':'';}
 function nowTime(){const d=new Date();return d.getHours()+':'+(d.getMinutes()+'').padStart(2,'0');}
@@ -1206,6 +1230,18 @@ function renderRooms(){
       const asgnIdx=asgnName?assignees.indexOf(asgnName):-1;
       const ap=asgnIdx>=0?asgnPalette[asgnIdx%asgnPalette.length]:{bg:'#E5E7EB',fg:'#4B5563',bd:'#C2C7CF'};
       const asgnBadge=asgnName?`<div title="청소: ${asgnName}" style="position:absolute;top:5px;right:24px;width:15px;height:15px;border-radius:50%;background:${ap.bg};color:${ap.fg};border:1px solid ${ap.bd};font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:3;">${asgnName.charAt(0).toUpperCase()}</div>`:'';
+      // 금액 줄 (열람권한 + 11:30~24:00 + 오늘 체크인 예약 + 금액유효 → 전부 만족 시에만 렌더, 아니면 줄 자체 없음)
+      let amountLine='';
+      if(canViewAmount()){
+        const _nowM=new Date().getHours()*60+new Date().getMinutes();
+        if(_nowM>=690){ // 11:30 이후 (하루는 1440분 미만이라 <24:00 자동충족)
+          const _todayBk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
+          const _amt=_todayBk?amountOf(_todayBk,num):null;
+          if(_amt!=null){
+            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${currentLang==='ko'?'오늘':'Today'}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}</span></div>`;
+          }
+        }
+      }
       return `<div class="room-card ${cls}" onclick="openRoomModal('${num}')">
         ${r.blocked?`<div class="blocked-badge">${t('blocked_lbl')}</div>`:''}
         ${r.roomNote?`<div style="position:absolute;bottom:6px;right:6px;background:#D90040;color:#fff;font-size:8px;font-weight:700;border-radius:100px;padding:1px 6px;white-space:nowrap;z-index:2;">${r.roomNote}</div>`:''}
@@ -1216,6 +1252,7 @@ function renderRooms(){
         ${dateLine}
         <div class="room-pw"><i class="ti ti-lock" style="font-size:9px;"></i>${pw}</div>
         ${guestPanel}
+        ${amountLine}
       </div>`;
     }).join('');
   });
@@ -1289,6 +1326,39 @@ function openRoomModal(num){
 }
 window.openRoomModal=openRoomModal;
 
+// 모달용 — 원본 ETA 표시 태그 (권한 무관: 도착시간은 운영정보)
+function bkEtaTag(bk){
+  const sv=svRecordOf(bk, currentRoomNum);
+  const eta=(sv&&sv.eta)?String(sv.eta):'';
+  return eta?` <span style="font-size:10px;font-weight:400;color:var(--text3);">· ETA ${eta} ${currentLang==='ko'?'(원본)':'(source)'}</span>`:'';
+}
+// 모달용 — 금액 표시 또는 수기입력 버튼 (canViewAmount 한정, 시간창 무관)
+function bkMoneyBlock(bk, type, idx){
+  if(!canViewAmount())return '';
+  const amt=amountOf(bk, currentRoomNum);
+  if(amt!=null)return `<div style="margin-top:4px;"><span style="font-size:12px;font-weight:700;color:#1A4FA0;">₩${Number(amt).toLocaleString('ko-KR')}</span></div>`;
+  return `<div style="margin-top:4px;"><button onclick="promptAmountManual('${type}',${idx==null?'null':idx})" style="font-size:11px;font-weight:600;color:#1A4FA0;background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:6px;padding:2px 8px;cursor:pointer;">₩ ${currentLang==='ko'?'입력':'Enter'}</button></div>`;
+}
+// 수기 금액 입력 → 방 예약의 amountManual에만 저장 (원본 sv_는 GAS가 덮으므로 건들지 않음)
+async function promptAmountManual(type, idx){
+  const r=rooms[currentRoomNum]; if(!r)return;
+  const raw=prompt(currentLang==='ko'?'금액(원)을 숫자로 입력하세요':'Enter amount (KRW, digits only)');
+  if(raw===null)return;
+  const val=parseInt(String(raw).replace(/[^\d]/g,''),10);
+  if(!val||val<=0){alert(currentLang==='ko'?'숫자 금액을 입력해주세요.':'Please enter a numeric amount.');return;}
+  if(type==='current'){
+    await update(ref(db,'app/rooms/'+currentRoomNum+'/currentBooking'),{amountManual:val});
+    renderCurrentBooking({...(r.currentBooking||{}),amountManual:val});
+  }else{
+    const arr=[...getNextBookings(r)];
+    if(!arr[idx])return;
+    arr[idx]={...arr[idx],amountManual:val};
+    await update(ref(db,'app/rooms/'+currentRoomNum),{nextBookings:arr});
+    renderNextBookings(arr);
+  }
+}
+window.promptAmountManual=promptAmountManual;
+
 function renderCurrentBooking(cur){
   const wrap=document.getElementById('current-booking-wrap');
   if(!wrap)return;
@@ -1306,7 +1376,8 @@ function renderCurrentBooking(cur){
       <div>
         <div class="booking-guest">${cur.guest}${srcBadge}</div>
         <div class="booking-dates">${fmtDate(cur.checkinDate)} → ${fmtDate(cur.checkoutDate)}${longStayDot(cur.checkinDate,cur.checkoutDate)}</div>
-        ${cur.checkinTime||cur.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${cur.checkinTime?'IN '+cur.checkinTime:''}${cur.checkinTime&&cur.checkoutTime?' · ':''}${cur.checkoutTime?'OUT '+cur.checkoutTime:''}</div>`:''}
+        ${cur.checkinTime||cur.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${cur.checkinTime?'IN '+cur.checkinTime:''}${cur.checkinTime&&cur.checkoutTime?' · ':''}${cur.checkoutTime?'OUT '+cur.checkoutTime:''}${bkEtaTag(cur)}</div>`:''}
+        ${bkMoneyBlock(cur,'current',null)}
         ${cleanNote(notes)?`<div style="font-size:11px;color:#c0392b;font-weight:600;margin-top:4px;">⚠ ${cleanNote(notes)}</div>`:''}
       </div>
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
@@ -1418,7 +1489,8 @@ function renderNextBookings(list){
       <div>
         <div class="booking-guest">${nxt.guest}${(()=>{const bg={booking:'#003580',agoda:'#CC0000',expedia:'#FFD700',direct:'#F97316'};const tc={booking:'#fff',agoda:'#fff',expedia:'#7A6000',direct:'#fff'};const lb={booking:'B.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};return lb[nxt.source]?`<span style="font-size:9px;font-weight:700;background:${bg[nxt.source]};color:${tc[nxt.source]};border-radius:100px;padding:1px 6px;margin-left:5px;vertical-align:middle;">${lb[nxt.source]}</span>`:'';})()} </div>
         <div class="booking-dates">${fmtDate(nxt.checkinDate)} → ${fmtDate(nxt.checkoutDate)}${longStayDot(nxt.checkinDate,nxt.checkoutDate)}</div>
-        ${nxt.checkinTime||nxt.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${nxt.checkinTime?'IN '+nxt.checkinTime:''}${nxt.checkinTime&&nxt.checkoutTime?' · ':''}${nxt.checkoutTime?'OUT '+nxt.checkoutTime:''}</div>`:''}
+        ${nxt.checkinTime||nxt.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${nxt.checkinTime?'IN '+nxt.checkinTime:''}${nxt.checkinTime&&nxt.checkoutTime?' · ':''}${nxt.checkoutTime?'OUT '+nxt.checkoutTime:''}${bkEtaTag(nxt)}</div>`:''}
+        ${bkMoneyBlock(nxt,'next',i)}
         ${cleanNote(nxt.notes)?`<div style="font-size:11px;color:#c0392b;font-weight:600;margin-top:4px;">⚠ ${cleanNote(nxt.notes)}</div>`:''}
       </div>
       <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
