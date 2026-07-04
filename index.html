@@ -1255,10 +1255,12 @@ function renderRooms(){
       if(canViewAmount()){
         const _nowM=new Date().getHours()*60+new Date().getMinutes();
         if(_nowM>=690){ // 11:30 이후 (하루는 1440분 미만이라 <24:00 자동충족)
-          const _todayBk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
-          const _amt=_todayBk?amountOf(_todayBk,num):null;
+          // 오늘 체크인 또는 현재 재실중(체크인<=오늘<체크아웃) 예약
+          const _bk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate&&b.checkoutDate&&b.checkinDate<=_td&&_td<b.checkoutDate);
+          const _amt=_bk?amountOf(_bk,num):null;
           if(_amt!=null){
-            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${currentLang==='ko'?'오늘':'Today'}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}${amountTotalLabel(_todayBk,num)}</span></div>`;
+            const _lbl=(_bk.checkinDate===_td)?(currentLang==='ko'?'오늘':'Today'):(currentLang==='ko'?'재실':'Staying');
+            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${_lbl}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}${amountTotalLabel(_bk,num)}</span></div>`;
           }
         }
       }
