@@ -782,7 +782,11 @@ function svRecordOf(booking, roomNum){
 // 이 예약의 "지금" 금액: 원본(sv.amount) 우선 → 수기(amountManual) 폴백 → 없으면 null
 function amountOf(booking, roomNum){
   const sv=svRecordOf(booking, roomNum);
-  if(sv&&sv.amount!=null&&sv.amount!==''&&Number(sv.amount)>0)return Number(sv.amount);
+  if(sv&&sv.amount!=null&&sv.amount!==''&&Number(sv.amount)>0){
+    // 멀티룸 예약은 조각마다 '총액'이 복제돼 있음 → 방 수로 나눠 방 몫으로 표시(방들 합산 시 총액 일치)
+    const n=svPieceCount(booking);
+    return n>=2?Math.round(Number(sv.amount)/n):Number(sv.amount);
+  }
   if(booking&&booking.amountManual!=null&&booking.amountManual!==''&&Number(booking.amountManual)>0)return Number(booking.amountManual);
   return null;
 }
@@ -796,15 +800,6 @@ function svPieceCount(booking){
     if(k==='sv_'+baseId || k.indexOf('sv_'+baseId+'_')===0)n++;
   }
   return n<1?1:n;
-}
-// "N룸 합계" 라벨 — 표시금액이 sv 원본값(amountManual 아님)이고 조각≥2일 때만. (값은 안 나눔)
-function amountTotalLabel(booking, roomNum){
-  const sv=svRecordOf(booking, roomNum);
-  const svAmt=(sv&&sv.amount!=null&&sv.amount!==''&&Number(sv.amount)>0)?Number(sv.amount):null;
-  if(svAmt==null)return '';
-  const n=svPieceCount(booking);
-  if(n<2)return '';
-  return ` <span style="font-size:9px;font-weight:400;color:var(--text3);">· ${n}${currentLang==='ko'?'룸 합계':'-room total'}</span>`;
 }
 function nightsOf(ci,co){if(!ci||!co)return 0;return Math.round((new Date(co)-new Date(ci))/86400000);}
 function longStayDot(ci,co){return nightsOf(ci,co)>=2?'<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#E53935;margin-left:5px;vertical-align:middle;"></span>':'';}
@@ -1260,7 +1255,7 @@ function renderRooms(){
           const _amt=_bk?amountOf(_bk,num):null;
           if(_amt!=null){
             const _lbl=(_bk.checkinDate===_td)?(currentLang==='ko'?'오늘':'Today'):(currentLang==='ko'?'재실':'Staying');
-            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${_lbl}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}${amountTotalLabel(_bk,num)}</span></div>`;
+            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${_lbl}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}</span></div>`;
           }
         }
       }
@@ -1358,7 +1353,7 @@ function bkEtaTag(bk){
 function bkMoneyBlock(bk, type, idx){
   if(!canViewAmount())return '';
   const amt=amountOf(bk, currentRoomNum);
-  if(amt!=null)return `<div style="margin-top:4px;"><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(amt).toLocaleString('ko-KR')}${amountTotalLabel(bk,currentRoomNum)}</span></div>`;
+  if(amt!=null)return `<div style="margin-top:4px;"><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(amt).toLocaleString('ko-KR')}</span></div>`;
   return `<div style="margin-top:4px;"><button onclick="promptAmountManual('${type}',${idx==null?'null':idx})" style="font-size:11px;font-weight:600;color:var(--text);background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:6px;padding:2px 8px;cursor:pointer;">₩ ${currentLang==='ko'?'입력':'Enter'}</button></div>`;
 }
 // 수기 금액 입력 → 방 예약의 amountManual에만 저장 (원본 sv_는 GAS가 덮으므로 건들지 않음)
