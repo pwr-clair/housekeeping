@@ -1250,12 +1250,11 @@ function renderRooms(){
       if(canViewAmount()){
         const _nowM=new Date().getHours()*60+new Date().getMinutes();
         if(_nowM>=690){ // 11:30 이후 (하루는 1440분 미만이라 <24:00 자동충족)
-          // 오늘 체크인 또는 현재 재실중(체크인<=오늘<체크아웃) 예약
-          const _bk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate&&b.checkoutDate&&b.checkinDate<=_td&&_td<b.checkoutDate);
+          // 오늘 체크인 예약만 (A) — 오전 객실 준비 중 '오늘 들어올 방·금액' 확인용
+          const _bk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
           const _amt=_bk?amountOf(_bk,num):null;
           if(_amt!=null){
-            const _lbl=(_bk.checkinDate===_td)?(currentLang==='ko'?'오늘':'Today'):(currentLang==='ko'?'재실':'Staying');
-            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${_lbl}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}</span></div>`;
+            amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${currentLang==='ko'?'오늘':'Today'}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}</span></div>`;
           }
         }
       }
@@ -2753,7 +2752,7 @@ function renderSendTab(){
       }).map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
       return '<div style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;background:var(--bg2);">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-        +'<span style="font-size:13px;font-weight:700;">'+b.guest+(b.amount?(' <span style="font-weight:400;color:var(--text3);">|</span> <span style="font-size:12px;font-weight:600;color:var(--text2);">₩'+Number(b.amount).toLocaleString('ko-KR')+'</span>'):'')+'</span>'
+        +'<span style="font-size:13px;font-weight:700;">'+b.guest+(amountOf(b,b.assignedRoom||null)?(' <span style="font-weight:400;color:var(--text3);">|</span> <span style="font-size:12px;font-weight:600;color:var(--text2);">₩'+Number(amountOf(b,b.assignedRoom||null)).toLocaleString('ko-KR')+'</span>'):'')+'</span>'
         +'<span style="font-size:10px;font-weight:600;color:var(--text2);">'+srcLabel(b.source)+'</span></div>'
         +'<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">'+(b.checkinDate||'?')+' → '+(b.checkoutDate||'?')+(b.eta?' | ETA '+b.eta:'')+'</div>'
         +'<div style="font-size:10px;color:'+(b.guestEmail?'var(--text3)':'#C0392B')+';margin-bottom:8px;">'+(b.guestEmail?'📧 '+b.guestEmail:'⚠️ 이메일 없음 — 수기 입력 필요')+'</div>'
