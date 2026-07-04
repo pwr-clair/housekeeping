@@ -779,6 +779,20 @@ function svRecordOf(booking, roomNum){
   }
   return first;                                              // 3) 첫 분할 키
 }
+// svRecordOf와 동일 매칭이되 '키'를 반환 (방 이동 시 원본 assignedRoom 갱신용)
+function svKeyOf(booking, roomNum){
+  if(!booking||!booking.bookingId)return null;
+  const bid=String(booking.bookingId), pend=pendingBookings||{};
+  if(pend['sv_'+bid])return 'sv_'+bid;
+  const prefix='sv_'+bid+'_'; let first=null;
+  for(const k of Object.keys(pend)){
+    if(k.indexOf(prefix)!==0)continue;
+    const rec=pend[k]; if(!rec)continue;
+    if(first===null)first=k;
+    if(roomNum!=null&&String(rec.assignedRoom)===String(roomNum))return k;
+  }
+  return first;
+}
 // 이 예약의 "지금" 금액: 원본(sv.amount) 우선 → 수기(amountManual) 폴백 → 없으면 null
 function amountOf(booking, roomNum){
   const sv=svRecordOf(booking, roomNum);
@@ -1250,8 +1264,10 @@ function renderRooms(){
       if(canViewAmount()){
         const _nowM=new Date().getHours()*60+new Date().getMinutes();
         if(_nowM>=690){ // 11:30 이후 (하루는 1440분 미만이라 <24:00 자동충족)
-          // 오늘 체크인 예약만 (A) — 오전 객실 준비 중 '오늘 들어올 방·금액' 확인용
-          const _bk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
+          // 1순위: 원본 직결 — 오늘 체크인 & 이 방 배정 & 미취소 (rooms 슬롯이 비어도 잡히도록)
+          const _pbBk=Object.values(pendingBookings||{}).find(b=>b&&!b.cancelled&&b.guest&&b.checkinDate===_td&&String(b.assignedRoom)===String(num));
+          // 2순위 폴백: 기존 rooms 슬롯 (assignedRoom이 낡은 레거시 예약 대비)
+          const _bk=_pbBk||[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
           const _amt=_bk?amountOf(_bk,num):null;
           if(_amt!=null){
             amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${currentLang==='ko'?'오늘':'Today'}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}</span></div>`;
@@ -1662,6 +1678,8 @@ async function moveNextBookingToRoomAt(targetNum){
   const targetArr=sortByCheckin([...getNextBookings(targetR),nxt]);
   await update(ref(db,`app/rooms/${targetNum}`),{nextBookings:targetArr});
   await update(ref(db,`app/rooms/${currentRoomNum}`),{nextBookings:arr});
+  const _svk=svKeyOf(nxt,currentRoomNum);   // 원본 assignedRoom 동기화 (못 찾으면 스킵)
+  if(_svk)await update(ref(db,'app/pendingBookings/'+_svk),{assignedRoom:String(targetNum)});
   closeModal('move-booking-modal');
   renderNextBookings(arr);
 }
@@ -1946,6 +1964,8 @@ async function moveCurrentBookingToRoom(targetNum){
   }
   await update(ref(db,`app/rooms/${targetNum}`),{currentBooking:cur});
   await update(ref(db,`app/rooms/${currentRoomNum}`),{currentBooking:null});
+  const _svk=svKeyOf(cur,currentRoomNum);   // 원본 assignedRoom 동기화 (못 찾으면 스킵)
+  if(_svk)await update(ref(db,'app/pendingBookings/'+_svk),{assignedRoom:String(targetNum)});
   closeModal('move-booking-modal');
   renderCurrentBooking(null);
 }
