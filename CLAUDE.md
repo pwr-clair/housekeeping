@@ -35,6 +35,7 @@
 - **프론트(index.html)**: 단일 HTML 파일. Firebase를 직접 실시간 구독/쓰기. 모든 UI가 이 한 파일 안에 있다.
 - **GAS(Code.gs)**: SIRVOY webhook 수신(`doPost`), 게스트 메일 자동화, 스케줄 기반 객실 상태 전환. Firebase 접근은 `fbGet/fbSet/fbUpdate/fbDelete` 4개 함수로만 하며, 이들이 `?auth=` (DB secret in `FB_AUTH`)를 자동 부착한다.
 - **네임스페이스**: 이 repo의 GAS·프론트는 **`app/*`만 사용한다.** (`cs/*` 같은 CS 엔진 네임스페이스는 이 코드에 존재하지 않음 — 아래 §9 참고.)
+- HK GAS = PWR-HK-Engine (구 ParadiseWalk-CS, 2026-07-04 개명). CS GAS = PWR-CS-Engine. 과거 문서에 ParadiseWalk-CS로 표기된 것은 전부 HK 쪽을 가리킴.
 
 ## 4. 인증 / 보안 모델 (이미 프로덕션에 잠금 적용 완료 — 모르고 건드리면 즉시 화면이 깨짐)
 RTDB는 **이미 `auth != null`로 잠겨 있다.** 비로그인 접근은 전부 401. 따라서 아래는 이론이 아니라 실질 제약이다.
