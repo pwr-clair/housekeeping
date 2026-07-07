@@ -1225,7 +1225,7 @@ function renderRooms(){
       const dayAfterStr=dayAfterDate.getFullYear()+'-'+String(dayAfterDate.getMonth()+1).padStart(2,'0')+'-'+String(dayAfterDate.getDate()).padStart(2,'0');
       // 오늘/내일/모레 - cur, nxt, allNext 전부 확인해서 각각 독립적으로
       const allBkForBadge=[cur,...getNextBookings(r)].filter(b=>b&&b.guest);
-      const isNextToday=new Date().getHours()>=11&&allBkForBadge.some(b=>b.checkinDate===today2);
+      const isNextToday=allBkForBadge.some(b=>b.checkinDate===today2);
       const isNextTmr=allBkForBadge.some(b=>b.checkinDate===tmrStr2);
       const isNextDA=allBkForBadge.some(b=>b.checkinDate===dayAfterStr);
       const allNext=getNextBookings(r);
