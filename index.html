@@ -2116,6 +2116,14 @@ async function toggleSentCheck(id,el){
   }
 }
 window.toggleSentCheck=toggleSentCheck;
+// WhatsApp KR/EN 수동 발송마크: 한 번 탭하면 초록(보냄)으로 고정, 해제 없음. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks, 일일만료). 왓츠앱 열기는 <a href>가 담당하고, 이 함수는 마크만 한다.
+async function markWaSent(id,el){
+  if(checkedSentSet.has(id))return;            // 이미 초록이면 그대로 유지
+  checkedSentSet.add(id);
+  if(el)el.style.background='#2F6B45';          // 즉시 초록 피드백 (GREEN)
+  try{ await set(ref(db,`app/sentChecks/${id}`),todayStr()); }catch(e){}
+}
+window.markWaSent=markWaSent;
 function switchUpcomingTab(mode){
   upcomingTabMode=mode;
   document.getElementById('sub-upcoming').style.background=mode==='upcoming'?'#042C53':'var(--bg2)';
@@ -2867,13 +2875,18 @@ function renderSendTab(){
     const Rc='#185FA5',I='#185FA5';
     const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
     const lblCheckin=stageLabel('입실',isSent,(isToday&&bk.guestEmail)?'openCheckinPreview(\''+num+'\')':'',I,'내일 발송 가능');
-    const waSt='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;background:#042C53;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
+    // WhatsApp KR/EN: 탭하면 왓츠앱이 열리고 동시에 발송완료(초록)로 마크된다. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks, 일일만료). 해제(초록→남색)는 없음.
+    const waStBase='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
     const ph=cleanPhone(bk.guestPhone);
     let waPart='';
     if(ph){
       const wn=ph.replace('+','');
-      waPart='<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'ko')+'" target="_blank" title="WhatsApp 한국어" style="'+waSt+'">KR</a>'
-        +'<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'en')+'" target="_blank" title="WhatsApp English" style="'+waSt+'">EN</a>';
+      const waKey=(bid||num).replace(/[.#$\[\]\/]/g,'_');
+      const koId='wa_'+waKey+'_ko', enId='wa_'+waKey+'_en';
+      const koBg=checkedSentSet.has(koId)?GREEN:'#042C53';
+      const enBg=checkedSentSet.has(enId)?GREEN:'#042C53';
+      waPart='<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'ko')+'" target="_blank" title="WhatsApp 한국어 — 탭하면 보냄 표시" onclick="markWaSent(\''+koId+'\',this)" style="'+waStBase+'background:'+koBg+';">KR</a>'
+        +'<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'en')+'" target="_blank" title="WhatsApp English — tap to mark sent" onclick="markWaSent(\''+enId+'\',this)" style="'+waStBase+'background:'+enBg+';">EN</a>';
     }
     let note='';
     if(bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
