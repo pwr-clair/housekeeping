@@ -1259,11 +1259,11 @@ function renderRooms(){
       const asgnIdx=asgnName?assignees.indexOf(asgnName):-1;
       const ap=asgnIdx>=0?asgnPalette[asgnIdx%asgnPalette.length]:{bg:'#E5E7EB',fg:'#4B5563',bd:'#C2C7CF'};
       const asgnBadge=asgnName?`<div title="청소: ${asgnName}" style="position:absolute;top:5px;right:24px;width:15px;height:15px;border-radius:50%;background:${ap.bg};color:${ap.fg};border:1px solid ${ap.bd};font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:3;">${asgnName.charAt(0).toUpperCase()}</div>`:'';
-      // 금액 줄 (열람권한 + 11:30~24:00 + 오늘 체크인 예약 + 금액유효 → 전부 만족 시에만 렌더, 아니면 줄 자체 없음)
+      // 금액 줄 (열람권한 + 11:00~24:00 + 오늘 체크인 예약 + 금액유효 → 전부 만족 시에만 렌더, 아니면 줄 자체 없음)
       let amountLine='';
       if(canViewAmount()){
         const _nowM=new Date().getHours()*60+new Date().getMinutes();
-        if(_nowM>=690){ // 11:30 이후 (하루는 1440분 미만이라 <24:00 자동충족)
+        if(_nowM>=660){ // 11:00 이후(퇴실 후) — 하루는 1440분 미만이라 <24:00 자동충족
           // 1순위: 원본 직결 — 오늘 체크인 & 이 방 배정 & 미취소 (rooms 슬롯이 비어도 잡히도록)
           const _pbBk=Object.values(pendingBookings||{}).find(b=>b&&!b.cancelled&&b.guest&&b.checkinDate===_td&&String(b.assignedRoom)===String(num));
           // 2순위 폴백: 기존 rooms 슬롯 (assignedRoom이 낡은 레거시 예약 대비)
