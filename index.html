@@ -2116,14 +2116,22 @@ async function toggleSentCheck(id,el){
   }
 }
 window.toggleSentCheck=toggleSentCheck;
-// WhatsApp KR/EN 수동 발송마크: 한 번 탭하면 초록(보냄)으로 고정, 해제 없음. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks, 일일만료). 왓츠앱 열기는 <a href>가 담당하고, 이 함수는 마크만 한다.
-async function markWaSent(id,el){
-  if(checkedSentSet.has(id))return;            // 이미 초록이면 그대로 유지
-  checkedSentSet.add(id);
-  if(el)el.style.background='#2F6B45';          // 즉시 초록 피드백 (GREEN)
-  try{ await set(ref(db,`app/sentChecks/${id}`),todayStr()); }catch(e){}
+// WhatsApp KR/EN 수동 발송마크: 첫 언어 탭=초록(보냄) 고정, 해제 없음. 나머지 언어를 탭하면 두 언어 모두 발송된 것이므로 '종결'(둘 다 회색·클릭 블락) 처리. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks, 일일만료 — 종결도 값 확장(_done 키)로 같은 경로에 저장). 왓츠앱 열기는 <a href>가 담당하고, 이 함수는 마크만 한다.
+async function markWa(thisId,otherId,doneId,el){
+  if(checkedSentSet.has(doneId))return;         // 종결 상태 → 아무 동작 없음(방어)
+  if(checkedSentSet.has(thisId))return;         // 이미 초록(자기) 재클릭 → 마크 변화 없음(왓츠앱만 열림)
+  if(checkedSentSet.has(otherId)){
+    // 나머지가 이미 초록 → 이번 탭으로 두 언어 모두 발송 = 종결
+    checkedSentSet.add(thisId);checkedSentSet.add(doneId);
+    try{ await update(ref(db,'app/sentChecks'),{[thisId]:todayStr(),[doneId]:todayStr()}); }catch(e){}
+  } else {
+    // 첫 언어 → 초록 마크(기존 동작)
+    checkedSentSet.add(thisId);
+    if(el)el.style.background='#2F6B45';          // 즉시 초록 피드백 (GREEN)
+    try{ await set(ref(db,`app/sentChecks/${thisId}`),todayStr()); }catch(e){}
+  }
 }
-window.markWaSent=markWaSent;
+window.markWa=markWa;
 function switchUpcomingTab(mode){
   upcomingTabMode=mode;
   document.getElementById('sub-upcoming').style.background=mode==='upcoming'?'#042C53':'var(--bg2)';
@@ -2874,7 +2882,16 @@ function renderSendTab(){
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
     const Rc='#185FA5',I='#185FA5';
     const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
-    const lblCheckin=stageLabel('입실',isSent,(isToday&&bk.guestEmail)?'openCheckinPreview(\''+num+'\')':'',I,'내일 발송 가능');
+    // 입실 라벨: 부킹 알리아스 릴레이가 간헐적으로 메일을 조용히 드랍하므로, 발송 완료 후에도 재발송을 허용한다. 미발송=파란 클릭(confirm 없음), 발송됨=초록 유지+클릭 시 confirm 후 재발송.
+    let lblCheckin;
+    if(isToday&&bk.guestEmail){
+      const cinBase='height:22px;box-sizing:border-box;padding:0 7px;font-size:9px;border-radius:5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
+      lblCheckin=isSent
+        ? '<span onclick="openCheckinPreview(\''+num+'\',true)" style="'+cinBase+'background:'+I+';color:#fff;cursor:pointer;" title="발송됨 — 클릭 시 재발송">입실</span>'
+        : '<span onclick="openCheckinPreview(\''+num+'\')" style="'+cinBase+'border:0.5px solid #185FA5;color:#042C53;background:#fff;cursor:pointer;" title="클릭하면 지금 발송">입실</span>';
+    } else {
+      lblCheckin=stageLabel('입실',isSent,'',I,'내일 발송 가능');
+    }
     // WhatsApp KR/EN: 탭하면 왓츠앱이 열리고 동시에 발송완료(초록)로 마크된다. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks, 일일만료). 해제(초록→남색)는 없음.
     const waStBase='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
     const ph=cleanPhone(bk.guestPhone);
@@ -2882,11 +2899,18 @@ function renderSendTab(){
     if(ph){
       const wn=ph.replace('+','');
       const waKey=(bid||num).replace(/[.#$\[\]\/]/g,'_');
-      const koId='wa_'+waKey+'_ko', enId='wa_'+waKey+'_en';
-      const koBg=checkedSentSet.has(koId)?GREEN:'#042C53';
-      const enBg=checkedSentSet.has(enId)?GREEN:'#042C53';
-      waPart='<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'ko')+'" target="_blank" title="WhatsApp 한국어 — 탭하면 보냄 표시" onclick="markWaSent(\''+koId+'\',this)" style="'+waStBase+'background:'+koBg+';">KR</a>'
-        +'<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'en')+'" target="_blank" title="WhatsApp English — tap to mark sent" onclick="markWaSent(\''+enId+'\',this)" style="'+waStBase+'background:'+enBg+';">EN</a>';
+      const koId='wa_'+waKey+'_ko', enId='wa_'+waKey+'_en', doneId='wa_'+waKey+'_done';
+      const GRAY='#AAB0B8';
+      if(checkedSentSet.has(doneId)){
+        // 종결 상태: 두 언어 모두 발송 완료 → KR/EN 모두 회색·클릭 블락(왓츠앱도 안 열림).
+        waPart='<span title="발송 종결" style="'+waStBase+'background:'+GRAY+';cursor:default;">KR</span>'
+          +'<span title="발송 종결" style="'+waStBase+'background:'+GRAY+';cursor:default;">EN</span>';
+      } else {
+        const koBg=checkedSentSet.has(koId)?GREEN:'#042C53';
+        const enBg=checkedSentSet.has(enId)?GREEN:'#042C53';
+        waPart='<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'ko')+'" target="_blank" title="WhatsApp 한국어 — 탭하면 보냄 표시" onclick="markWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+koBg+';">KR</a>'
+          +'<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'en')+'" target="_blank" title="WhatsApp English — tap to mark sent" onclick="markWa(\''+enId+'\',\''+koId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+enBg+';">EN</a>';
+      }
     }
     let note='';
     if(bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
@@ -3008,7 +3032,8 @@ window.dismissCancelled=dismissCancelled;
 
 // 입실안내: '입실' 클릭 → 미리보기·편집 모달 → 편집본 저장 후 발송
 let checkinPreviewRoom=null,checkinPreviewAlreadySent=false;
-async function openCheckinPreview(num){
+async function openCheckinPreview(num,confirmFirst){
+  if(confirmFirst&&!confirm('이미 발송된 예약입니다. 다시 발송할까요?'))return;   // 발송됨 버튼 재클릭 → 확인 시에만 진행, 취소 시 아무 동작 없음
   if(GAS_URL.indexOf('http')!==0){alert('GAS_URL이 설정되지 않았어요. index.html 상단의 GAS_URL을 교체해주세요.');return;}
   let data;
   try{
