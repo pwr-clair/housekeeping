@@ -1506,7 +1506,7 @@ function renderNextBookings(list){
   const arr=Array.isArray(list)?list:[];
   // 추가 버튼 표시/숨김
   const addBtn=document.getElementById('add-next-btn');
-  if(addBtn)addBtn.style.display=arr.length>=5?'none':'flex';
+  if(addBtn)addBtn.style.display=arr.length>=7?'none':'flex';
 
   if(!arr.length){wrap.innerHTML='';return;}
 
@@ -1769,7 +1769,7 @@ async function saveBooking(){
     if(currentNextBookingIdx<arr.length){
       arr[currentNextBookingIdx]=bkData;
     } else {
-      if(arr.length<5)arr.push(bkData);
+      if(arr.length<7)arr.push(bkData);
     }
     await update(ref(db,`app/rooms/${currentRoomNum}`),{nextBookings:arr});
   }
@@ -3010,7 +3010,7 @@ async function assignPending(key){
     await update(ref(db,`app/rooms/${num}`),{currentBooking:bkData,status:newStatus});
   }else{
     const arr=[...getNextBookings(r)];
-    if(arr.length>=5){alert('다음 예약이 5개를 초과합니다. 객실 모달에서 정리 후 배정해주세요.');return;}
+    if(arr.length>=7){alert('다음 예약이 7개를 초과합니다. 객실 모달에서 정리 후 배정해주세요.');return;}
     arr.push(bkData);
     arr.sort((a,c)=>(a.checkinDate||'9999').localeCompare(c.checkinDate||'9999'));
     await update(ref(db,`app/rooms/${num}`),{nextBookings:arr});
