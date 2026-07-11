@@ -1,6 +1,7 @@
 # CLAUDE.md — Paradise Walk Residence Housekeeping Dashboard
 
 > 이 문서의 목적: 어떤 세션이든 이 repo를 처음 열어도, **이 문서만 읽으면 시스템을 깨뜨리지 않고 작업할 수 있는** 불변의 베이스. 변동성 있는 TODO/진행상황은 여기 적지 않는다 (그건 코드·이슈·세션 메모로 관리).
+> **정본 = pwr-clair/pwr-docs/PWR_MASTER.md (비공개).** 이 문서와 충돌하면 마스터가 우선한다. 이 CLAUDE.md는 HK 레포 로컬 불변 베이스이고, 시스템 전역 상태·최신 결정은 마스터에서 확인한다.
 
 ---
 
@@ -10,7 +11,7 @@
 - **GitHub이 단일 진실 공급원(source of truth).** 작업 컨테이너는 세션마다 초기화되므로, 모든 작업은 GitHub 최신본을 읽는 것에서 시작한다.
 
 ## 2. 세션 시작 절차 (필수)
-1. GitHub에서 `index.html`과 GAS `Code.gs` 최신본을 읽는다 (GitHub MCP 연결 시 자동, 없으면 사용자가 업로드).
+1. **로컬 HK 폴더(`/Users/ClairCho/Documents/housekeeping`)를 origin/main 최신본과 동기화한다** (클코 keychain 인증으로 git pull/clone). 로컬 사본이 낡아있을 수 있어 옛 버전 위에 덮어쓰지 않도록 최신화가 선행 조건. GAS `Code.gs`는 레포에 없으면 GAS 에디터가 정본.
 2. 수정은 항상 최신본 기준으로 한다. 옛 버전 위에 덮어쓰지 않는다.
 3. 작업 후 변경분은 GitHub에 커밋해 source of truth를 갱신한다.
    - **기본 배포 방식 = `main`에 직접 커밋·push.** 별도 브랜치/PR을 만들지 않는다. (운영자가 사후에 확인하고, 문제가 있으면 `git revert`로 되돌리는 방식을 택했다.)
