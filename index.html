@@ -239,6 +239,8 @@ input,select,button,textarea{font-family:inherit;}
     <div style="font-size:14px;font-weight:700;color:var(--text);line-height:1.6;white-space:pre-wrap;" id="notice-text"></div>
   </div>
   <button id="notice-add-btn" onclick="openNoticeModal()" style="width:100%;margin-bottom:12px;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius-sm);background:none;color:var(--text3);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;"><i class="ti ti-speakerphone"></i> 공지 등록</button>
+  <!-- 오늘 입실 순서 (공지 아래 한 줄, 전 사용자 노출) -->
+  <div id="checkin-order-strip" style="display:none;align-items:center;gap:7px;background:#fff;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px;margin-bottom:12px;font-size:12px;white-space:nowrap;overflow-x:auto;"></div>
 
   <div class="tabs">
     <div class="tab active" onclick="switchTab('rooms',this)"><i class="ti ti-layout-grid"></i> 객실</div>
@@ -1173,7 +1175,32 @@ async function removeRoomManaged(){
 }
 window.removeRoomManaged=removeRoomManaged;
 
+// ── 오늘 입실 순서 스트립 (공지 아래, 전 사용자) — 시간 빠른순, 시간 없으면 15:00(3pm) 가정=회색 ──
+function renderCheckinOrder(){
+  const el=document.getElementById('checkin-order-strip'); if(!el)return;
+  const today=todayStr();
+  const list=[];
+  for(const num of roomNums()){
+    const r=rooms[num]; if(!r)continue;
+    [r.currentBooking,...getNextBookings(r)].forEach(b=>{
+      if(b&&b.guest&&b.checkinDate===today){
+        const t=(b.checkinTime&&/^\d{1,2}:\d{2}/.test(b.checkinTime))?b.checkinTime:'';
+        const p=(t||'15:00').split(':');
+        list.push({num:num,min:(+p[0])*60+(+p[1]),assumed:!t});
+      }
+    });
+  }
+  if(!list.length){ el.style.display='none'; return; }
+  list.sort((a,b)=>a.min-b.min||(+a.num)-(+b.num));
+  const fmt=m=>{ const h24=Math.floor(m/60),mm=m%60,ap=h24<12?'am':'pm',h=(h24%12)||12; return h+(mm?':'+String(mm).padStart(2,'0'):'')+ap; };
+  el.innerHTML='<span style="font-size:10px;color:var(--text3);flex-shrink:0;">🕐 '+(currentLang==='ko'?'입실':'IN')+'</span>'
+    +list.map(x=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+x.num+'</b> <span style="font-size:10px;font-weight:600;color:'+(x.assumed?'#B4B2A9':'#9C2448')+';">'+fmt(x.min)+'</span></span>')
+      .join('<span style="color:var(--border2);flex-shrink:0;">›</span>');
+  el.style.display='flex';
+}
+
 function renderRooms(){
+  renderCheckinOrder();
   const groups=floorGroups();
   // 층칸(.floor-section) 동적 생성: 현재 존재하는 층만, 순서대로
   const host=document.getElementById('floor-sections');
