@@ -1295,7 +1295,7 @@ function renderRooms(){
       const ciTime=todayBk&&todayBk.checkinTime?todayBk.checkinTime:'';
       const timeBadge=ciTime?`<div style="position:absolute;top:4px;left:4px;font-size:8px;background:#c0392b;color:#fff;border-radius:3px;padding:1px 4px;font-weight:700;">IN ${ciTime}</div>`:'';
       const badges=[];
-      if(isNextToday)badges.push({lbl:currentLang==='ko'?'오늘':'Today',style:'background:#FCD34D;color:#042C53;'});
+      if(isNextToday)badges.push({lbl:currentLang==='ko'?'오늘':'Today',style:'background:#FDEEF3;color:#9C2448;border:0.5px solid #F5B7CC;'});
       if(isNextTmr)badges.push({lbl:currentLang==='ko'?'내일':'Tomorrow',style:''});
       if(isNextDA)badges.push({lbl:currentLang==='ko'?'모레':'D+2',style:''});
       const topStart=ciTime?18:4;
