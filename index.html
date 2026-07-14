@@ -1197,11 +1197,22 @@ function renderRooms(){
       const _td=todayStr();
       const _tb=new Date();_tb.setDate(_tb.getDate()+1);
       const _tmr=_tb.getFullYear()+'-'+String(_tb.getMonth()+1).padStart(2,'0')+'-'+String(_tb.getDate()).padStart(2,'0');
-      const _arrivingList=canSendMail?[cur,...getNextBookings(r)].filter(b=>b&&b.guest&&(b.checkinDate===_td||b.checkinDate===_tmr)):[];
+      // 퇴실 당일 오전(11:00 전): 현재 투숙객을 '현재' 칩으로 표시(11시까지는 방에 있는 게 맞음), 내일 도착분은 11시 이후부터 (2026-07-14 Clara)
+      const _nowMin2=new Date().getHours()*60+new Date().getMinutes();
+      const _curStaying=canSendMail&&_nowMin2<660&&cur&&cur.guest&&cur.checkoutDate===_td;
+      const _arrivingList=canSendMail?[cur,...getNextBookings(r)].filter(b=>b&&b.guest&&b!==(_curStaying?cur:null)&&(b.checkinDate===_td||(!_curStaying&&b.checkinDate===_tmr))):[];
       let guestPanel='';
-      if(_arrivingList.length){
+      if(_arrivingList.length||_curStaying){
         const _srcInit={agoda:{c:'A',bg:'#FCEBEB',fg:'#A32D2D'},booking:{c:'B',bg:'#E6F1FB',fg:'#185FA5'},expedia:{c:'E',bg:'#FAEEDA',fg:'#854F0B'},direct:{c:'D',bg:'#F1EFE8',fg:'#5F5E5A'}};
-        const rows=_arrivingList.map(b=>{
+        const _curRow=_curStaying?(()=>{
+          const _si=_srcInit[srcKey(cur.source)]||_srcInit.direct;
+          return `<div style="display:flex;align-items:center;gap:5px;text-align:left;">`
+            +`<div style="flex-shrink:0;background:#5F5E5A;color:#fff;font-size:7px;font-weight:700;border-radius:6px;padding:2px 4px;line-height:1;">현재</div>`
+            +`<div style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:9px;font-weight:600;color:#2C2C2A;">${cur.guest}</div>`
+            +`<div style="flex-shrink:0;width:13px;height:13px;border-radius:50%;background:${_si.bg};color:${_si.fg};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">${_si.c}</div>`
+            +`</div>`;
+        })():'';
+        const rows=(_curRow?[_curRow]:[]).concat(_arrivingList.map(b=>{
           const _isToday=b.checkinDate===_td;
           const _dayNum=parseInt(String(b.checkinDate).slice(-2),10);
           const _circleBg=_isToday?'#B81E24':'#1A4FA0';
@@ -1211,7 +1222,7 @@ function renderRooms(){
             +`<div style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:9px;font-weight:600;color:#2C2C2A;">${b.guest}</div>`
             +`<div style="flex-shrink:0;width:13px;height:13px;border-radius:50%;background:${_si.bg};color:${_si.fg};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">${_si.c}</div>`
             +`</div>`;
-        }).join('<div style="height:3px;"></div>');
+        })).join('<div style="height:3px;"></div>');
         guestPanel=`<div style="margin-top:6px;background:#fff;border-radius:8px;padding:5px 7px;width:100%;box-sizing:border-box;overflow:hidden;">${rows}</div>`;
       }
       const guestLine='';
