@@ -230,6 +230,8 @@ input,select,button,textarea{font-family:inherit;}
     <span id="sync-txt-app">연결 중</span>
   </div>
 
+  <!-- CS 반영 안내판 (Clara 계정 전용, 공지보다 위) — CS 제안 승인으로 HK에 반영된 변경 표시 -->
+  <div id="cs-notice-board"></div>
   <!-- 공지 배너 (최상단 고정) -->
   <div id="notice-banner" style="display:none;background:#fff;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;margin-bottom:12px;position:relative;" onclick="openNoticeModal()">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
@@ -1001,8 +1003,10 @@ async function initFirebaseData(){
   }
 }
 
+let csSuggs={}; // CS 제안(cs/suggestions) 읽기 전용 미러 — Clara 전용 'CS 반영' 안내판용 (2026-07-14)
 function startListeners(){
   onValue(ref(db,'app/waMessages'),snap=>{waMessages=snap.exists()?(snap.val()||{}):{};if(isLoggedIn)renderSendTab();});
+  onValue(ref(db,'cs/suggestions'),snap=>{csSuggs=snap.exists()?(snap.val()||{}):{};if(isLoggedIn)renderCsNoticeBoard();});
   onValue(ref(db,'app/members'),snap=>{
     if(snap.exists()){const v=snap.val();members=Array.isArray(v)?v:Object.values(v);}
   });
@@ -1136,7 +1140,7 @@ function logout(){
 }
 window.logout=logout;
 
-function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHistory();renderNotice();renderUpcoming();if(canSendMail)renderSendTab();}
+function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHistory();renderNotice();renderUpcoming();renderCsNoticeBoard();if(canSendMail)renderSendTab();}
 // 11:00 경계(카드 금액 줄·'현' 칩 게이트)를 페이지 열어둔 채 넘겨도 자동 재렌더 — 새로고침 불필요
 let _gate11=null;
 setInterval(()=>{
@@ -1184,6 +1188,38 @@ async function removeRoomManaged(){
   closeModal('room-manager-modal');
 }
 window.removeRoomManaged=removeRoomManaged;
+
+// ── CS 반영 안내판 (Clara 전용, 공지 위) — CS 제안 승인으로 HK에 반영된 ETA 변경 표시 (2026-07-14) ──
+//   cs/suggestions 중 status='applied'·72시간 이내·미확인(✕ 안 누른) 건만. ✕=이 기기에서 확인 처리(localStorage).
+function renderCsNoticeBoard(){
+  const el=document.getElementById('cs-notice-board'); if(!el)return;
+  if(String(currentUser||'').toLowerCase()!=='clara'){ el.innerHTML=''; return; }
+  let ack={}; try{ ack=JSON.parse(localStorage.getItem('csNoticeAck')||'{}'); }catch(e){}
+  const now=Date.now();
+  const items=Object.keys(csSuggs||{}).map(k=>[k,csSuggs[k]])
+    .filter(([k,s])=>s&&s.status==='applied'&&s.appliedAt&&(now-Date.parse(s.appliedAt))<72*3600000&&!ack[k])
+    .sort((a,b)=>Date.parse(b[1].appliedAt||0)-Date.parse(a[1].appliedAt||0));
+  if(!items.length){ el.innerHTML=''; return; }
+  const fmtT=iso=>{ const t=Date.parse(iso); if(isNaN(t))return''; const d=new Date(t);
+    return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  const fmtEta=e=>{ const m=String(e||'').match(/^(\d{1,2}):(\d{2})/); if(!m)return e||'';
+    const h=+m[1],mm=+m[2],ap=h<12?'am':'pm'; return ((h%12)||12)+(mm?':'+String(mm).padStart(2,'0'):'')+ap; };
+  const clean=s=>String(s||'').replace(/[<>&"]/g,'');
+  el.innerHTML=items.map(([k,s])=>
+    '<div style="display:flex;align-items:center;gap:7px;background:#fff;border:0.5px solid #9AB2D8;border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:11px;">'+
+    '<span style="flex-shrink:0;background:#E6F1FB;color:#185FA5;font-size:8px;font-weight:700;border-radius:4px;padding:2px 5px;">CS 반영</span>'+
+    '<span style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#2C2C2A;">'+
+      (s.room?('<b>'+clean(s.room)+'호</b> '):'')+clean(s.guest||'게스트')+' · ETA <b style="color:#9C2448;">'+clean(fmtEta(s.eta))+'</b>'+
+      (s.checkinDate?(' · 체크인 '+clean(String(s.checkinDate).slice(5).replace('-','/'))):'')+'</span>'+
+    '<span style="flex-shrink:0;color:#9E9A95;font-size:9px;">'+fmtT(s.appliedAt)+'</span>'+
+    '<span onclick="ackCsNotice(\''+k+'\')" style="flex-shrink:0;cursor:pointer;color:#9E9A95;padding:0 3px;font-size:12px;" title="확인함">✕</span>'+
+    '</div>').join('');
+}
+function ackCsNotice(k){
+  let a={}; try{ a=JSON.parse(localStorage.getItem('csNoticeAck')||'{}'); }catch(e){}
+  a[k]=1; localStorage.setItem('csNoticeAck',JSON.stringify(a)); renderCsNoticeBoard();
+}
+window.ackCsNotice=ackCsNotice;
 
 // ── 오늘 입실 순서 스트립 (공지 아래, 전 사용자) — 시간 빠른순, 시간 없으면 15:00(3pm) 가정=회색 ──
 function renderCheckinOrder(){
