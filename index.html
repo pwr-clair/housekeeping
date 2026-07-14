@@ -1193,9 +1193,9 @@ function renderCheckinOrder(){
   if(!list.length){ el.style.display='none'; return; }
   list.sort((a,b)=>a.min-b.min||(+a.num)-(+b.num));
   const fmt=m=>{ const h24=Math.floor(m/60),mm=m%60,ap=h24<12?'am':'pm',h=(h24%12)||12; return h+(mm?':'+String(mm).padStart(2,'0'):'')+ap; };
-  el.innerHTML='<span style="font-size:10px;color:var(--text3);flex-shrink:0;">🕐 '+(currentLang==='ko'?'입실':'IN')+'</span>'
-    +list.map(x=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+x.num+'</b> <span style="font-size:10px;font-weight:600;color:'+(x.assumed?'#B4B2A9':'#9C2448')+';">'+fmt(x.min)+'</span></span>')
-      .join('<span style="color:var(--border2);flex-shrink:0;">›</span>');
+  el.innerHTML='<span style="font-size:10px;font-weight:600;color:var(--text);flex-shrink:0;">🕐 '+(currentLang==='ko'?'입실':'IN')+'</span>'
+    +list.map(x=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+x.num+'</b> <span style="font-size:10px;font-weight:600;color:#9C2448;">'+fmt(x.min)+'</span></span>')
+      .join('<span style="color:var(--text);flex-shrink:0;">‣</span>');
   el.style.display='flex';
 }
 
