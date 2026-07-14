@@ -468,6 +468,10 @@ input,select,button,textarea{font-family:inherit;}
         <option value="s6_review">후기</option>
         <option value="__wa__">왓츠앱 안내(KR/EN)</option>
       </select>
+      <div id="tpl-name-wrap" style="display:none;">
+        <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">템플릿 이름 (발송탭 [안내] 목록에 표시)</div>
+        <input type="text" id="tpl-name" placeholder="예: 셔틀 상세안내" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
+      </div>
       <div id="tpl-subject-wrap">
         <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">제목</div>
         <input type="text" id="tpl-subject" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
@@ -478,8 +482,21 @@ input,select,button,textarea{font-family:inherit;}
       <textarea id="tpl-bodyen" style="width:100%;height:200px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button onclick="saveTemplate()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
+        <button id="tpl-del-btn" onclick="deleteCustomTemplate()" style="display:none;flex:1;background:#fff;color:#A32D2D;border:0.5px solid #F09595;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">삭제</button>
         <button onclick="closeModal('template-manager-modal')" style="flex:1;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">닫기</button>
       </div>
+    </div>
+  </div>
+
+  <!-- [안내] 템플릿 선택 모달 (커스텀 템플릿만) -->
+  <div class="modal-overlay" id="info-picker-modal" onclick="if(event.target===this)closeModal('info-picker-modal')">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:700;color:var(--text);line-height:1.4;">안내 보내기</div>
+        <button onclick="closeModal('info-picker-modal')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:0;flex-shrink:0;"><i class="ti ti-x"></i></button>
+      </div>
+      <div id="info-picker-sub" style="font-size:11px;color:var(--text2);margin-bottom:10px;"></div>
+      <div id="info-picker-list" style="max-height:300px;overflow-y:auto;"></div>
     </div>
   </div>
 
@@ -1207,7 +1224,7 @@ function renderRooms(){
         const _curRow=_curStaying?(()=>{
           const _si=_srcInit[srcKey(cur.source)]||_srcInit.direct;
           return `<div style="display:flex;align-items:center;gap:5px;text-align:left;">`
-            +`<div style="flex-shrink:0;background:#5F5E5A;color:#fff;font-size:7px;font-weight:700;border-radius:6px;padding:2px 4px;line-height:1;">현재</div>`
+            +`<div style="flex-shrink:0;width:11px;height:11px;border-radius:50%;background:#5F5E5A;color:#fff;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">현</div>`
             +`<div style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:9px;font-weight:600;color:#2C2C2A;">${cur.guest}</div>`
             +`<div style="flex-shrink:0;width:13px;height:13px;border-radius:50%;background:${_si.bg};color:${_si.fg};font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">${_si.c}</div>`
             +`</div>`;
@@ -2892,7 +2909,9 @@ function renderSendTab(){
     // 청소완료면 호실 비리디안, 아니면 남색
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
     const Rc='#185FA5',I='#185FA5';
-    const lblReminder=stageLabel('리마인더',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
+    const lblReminder=stageLabel('RE',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
+    // [안내] — 커스텀 템플릿 선택 발송 (항상 파랑, 발송 이력별 초록 없음: 템플릿마다 다른 안내라서)
+    const lblInfo=stageLabel('안내',false,(bid&&bk.guestEmail)?'openInfoPicker(\''+bid+'\',\''+num+'\')':'',I,bid?'이메일 없음':'웹훅 예약 아님');
     // 입실 라벨: 부킹 알리아스 릴레이가 간헐적으로 메일을 조용히 드랍하므로, 발송 완료 후에도 재발송을 허용한다. 미발송=파란 클릭(confirm 없음), 발송됨=초록 유지+클릭 시 confirm 후 재발송.
     let lblCheckin;
     if(isToday&&bk.guestEmail){
@@ -2931,7 +2950,7 @@ function renderSendTab(){
       +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
       +srcBadge(bk.source)
       +note
-      +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+waPart+lblReminder+lblCheckin+'</span>'
+      +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+lblInfo+waPart+lblReminder+lblCheckin+'</span>'
       +'</div>';
   };
   const todayRows=[],tomorrowRows=[];
@@ -3130,15 +3149,42 @@ async function sendStagePreview(){
 window.sendStagePreview=sendStagePreview;
 
 // 메일 템플릿 관리: app/mailTemplates/{stage}를 불러와 부분 갱신(update)만 수행
-function openTemplateManager(){
+//   커스텀 안내 템플릿 = app/mailTemplates/custom_{ts} {name,subject,bodyKo,bodyEn} — 발송탭 [안내]에서 선택 발송
+async function openTemplateManager(){
   document.getElementById('template-manager-modal').classList.add('open');
+  await refreshTplSelect();
   loadTemplateForStage();
 }
 window.openTemplateManager=openTemplateManager;
 
+async function refreshTplSelect(keepValue){
+  const sel=document.getElementById('tpl-stage');
+  sel.querySelectorAll('option[data-custom]').forEach(o=>o.remove());
+  let all={};
+  try{ const snap=await get(ref(db,'app/mailTemplates')); all=snap.exists()?(snap.val()||{}):{}; }catch(e){}
+  Object.keys(all).filter(k=>k.indexOf('custom_')===0).sort().forEach(k=>{
+    const o=document.createElement('option'); o.value=k; o.textContent='📄 '+((all[k]&&all[k].name)||k); o.setAttribute('data-custom','1'); sel.appendChild(o);
+  });
+  const nw=document.createElement('option'); nw.value='__new__'; nw.textContent='＋ 새 안내 템플릿 만들기'; nw.setAttribute('data-custom','1'); sel.appendChild(nw);
+  if(keepValue) sel.value=keepValue;
+}
+
 async function loadTemplateForStage(){
   const stage=document.getElementById('tpl-stage').value;
   const subjWrap=document.getElementById('tpl-subject-wrap');
+  const nameWrap=document.getElementById('tpl-name-wrap');
+  const delBtn=document.getElementById('tpl-del-btn');
+  const isCustom=stage.indexOf('custom_')===0, isNew=stage==='__new__';
+  nameWrap.style.display=(isCustom||isNew)?'':'none';
+  delBtn.style.display=isCustom?'':'none';
+  if(isNew){
+    subjWrap.style.display='';
+    document.getElementById('tpl-name').value='';
+    document.getElementById('tpl-subject').value='';
+    document.getElementById('tpl-bodyko').value='';
+    document.getElementById('tpl-bodyen').value='';
+    return;
+  }
   if(stage==='__wa__'){
     subjWrap.style.display='none';
     let w={};
@@ -3156,6 +3202,7 @@ async function loadTemplateForStage(){
     const snap=await get(ref(db,'app/mailTemplates/'+stage));
     v=snap.exists()?(snap.val()||{}):{};
   }catch(e){alert('템플릿 불러오기 실패: '+e);return;}
+  document.getElementById('tpl-name').value=isCustom?(v.name||''):'';
   document.getElementById('tpl-subject').value=v.subject||'';
   document.getElementById('tpl-bodyko').value=v.bodyKo||'';
   document.getElementById('tpl-bodyen').value=v.bodyEn||'';
@@ -3164,25 +3211,80 @@ window.loadTemplateForStage=loadTemplateForStage;
 
 async function saveTemplate(){
   const stage=document.getElementById('tpl-stage').value;
+  const subject=document.getElementById('tpl-subject').value;
+  const bodyKo=document.getElementById('tpl-bodyko').value;
+  const bodyEn=document.getElementById('tpl-bodyen').value;
+  if(stage==='__new__'){
+    const name=document.getElementById('tpl-name').value.trim();
+    if(!name){alert('템플릿 이름을 입력하세요.');return;}
+    const key='custom_'+Date.now();
+    try{
+      await set(ref(db,'app/mailTemplates/'+key),{name,subject,bodyKo,bodyEn});
+      alert('새 안내 템플릿이 만들어졌어요. 발송탭 [안내]에서 선택할 수 있습니다.');
+      await refreshTplSelect(key); loadTemplateForStage();
+    }catch(e){alert('저장 실패: '+e);}
+    return;
+  }
   if(!confirm('이 단계 템플릿을 덮어씁니다. 계속할까요?'))return;
   if(stage==='__wa__'){
-    const ko=document.getElementById('tpl-bodyko').value;
-    const en=document.getElementById('tpl-bodyen').value;
     try{
-      await update(ref(db,'app/waMessages'),{ko,en});
+      await update(ref(db,'app/waMessages'),{ko:bodyKo,en:bodyEn});
       alert('저장되었습니다.');
     }catch(e){alert('저장 실패: '+e);}
     return;
   }
-  const subject=document.getElementById('tpl-subject').value;
-  const bodyKo=document.getElementById('tpl-bodyko').value;
-  const bodyEn=document.getElementById('tpl-bodyen').value;
+  const payload={subject,bodyKo,bodyEn};
+  if(stage.indexOf('custom_')===0){
+    const name=document.getElementById('tpl-name').value.trim();
+    if(!name){alert('템플릿 이름을 입력하세요.');return;}
+    payload.name=name;
+  }
   try{
-    await update(ref(db,'app/mailTemplates/'+stage),{subject,bodyKo,bodyEn});
+    await update(ref(db,'app/mailTemplates/'+stage),payload);
     alert('저장되었습니다.');
+    if(payload.name)await refreshTplSelect(stage);
   }catch(e){alert('저장 실패: '+e);}
 }
 window.saveTemplate=saveTemplate;
+
+async function deleteCustomTemplate(){
+  const sel=document.getElementById('tpl-stage');
+  const stage=sel.value;
+  if(stage.indexOf('custom_')!==0)return;
+  if(!confirm('이 안내 템플릿을 삭제할까요? (되돌릴 수 없음)'))return;
+  try{
+    await remove(ref(db,'app/mailTemplates/'+stage));
+    alert('삭제되었습니다.');
+    await refreshTplSelect(); sel.value='s2_reminder'; loadTemplateForStage();
+  }catch(e){alert('삭제 실패: '+e);}
+}
+window.deleteCustomTemplate=deleteCustomTemplate;
+
+// ── [안내] 발송: 커스텀 템플릿 목록 → 선택 → 기존 미리보기·편집·발송(openStagePreview) 재사용 ──
+let infoPickerCtx=null,infoPickerItems=[];
+async function openInfoPicker(bid,room){
+  infoPickerCtx={bid:bid||'',room:room||''};
+  let all={};
+  try{ const snap=await get(ref(db,'app/mailTemplates')); all=snap.exists()?(snap.val()||{}):{}; }
+  catch(e){alert('템플릿 불러오기 실패: '+e);return;}
+  infoPickerItems=Object.keys(all).filter(k=>k.indexOf('custom_')===0)
+    .map(k=>({key:k,name:(all[k]&&all[k].name)||'(이름 없음)'}))
+    .sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  document.getElementById('info-picker-sub').textContent=(room?room+'호 — ':'')+'보낼 안내 템플릿을 고르세요';
+  const list=document.getElementById('info-picker-list');
+  list.innerHTML=infoPickerItems.length
+    ? infoPickerItems.map((c,i)=>'<div onclick="pickInfoTemplate('+i+')" style="font-size:13px;color:var(--text);padding:10px 12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;cursor:pointer;background:var(--bg);">'+c.name.replace(/[<>&]/g,ch=>({'<':'&lt;','>':'&gt;','&':'&amp;'})[ch])+'</div>').join('')
+    : '<div style="font-size:12px;color:var(--text3);padding:14px 4px;text-align:center;line-height:1.7;">만든 템플릿이 없어요.<br>[템플릿 관리] → 「＋ 새 안내 템플릿 만들기」로 추가하세요.</div>';
+  document.getElementById('info-picker-modal').classList.add('open');
+}
+window.openInfoPicker=openInfoPicker;
+function pickInfoTemplate(i){
+  const c=infoPickerItems[i],ctx=infoPickerCtx||{};
+  if(!c)return;
+  closeModal('info-picker-modal');
+  openStagePreview(ctx.bid,ctx.room||'—',c.key,c.name);
+}
+window.pickInfoTemplate=pickInfoTemplate;
 
 async function manualStage(bid,room,stage,label){
   if(GAS_URL.indexOf('http')!==0){alert('GAS_URL이 설정되지 않았어요.');return;}
