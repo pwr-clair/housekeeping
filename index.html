@@ -1047,7 +1047,9 @@ function startListeners(){
   });
   onValue(ref(db,'app/pendingBookings'),snap=>{
     pendingBookings=snap.exists()?snap.val():{};
-    if(isLoggedIn&&canSendMail)renderSendTab();
+    // 객실 카드 금액(₩)·예약 리스트가 이 데이터를 쓰므로 카드도 재렌더 필수.
+    // (기존엔 발송탭만 갱신 → rooms보다 늦게 도착하면 카드 금액이 영영 안 뜨는 로드순서 복불복 버그)
+    if(isLoggedIn){renderRooms();renderUpcoming();if(canSendMail)renderSendTab();}
   });
   onValue(ref(db,'app/config/sendMode'),snap=>{
     sendMode=snap.exists()?snap.val():'approve';
@@ -1135,6 +1137,14 @@ function logout(){
 window.logout=logout;
 
 function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHistory();renderNotice();renderUpcoming();if(canSendMail)renderSendTab();}
+// 11:00 경계(카드 금액 줄·'현' 칩 게이트)를 페이지 열어둔 채 넘겨도 자동 재렌더 — 새로고침 불필요
+let _gate11=null;
+setInterval(()=>{
+  if(!isLoggedIn)return;
+  const on=(new Date().getHours()*60+new Date().getMinutes())>=660;
+  if(_gate11===null){_gate11=on;return;}
+  if(on!==_gate11){_gate11=on;renderRooms();}
+},60000);
 
 // ── 객실 추가/삭제 관리 ──
 function openRoomManager(){
