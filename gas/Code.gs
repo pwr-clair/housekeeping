@@ -311,21 +311,26 @@ function findCheckinDue(){
   const due=[];
   for(const num of Object.keys(rooms)){
     const r=rooms[num];if(!r||r.blocked)continue;
-    const cb=r.currentBooking;if(!cb||!cb.guest)continue;
-    if(cb.checkinDate!==today)continue;        // 오늘 체크인
+    // 오늘 체크인 예약 탐색: currentBooking 우선, 없으면 nextBookings까지 (수동 sendRoom과 동일 —
+    // 공실 하루 이상 후 체크인은 11:59 승격 대상이 아니라 nextBookings에 머무름)
+    let cb=(r.currentBooking&&r.currentBooking.guest&&r.currentBooking.checkinDate===today)?r.currentBooking:null;
+    if(!cb){
+      const nexts=(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{})).filter(b=>b);
+      cb=nexts.find(b=>b&&b.guest&&b.checkinDate===today)||null;
+    }
+    if(!cb)continue;
     if(sent[num+'_'+today])continue;           // 이미 발송 → skip
     if(r.status!=='clean_done')continue;        // 청소완료만
     if(!cb.guestEmail)continue;                 // 이메일 있어야
     if(!checkinDueNow(cb))continue;             // ★ 발송 시각 창에 들었나
-    due.push({num,r});
+    due.push({num,r,cb});
   }
   return due;
 }
 
 function sendCheckinDue(){
   const due=findCheckinDue(),today=todayKST();let count=0;
-  for(const {num,r} of due){
-    const cb=r.currentBooking;
+  for(const {num,cb} of due){
     const bk={bookingId:cb.bookingId||('room_'+num+'_'+today),source:cb.source||'',
       guest:cb.guest,guestEmail:cb.guestEmail,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate};
     if(sendStageMail('s3_checkin',bk,num,false)){fbSet('app/sentChecks/'+num+'_'+today,today);count++;}
