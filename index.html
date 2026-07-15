@@ -20,9 +20,6 @@ input,select,button,textarea{font-family:inherit;}
 .login-brand{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:10px;}
 .login-title{font-size:22px;font-weight:600;color:var(--text);text-align:center;line-height:1.35;margin-bottom:4px;}
 .login-divider{width:36px;height:1px;background:var(--border);margin:22px 0;}
-.login-pw-label{font-size:11px;color:var(--text2);margin-bottom:6px;align-self:flex-start;width:100%;}
-.login-pw-input{width:100%;padding:13px;font-size:22px;letter-spacing:10px;text-align:center;border:0.5px solid var(--border2);border-radius:var(--radius);background:#fff;color:var(--text);margin-bottom:10px;outline:none;}
-.login-pw-input:focus{border-color:var(--accent);}
 .login-field-label{align-self:flex-start;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;}
 .login-text-input{width:100%;box-sizing:border-box;height:48px;padding:0 14px;font-size:15px;text-align:center;border:0.5px solid var(--border2);border-radius:10px;background:#fff;color:var(--text);margin-bottom:14px;outline:none;}
 .login-text-input:focus{border-color:var(--accent);}
@@ -49,7 +46,7 @@ input,select,button,textarea{font-family:inherit;}
 .stat{background:#fff;border-radius:var(--radius-sm);padding:8px;text-align:center;border:0.5px solid var(--border);}
 .stat-num{font-size:20px;font-weight:700;}
 .stat-label{font-size:9px;color:var(--text2);margin-top:2px;}
-.s-blue .stat-num{color:#185FA5;}.s-orange .stat-num{color:#BA7517;}.s-green .stat-num{color:#3B6D11;}
+.s-green .stat-num{color:#3B6D11;}
 .legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
 .legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2);}
 .legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
@@ -64,7 +61,6 @@ input,select,button,textarea{font-family:inherit;}
 .room-pw{font-size:10px;margin-top:4px;padding:2px 6px;border-radius:100px;display:inline-flex;align-items:center;gap:3px;font-weight:600;}
 .room-icon{font-size:11px;position:absolute;top:5px;right:5px;}
 .blocked-badge{position:absolute;top:4px;left:4px;font-size:9px;background:#888780;color:#fff;border-radius:100px;padding:1px 5px;font-weight:600;}
-.early-badge{position:absolute;top:22px;right:4px;font-size:9px;font-weight:700;background:#F59E0B;color:#fff;border-radius:100px;padding:1px 5px;}
 .next-badge{position:absolute;top:4px;left:4px;font-size:8px;background:#042C53;color:#E6F1FB;border-radius:100px;padding:1px 5px;font-weight:600;}
 .room-card.checkin{background:#E6F1FB;border-color:#B5D4F4;}
 .room-card.checkin .room-num{color:#0C447C;}.room-card.checkin .room-status-label{color:#185FA5;}.room-card.checkin .room-pw{background:#B5D4F4;color:#0C447C;}
@@ -83,7 +79,6 @@ input,select,button,textarea{font-family:inherit;}
 .section-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;letter-spacing:.03em;}
 .mgmt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .mgmt-btn{font-size:11px;padding:5px 10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text2);cursor:pointer;}
-.list-item{background:#fff;border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;}
 .clean-item{background:#fff;border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;}
 .clean-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .clean-room{font-size:13px;font-weight:600;color:var(--text);}
@@ -92,7 +87,6 @@ input,select,button,textarea{font-family:inherit;}
 .clean-checks{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;}
 .check-item{font-size:10px;padding:3px 7px;border-radius:100px;border:0.5px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:3px;background:#fff;}
 .check-item.checked{background:#EAF3DE;border-color:#C0DD97;color:#27500A;}
-.history-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border-radius:var(--radius-sm);margin-bottom:6px;}
 .empty-msg{text-align:center;padding:24px;color:var(--text2);font-size:13px;}
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:20px 12px 12px;}
 .modal-overlay.open{display:flex;}
@@ -177,20 +171,12 @@ input,select,button,textarea{font-family:inherit;}
 .booking-guest{font-size:14px;font-weight:700;color:var(--text);}
 .booking-dates{font-size:11px;color:var(--text2);margin-top:2px;}
 .booking-del{position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:2px;}
-.sched-item{background:#fff;border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.sched-left{display:flex;align-items:center;gap:10px;}
-.sched-room-badge{font-size:12px;font-weight:600;padding:4px 8px;border-radius:var(--radius-sm);}
-.sched-room-badge.ci{background:#E6F1FB;color:#0C447C;}.sched-room-badge.co{background:#FAECE7;color:#4A1B0C;}
-.sched-tag{font-size:10px;padding:3px 8px;border-radius:100px;font-weight:600;}
-.sched-tag.ci-tag{background:#E6F1FB;color:#185FA5;}.sched-tag.co-tag{background:#FAECE7;color:#993C1D;}
-.icon-x-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:0;}
 .notif-badge{position:absolute;top:2px;right:2px;width:8px;height:8px;background:#c0392b;border-radius:50%;border:1.5px solid var(--bg);}
 .log-item{padding:9px 12px;border-bottom:0.5px solid var(--border);display:flex;flex-direction:column;gap:2px;}
 .log-item:last-child{border-bottom:none;}
 .log-who{font-size:11px;font-weight:700;color:var(--accent);}
 .log-what{font-size:12px;color:var(--text);}
 .log-when{font-size:10px;color:var(--text3);}
-.user-chip{display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border-radius:100px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:12px;}
 </style>
 </head>
 <body>
@@ -614,7 +600,7 @@ input,select,button,textarea{font-family:inherit;}
         <div class="field-row" style="margin-bottom:0;">
           <div class="field-box">
             <div class="field-label" id="bk-ci-time-label">체크인 시간</div>
-            <input class="field-input" type="text" id="bk-ci-time" placeholder="15:00" oninput="onBkCiTimeInput()">
+            <input class="field-input" type="text" id="bk-ci-time" placeholder="15:00">
           </div>
           <div class="field-box">
             <div class="field-label" id="bk-co-time-label">체크아웃 시간</div>
@@ -1315,9 +1301,7 @@ function renderRooms(){
         })).join('<div style="height:3px;"></div>');
         guestPanel=`<div style="margin-top:6px;background:#fff;border-radius:8px;padding:5px 7px;width:100%;box-sizing:border-box;overflow:hidden;">${rows}</div>`;
       }
-      const guestLine='';
       const dateLine=cur&&(cur.checkinDate||cur.checkoutDate)?`<div style="font-size:8px;margin-top:1px;opacity:.7;"><span style="position:relative;display:inline-block;">${cur.checkinDate?fmtDate(cur.checkinDate):''}${cur.checkinDate&&cur.checkoutDate?'→':''}${cur.checkoutDate?fmtDate(cur.checkoutDate):''}${nightsOf(cur.checkinDate,cur.checkoutDate)>=2?'<span style="position:absolute;right:-6px;top:-1px;width:5.1px;height:5.1px;border-radius:50%;background:#E53935;"></span>':''}</span></div>`:'';
-      const earlyLine='';
       // 오후 3시 기준으로 날짜 계산
       const today2=todayStr();
       const tmrBaseDate=new Date();tmrBaseDate.setDate(tmrBaseDate.getDate()+1);
@@ -1330,7 +1314,6 @@ function renderRooms(){
       const isNextTmr=allBkForBadge.some(b=>b.checkinDate===tmrStr2);
       const isNextDA=allBkForBadge.some(b=>b.checkinDate===dayAfterStr);
       const allNext=getNextBookings(r);
-      const supplyBadge='';
       const ckId2=`${num}_${today2}`;
       const sentChecked=checkedSentSet.has(ckId2);
       const sentBadge=sentChecked&&cls==='clean_done'?`<div style="position:absolute;top:28px;left:50%;transform:translateX(-50%);background:#F4F8F0;color:#c0392b;font-size:9px;font-weight:700;padding:2px 6px;white-space:nowrap;z-index:3;">입실안내완</div>`:'';
@@ -1378,7 +1361,7 @@ function renderRooms(){
       return `<div class="room-card ${cls}" onclick="openRoomModal('${num}')">
         ${r.blocked?`<div class="blocked-badge">${t('blocked_lbl')}</div>`:''}
         ${r.roomNote?`<div style="position:absolute;bottom:6px;right:6px;background:#D90040;color:#fff;font-size:8px;font-weight:700;border-radius:100px;padding:1px 6px;white-space:nowrap;z-index:2;">${r.roomNote}</div>`:''}
-        ${supplyBadge}${nextBadge}${timeBadge}${sentBadge}${asgnBadge}
+        ${nextBadge}${timeBadge}${sentBadge}${asgnBadge}
         <i class="ti ${ico} room-icon"></i>
         <div class="room-num">${num}</div>
         <div class="room-status-label">${lbl}</div>
@@ -1429,7 +1412,6 @@ function openRoomModal(num){
   originalStatus=r.status;  // 모달 열 때의 원래 상태 (저장 시 변경 여부 판단용)
 
   const big=document.getElementById('rm-big');
-  const baseStyle='flex:0 0 30%;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;min-height:60px;overflow:hidden;box-sizing:border-box;';
   big.style.cssText='flex:0 0 30%;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;min-height:60px;overflow:hidden;box-sizing:border-box;background:var(--bg2);color:var(--text)';
   big.textContent=num+(currentLang==='ko'?'호':'');
   document.getElementById('rm-blocked').checked=r.blocked||false;
@@ -1442,7 +1424,6 @@ function openRoomModal(num){
   asel.innerHTML=[(currentLang==='ko'?'미배정':'Unassigned'),...assignees].map(a=>`<option value="${a}"${a===(r.assignee||assignees[0])?' selected':''}>${a}</option>`).join('');
   renderCurrentBooking(r.currentBooking);
   renderNextBookings(getNextBookings(r));
-  updateAutoStatusBadge(r.currentBooking);
   // 비품 로드
   const existingSupplies=roomSupplies[num]||{};
   currentSupplyItems=Object.values(existingSupplies).filter(s=>!s.done).map(s=>s.name);
@@ -1569,11 +1550,6 @@ async function onCurDrop(e){
   const from=e.dataTransfer.getData('text');
   if(from.startsWith('next')) await swapCurrentWithNext();
 }
-async function onNextDropToCurrent(e){
-  e.preventDefault();
-  const from=e.dataTransfer.getData('text');
-  if(from==='current') await swapCurrentWithNext();
-}
 async function swapCurrentWithNext(){
   const r=rooms[currentRoomNum];
   if(!r)return;
@@ -1597,7 +1573,6 @@ async function swapCurrentWithNext(){
 }
 window.onCurDragStart=onCurDragStart;
 window.onCurDrop=onCurDrop;
-window.onNextDropToCurrent=onNextDropToCurrent;
 
 let dragSrcIdx=null;
 
@@ -1705,11 +1680,9 @@ function onNextDrop(e,i){
     if(srcIdx!==i) reorderNextBookings(srcIdx,i);
   }
 }
-function onDragStart(e,i){dragSrcIdx=i;e.dataTransfer.setData('text','next'+i);e.currentTarget.classList.add('dragging');}
 function onDragOver(e,i){e.preventDefault();document.querySelectorAll('.booking-card.next-booking').forEach((el,idx)=>{el.classList.toggle('drag-over',idx===i&&dragSrcIdx!==null&&i!==dragSrcIdx);});}
-function onDrop(e,i){e.preventDefault();const from=e.dataTransfer.getData('text');if(from.startsWith('next')){const src=parseInt(from.replace('next',''));if(src!==i)reorderNextBookings(src,i);}}
 function onDragEnd(e){e.currentTarget.classList.remove('dragging');document.querySelectorAll('.booking-card').forEach(el=>el.classList.remove('drag-over'));}
-window.onNextDragStart=onNextDragStart;window.onNextDrop=onNextDrop;window.onDragStart=onDragStart;window.onDragOver=onDragOver;window.onDrop=onDrop;window.onDragEnd=onDragEnd;
+window.onNextDragStart=onNextDragStart;window.onNextDrop=onNextDrop;window.onDragOver=onDragOver;window.onDragEnd=onDragEnd;
 
 function getNextBookings(r){
   if(!r)return [];
@@ -1911,11 +1884,7 @@ function bkCalClickDay(ds){
   else{if(ds<=bkCiDate){bkCiDate=ds;bkCoDate=null;bkSelectStep=1;}else{bkCoDate=ds;bkSelectStep=0;}}
   bkUpdateChips();bkRenderCal();
 }
-function onBkCiTimeInput(){
-  const val=document.getElementById('bk-ci-time').value.trim();
-  const m=toMin(val);
-}
-window.bkClearDate=bkClearDate; window.bkCalPrev=bkCalPrev; window.bkCalNext=bkCalNext; window.bkCalClickDay=bkCalClickDay; window.onBkCiTimeInput=onBkCiTimeInput;
+window.bkClearDate=bkClearDate; window.bkCalPrev=bkCalPrev; window.bkCalNext=bkCalNext; window.bkCalClickDay=bkCalClickDay;
 
 function renderStatusOpts(cur){
   document.getElementById('status-opts').innerHTML=STATUS_OPTS.map(s=>`
@@ -1927,11 +1896,6 @@ function selStatus(s){
   document.getElementById('auto-badge').style.display='none';
 }
 window.selStatus=selStatus;
-
-function updateAutoStatusBadge(cur){
-  const badge=document.getElementById('auto-badge');
-  if(badge)badge.style.display='none';
-}
 
 function onBlockedToggle(){
   const on=document.getElementById('rm-blocked').checked;
@@ -3402,7 +3366,7 @@ const TEXTS = {
     notice_title: '📢 공지', notice_sub: '팀 전체에게 공유할 내용을 입력하세요.',
     notice_save: '등록', notice_del: '삭제',
     past_notices: '지난 공지',
-    empty_clean: '배정된 청소 없음', empty_supply: '등록된 비품 요청이 없습니다', empty_hist: '이력 없음',
+    empty_clean: '배정된 청소 없음', empty_supply: '등록된 비품 요청이 없습니다',
     log_title: '변경 로그', log_empty: '변경 이력이 없습니다',
     move_title_cur: '현재 예약 방 이동', move_title_nxt: '다음 예약 방 이동',
     move_cancel: '취소',
@@ -3411,16 +3375,10 @@ const TEXTS = {
     bk_ci_time: '체크인 시간', bk_co_time: '체크아웃 시간',
     bk_notes: '특이사항', bk_save: '저장', bk_cancel: '취소',
     auto_badge: '자동반영',
-    assignee_title: '청소 담당자', assignee_sub: '팀원 및 개인 비밀번호',
-    assignee_note: '각자 비밀번호로 로그인하면 변경 로그에 이름이 기록돼요.',
+    assignee_title: '청소 담당자',
     assignee_add: '+ 팀원 추가', assignee_save: '저장',
     notif_title: '알림 설정', notif_browser: '브라우저 알림',
     notif_allow: '허용하기', notif_allowed: '✓ 허용됨',
-    notif_email_title: '이메일 알림 수신 주소', notif_email_add: '+ 이메일 추가',
-    sched_title: '일정 추가', sched_room: '객실', sched_guest: '투숙객 이름',
-    sched_type: '유형', sched_time: '예정 시간', sched_ci: '체크인', sched_co: '체크아웃',
-    sched_add: '추가하기', sched_today: '오늘 체크인 · 체크아웃',
-    sched_none: '오늘 일정이 없습니다', sched_auto: '자동',
     pw_label: '비밀번호', pw_enter: '입장', pw_error: '비밀번호가 맞지 않습니다.',
     pw_connecting: '연결 중...',
     check_items: ['침구 교체','욕실 청소','진공 청소','쓰레기 수거','미니바 보충'],
@@ -3433,10 +3391,7 @@ const TEXTS = {
     supply_placeholder: '예) 샴푸, 수건 2장',
     unknown_user: '알 수 없음',
     notif_activated: '알림이 활성화됐어요!',
-    saved_msg: '✓ 저장됐어요',
-    sched_empty: '오늘 일정이 없습니다',
     wait_assign: '배정 대기',
-    cur_booking_add: '현재 예약 추가',
   },
   en: {
     logout: 'Exit', notice_label: '📢 Notice', notice_add: '📣 Post Notice',
@@ -3455,7 +3410,7 @@ const TEXTS = {
     notice_title: '📢 Notice', notice_sub: 'Share important info with the team.',
     notice_save: 'Post', notice_del: 'Delete',
     past_notices: 'Past Notices',
-    empty_clean: 'No cleaning tasks', empty_supply: 'No supply requests', empty_hist: 'No history',
+    empty_clean: 'No cleaning tasks', empty_supply: 'No supply requests',
     log_title: 'Change Log', log_empty: 'No changes yet',
     move_title_cur: 'Move Current Booking', move_title_nxt: 'Move Next Booking',
     move_cancel: 'Cancel',
@@ -3464,16 +3419,10 @@ const TEXTS = {
     bk_ci_time: 'Check-in Time', bk_co_time: 'Check-out Time',
     bk_notes: 'Special Notes', bk_save: 'Save', bk_cancel: 'Cancel',
     auto_badge: 'Auto',
-    assignee_title: 'Cleaners', assignee_sub: 'Team & Passwords',
-    assignee_note: 'Login with your own password — changes are logged by name.',
+    assignee_title: 'Cleaners',
     assignee_add: '+ Add Member', assignee_save: 'Save',
     notif_title: 'Notifications', notif_browser: 'Browser Alerts',
     notif_allow: 'Allow', notif_allowed: '✓ Allowed',
-    notif_email_title: 'Email Alerts', notif_email_add: '+ Add Email',
-    sched_title: 'Add Schedule', sched_room: 'Room', sched_guest: 'Guest Name',
-    sched_type: 'Type', sched_time: 'Time', sched_ci: 'Check-in', sched_co: 'Check-out',
-    sched_add: 'Add', sched_today: "Today's Schedule",
-    sched_none: 'No schedule today', sched_auto: 'Auto',
     pw_label: 'Password', pw_enter: 'Enter', pw_error: 'Wrong password.',
     pw_connecting: 'Connecting...',
     check_items: ['Bedding','Bathroom','Vacuum','Trash','Minibar'],
@@ -3486,10 +3435,7 @@ const TEXTS = {
     supply_placeholder: 'e.g. Shampoo x2, Towels',
     unknown_user: 'Unknown',
     notif_activated: 'Alerts are now on!',
-    saved_msg: '✓ Saved',
-    sched_empty: 'No schedule today',
     wait_assign: 'Pending',
-    cur_booking_add: 'Add Current Booking',
   }
 };
 
@@ -3535,12 +3481,6 @@ function applyLang(){
   if(syncApp) syncApp.textContent = connected ? t('sync_on') : t('sync_off');
   if(syncLogin) syncLogin.textContent = t('pw_connecting');
 
-  // 로그인 화면
-  const pwLabel = document.querySelector('.login-pw-label');
-  if(pwLabel) pwLabel.textContent = t('pw_label');
-  const loginBtn = document.querySelector('.login-btn');
-  if(loginBtn) loginBtn.textContent = t('pw_enter');
-
   // 카운터 라벨
   const cntLabels = document.querySelectorAll('.stat-label');
   const cntTexts = t('cnt');
@@ -3575,16 +3515,12 @@ function applyLang(){
 
   // 인력관리 모달
   const amt=document.getElementById('assignee-modal-title');if(amt)amt.textContent=t('assignee_title');
-  const ast=document.getElementById('assignee-sub-title');if(ast)ast.textContent=t('assignee_sub');
-  const ant=document.getElementById('assignee-note-txt');if(ant)ant.textContent=t('assignee_note');
   const aab=document.getElementById('assignee-add-btn');if(aab)aab.innerHTML=`<i class="ti ti-plus"></i> ${t('assignee_add').replace('+ ','')}`;
   const asb=document.getElementById('assignee-save-btn');if(asb)asb.textContent=t('assignee_save');
 
   // 알림 설정
   const ntt=document.getElementById('notif-title-txt');if(ntt)ntt.innerHTML=`<i class="ti ti-bell" style="font-size:13px;"></i> ${t('notif_title')}`;
   const nbt=document.getElementById('notif-browser-txt');if(nbt)nbt.textContent=t('notif_browser');
-  const net=document.getElementById('notif-email-title-txt');if(net)net.textContent=t('notif_email_title');
-  const neab=document.getElementById('notif-email-add-btn');if(neab)neab.innerHTML=`<i class="ti ti-plus"></i> ${t('notif_email_add').replace('+ ','')}`;
   const nb=document.getElementById('notif-btn');if(nb)nb.textContent=Notification.permission==='granted'?t('notif_allowed'):t('notif_allow');
 
   // 변경 로그
@@ -3619,7 +3555,6 @@ function applyLang(){
   const anb=document.getElementById('add-next-btn');if(anb)anb.innerHTML=`<i class="ti ti-plus"></i> ${t('modal_add_next').replace('+ ','')}`;
 
   // 로그인 화면
-  const pwl=document.querySelector('.login-pw-label');if(pwl)pwl.textContent=t('pw_label');
   const plb=document.querySelector('.login-btn');if(plb)plb.textContent=t('pw_enter');
 
   // 미설정 → 날짜 칩

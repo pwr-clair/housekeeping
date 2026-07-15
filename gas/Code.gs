@@ -28,7 +28,6 @@ function kstDate(o){return Utilities.formatDate(new Date(Date.now()+(o||0)*864e5
 function todayKST(){return kstDate(0);}
 function nowHM(){return Utilities.formatDate(new Date(),'Asia/Seoul','HH:mm');}
 function nowMinKST(){return +Utilities.formatDate(new Date(),'Asia/Seoul','H')*60 + +Utilities.formatDate(new Date(),'Asia/Seoul','m');}
-function toMin(t){if(!t)return null;const p=String(t).split(':');if(p.length<2||isNaN(+p[0])||isNaN(+p[1]))return null;return +p[0]*60+ +p[1];}
 function floorOf(room){return String(room).length===3?String(room)[0]:String(room).slice(0,2);}
 function normSource(s){s=String(s||'').toLowerCase();if(s.includes('booking'))return 'booking';if(s.includes('agoda'))return 'agoda';if(s.includes('expedia'))return 'expedia';return 'direct';}
 
@@ -354,7 +353,7 @@ function findEligible(){
   return {eligible,noEmail,notReady};
 }
 
-function sendEligible(trigger){
+function sendEligible(){
   // 승인 버튼용 — 지금 청소완료된 모든 미발송 입실안내 즉시 발송 (시각 무관)
   const {eligible}=findEligible();const today=todayKST();let count=0;
   for(const {num,r} of eligible){
@@ -385,7 +384,7 @@ function doGet(e){
   const p=e.parameter||{};
   if(p.token!==APPROVE_TOKEN)return ContentService.createTextOutput('Paradise Walk GAS 작동 중');
   if(p.action==='approve'){
-    return ContentService.createTextOutput('발송 완료: '+sendEligible('approved')+'건');
+    return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
   }
   if(p.action==='sendRoom'&&p.room){
     const num=String(p.room),today=todayKST();
