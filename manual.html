@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PWR Housekeeping Manual</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Sans:wght@400;500;700&display=swap');
 :root{
@@ -139,6 +138,10 @@ tr:nth-child(even) td{background:#F9F8F6;}
 .app-log-who{font-size:10px;font-weight:700;color:var(--navy);}
 .app-log-what{font-size:11px;color:var(--text);margin-top:1px;}
 .app-log-when{font-size:9px;color:var(--text3);}
+.bk-acts{display:flex;gap:3px;}
+.bk-act{width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;}
+.bk-act:nth-child(2){background:var(--blue);border-color:#B5D4F4;}
+.bk-act:nth-child(3){background:var(--pink);border-color:#F5B7CC;}
 @media(max-width:480px){.cover h1{font-size:24px;}}
 </style>
 </head>
@@ -167,7 +170,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">1</div><div class="section-title">로그인</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-lock"></i> 개인 비밀번호로 입장</div>
+        <div class="card-title"><i>🔒</i> 개인 비밀번호로 입장</div>
         <div class="card-body">각자에게 배정된 개인 비밀번호(4자리)를 입력하면 이름이 자동으로 인식돼요. 모든 변경 내역에 내 이름이 기록되기 때문에 <strong>반드시 본인 비밀번호로만 로그인</strong>해주세요.</div>
         <div class="tip">💡 한 번 로그인하면 기기가 기억해서, 다음엔 버튼 한 번으로 바로 입장돼요!</div>
         <div class="warn">⚠️ 비밀번호는 관리자에게 개별 안내됩니다. 타인의 비밀번호로 로그인하지 마세요.</div>
@@ -191,7 +194,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">2</div><div class="section-title">메인 화면</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-layout-grid"></i> 화면 구성</div>
+        <div class="card-title"><i>🔲</i> 화면 구성</div>
         <div class="card-body">메인 화면은 4가지 영역으로 구성돼 있어요. 아래 화면에서 각 영역을 확인해보세요.</div>
       </div>
       <div class="mockup-wrap" style="padding-right:130px;">
@@ -225,13 +228,13 @@ tr:nth-child(even) td{background:#F9F8F6;}
           </div>
           <div class="app-floor-label">6F</div>
           <div class="app-room-grid">
-            <div class="app-room-card rm-checkin"><i class="ti ti-user app-room-icon"></i><div class="app-room-num">620</div><div class="app-room-status">입실중</div><div class="app-room-pw">🔒 1011</div></div>
-            <div class="app-room-card rm-checkout_confirm"><i class="ti ti-clock app-room-icon"></i><div class="app-room-num">628</div><div class="app-room-status">퇴실확인중</div><div class="app-room-pw">🔒 2345</div></div>
+            <div class="app-room-card rm-checkin"><i class="app-room-icon">👤</i><div class="app-room-num">620</div><div class="app-room-status">입실중</div><div class="app-room-pw">🔒 1011</div></div>
+            <div class="app-room-card rm-checkout_confirm"><i class="app-room-icon">🕐</i><div class="app-room-num">628</div><div class="app-room-status">퇴실확인중</div><div class="app-room-pw">🔒 2345</div></div>
           </div>
           <div class="app-floor-label">9F</div>
           <div class="app-room-grid">
-            <div class="app-room-card rm-checkout_done"><i class="ti ti-wash app-room-icon"></i><div class="app-room-num">920</div><div class="app-room-status">청소필요</div><div class="app-room-pw">🔒 4041</div></div>
-            <div class="app-room-card rm-cleaning"><i class="ti ti-sparkles app-room-icon"></i><div class="app-room-num">930</div><div class="app-room-status">청소중</div><div class="app-room-pw">🔒 3032</div></div>
+            <div class="app-room-card rm-checkout_done"><i class="app-room-icon">🧺</i><div class="app-room-num">920</div><div class="app-room-status">청소필요</div><div class="app-room-pw">🔒 4041</div></div>
+            <div class="app-room-card rm-cleaning"><i class="app-room-icon">✨</i><div class="app-room-num">930</div><div class="app-room-status">청소중</div><div class="app-room-pw">🔒 3032</div></div>
           </div>
         </div>
         <!-- 라벨 -->
@@ -300,10 +303,10 @@ tr:nth-child(even) td{background:#F9F8F6;}
                   <div class="app-booking-time">IN 14:00</div>
                   <div class="app-booking-note">⚠ 주차 요청</div>
                 </div>
-                <div style="display:flex;gap:3px;">
-                  <div style="width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;">✏️</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);border:0.5px solid #B5D4F4;display:flex;align-items:center;justify-content:center;font-size:9px;">↔</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--pink);border:0.5px solid #F5B7CC;display:flex;align-items:center;justify-content:center;font-size:9px;">🗑</div>
+                <div class="bk-acts">
+                  <div class="bk-act">✏️</div>
+                  <div class="bk-act">↔</div>
+                  <div class="bk-act">🗑</div>
                 </div>
               </div>
             </div>
@@ -316,10 +319,10 @@ tr:nth-child(even) td{background:#F9F8F6;}
                   <div class="app-booking-date">06/02 → 06/05</div>
                   <div class="app-booking-time">OUT 10:00</div>
                 </div>
-                <div style="display:flex;gap:3px;">
-                  <div style="width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;">✏️</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);border:0.5px solid #B5D4F4;display:flex;align-items:center;justify-content:center;font-size:9px;">↔</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--pink);border:0.5px solid #F5B7CC;display:flex;align-items:center;justify-content:center;font-size:9px;">🗑</div>
+                <div class="bk-acts">
+                  <div class="bk-act">✏️</div>
+                  <div class="bk-act">↔</div>
+                  <div class="bk-act">🗑</div>
                 </div>
               </div>
             </div>
@@ -375,10 +378,10 @@ tr:nth-child(even) td{background:#F9F8F6;}
                   <div class="app-booking-time">IN 13:00</div>
                   <div class="app-booking-note">⚠ 주차 요청</div>
                 </div>
-                <div style="display:flex;gap:3px;">
-                  <div style="width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;">✏️</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);border:0.5px solid #B5D4F4;display:flex;align-items:center;justify-content:center;font-size:9px;">↔</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--pink);border:0.5px solid #F5B7CC;display:flex;align-items:center;justify-content:center;font-size:9px;">🗑</div>
+                <div class="bk-acts">
+                  <div class="bk-act">✏️</div>
+                  <div class="bk-act">↔</div>
+                  <div class="bk-act">🗑</div>
                 </div>
               </div>
             </div>
@@ -389,10 +392,10 @@ tr:nth-child(even) td{background:#F9F8F6;}
                   <div class="app-booking-guest">Hammad, Aladin</div>
                   <div class="app-booking-date">06/04 → 06/05</div>
                 </div>
-                <div style="display:flex;gap:3px;">
-                  <div style="width:20px;height:20px;border-radius:50%;background:#fff;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;">✏️</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--blue);border:0.5px solid #B5D4F4;display:flex;align-items:center;justify-content:center;font-size:9px;">↔</div>
-                  <div style="width:20px;height:20px;border-radius:50%;background:var(--pink);border:0.5px solid #F5B7CC;display:flex;align-items:center;justify-content:center;font-size:9px;">🗑</div>
+                <div class="bk-acts">
+                  <div class="bk-act">✏️</div>
+                  <div class="bk-act">↔</div>
+                  <div class="bk-act">🗑</div>
                 </div>
               </div>
             </div>
@@ -481,7 +484,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-clock"></i> 자동 상태 변경 흐름</div>
+        <div class="card-title"><i>🕐</i> 자동 상태 변경 흐름</div>
         <div class="flow" style="flex-direction:column;gap:6px;align-items:flex-start;">
           <div style="display:flex;align-items:center;gap:8px;">
             <span class="badge b-blue">입실중</span>
@@ -502,7 +505,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">5</div><div class="section-title">비품 탭</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-clipboard-list"></i> 비품 탭이란?</div>
+        <div class="card-title"><i>📋</i> 비품 탭이란?</div>
         <div class="card-body">각 방에서 등록한 부족 비품을 한 화면에서 모아 볼 수 있어요. 처리 완료한 비품은 체크하거나 삭제하면 돼요.</div>
         <div class="warn">⚠️ 미처리 비품이 있으면 탭이 핑크색으로 바뀌고 빨간 점이 표시돼요!</div>
       </div>
@@ -558,7 +561,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">5</div><div class="section-title">예약 탭 — Upcoming</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-calendar-event"></i> 예약 탭이란?</div>
+        <div class="card-title"><i>📅</i> 예약 탭이란?</div>
         <div class="card-body">모든 객실의 현재 및 다음 예약을 날짜순으로 한눈에 볼 수 있어요. 이름 · 날짜 · 호실 형식으로 표시되며, 오늘/내일 예약은 별도 표시돼요.</div>
       </div>
       <div class="mockup-wrap">
@@ -602,7 +605,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">6</div><div class="section-title">변경 알림</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-bell"></i> 변경 로그</div>
+        <div class="card-title"><i>🔔</i> 변경 로그</div>
         <div class="card-body">상단 🔔 벨 아이콘을 누르면 누가 언제 어떤 방을 어떤 상태로 바꿨는지 확인할 수 있어요. 다른 팀원이 변경하면 빨간 점이 떠요.</div>
         <div class="tip">💡 내가 바꾼 건 내 화면에 알림이 안 떠요. 다른 팀원의 변경사항만 표시돼요.</div>
       </div>
@@ -612,7 +615,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">7</div><div class="section-title">앱처럼 사용하기 (아이폰)</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-device-mobile"></i> 홈 화면에 추가하면 앱처럼 사용 가능해요</div>
+        <div class="card-title"><i>📱</i> 홈 화면에 추가하면 앱처럼 사용 가능해요</div>
         <div class="steps">
           <div class="step"><div class="step-n">1</div><div class="step-t">Safari에서 <strong>pwr-clair.github.io/housekeeping</strong> 접속</div></div>
           <div class="step"><div class="step-n">2</div><div class="step-t">하단 공유 버튼 📤 탭</div></div>
@@ -641,7 +644,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">1</div><div class="section-title">Login</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-lock"></i> Personal Password Login</div>
+        <div class="card-title"><i>🔒</i> Personal Password Login</div>
         <div class="card-body">Enter your personal 4-digit password to be recognized by name. All changes are recorded under your name, so <strong>always use your own password only.</strong></div>
         <div class="tip">💡 Once logged in, your device remembers you — just tap once to enter next time!</div>
         <div class="warn">⚠️ Your password will be given to you individually by the manager. Never log in with someone else's password.</div>
@@ -665,7 +668,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">2</div><div class="section-title">Main Screen</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-layout-grid"></i> Screen Layout</div>
+        <div class="card-title"><i>🔲</i> Screen Layout</div>
         <div class="card-body">The main screen has 4 areas. See the labels on the screen below to identify each one.</div>
       </div>
       <div class="mockup-wrap" style="padding-right:130px;">
@@ -699,13 +702,13 @@ tr:nth-child(even) td{background:#F9F8F6;}
           </div>
           <div class="app-floor-label">6F</div>
           <div class="app-room-grid">
-            <div class="app-room-card rm-checkin"><i class="ti ti-user app-room-icon"></i><div class="app-room-num">620</div><div class="app-room-status">Occupied</div><div class="app-room-pw">🔒 1011</div></div>
-            <div class="app-room-card rm-checkout_confirm"><i class="ti ti-clock app-room-icon"></i><div class="app-room-num">628</div><div class="app-room-status">Checkout Chk</div><div class="app-room-pw">🔒 2345</div></div>
+            <div class="app-room-card rm-checkin"><i class="app-room-icon">👤</i><div class="app-room-num">620</div><div class="app-room-status">Occupied</div><div class="app-room-pw">🔒 1011</div></div>
+            <div class="app-room-card rm-checkout_confirm"><i class="app-room-icon">🕐</i><div class="app-room-num">628</div><div class="app-room-status">Checkout Chk</div><div class="app-room-pw">🔒 2345</div></div>
           </div>
           <div class="app-floor-label">9F</div>
           <div class="app-room-grid">
-            <div class="app-room-card rm-checkout_done"><i class="ti ti-wash app-room-icon"></i><div class="app-room-num">920</div><div class="app-room-status">Needs Clean</div><div class="app-room-pw">🔒 4041</div></div>
-            <div class="app-room-card rm-cleaning"><i class="ti ti-sparkles app-room-icon"></i><div class="app-room-num">930</div><div class="app-room-status">Cleaning</div><div class="app-room-pw">🔒 3032</div></div>
+            <div class="app-room-card rm-checkout_done"><i class="app-room-icon">🧺</i><div class="app-room-num">920</div><div class="app-room-status">Needs Clean</div><div class="app-room-pw">🔒 4041</div></div>
+            <div class="app-room-card rm-cleaning"><i class="app-room-icon">✨</i><div class="app-room-num">930</div><div class="app-room-status">Cleaning</div><div class="app-room-pw">🔒 3032</div></div>
           </div>
         </div>
         <div style="position:absolute;right:12px;top:30px;display:flex;flex-direction:column;gap:12px;width:110px;">
@@ -792,7 +795,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
         </div>
       </div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-clock"></i> Automatic Status Flow</div>
+        <div class="card-title"><i>🕐</i> Automatic Status Flow</div>
         <div class="flow">
           <span class="badge b-blue">Occupied</span>
           <span class="flow-arrow">→</span><span class="flow-time">11:00 AM</span><span class="flow-arrow">→</span>
@@ -808,7 +811,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">5</div><div class="section-title">Supplies Tab</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-clipboard-list"></i> What is the Supplies Tab?</div>
+        <div class="card-title"><i>📋</i> What is the Supplies Tab?</div>
         <div class="card-body">All supply requests from every room are collected here in one view. Check off or delete items once handled.</div>
         <div class="warn">⚠️ When there are unresolved supplies, the tab turns pink with a red dot!</div>
       </div>
@@ -837,7 +840,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">5</div><div class="section-title">Bookings Tab — Upcoming</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-calendar-event"></i> What is the Bookings Tab?</div>
+        <div class="card-title"><i>📅</i> What is the Bookings Tab?</div>
         <div class="card-body">See all current and upcoming reservations across every room in one place, sorted by date. Shown as Name · Dates · Room. Today's and tomorrow's arrivals are highlighted.</div>
       </div>
       <div class="mockup-wrap">
@@ -876,7 +879,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">6</div><div class="section-title">Change Alerts</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-bell"></i> Change Log</div>
+        <div class="card-title"><i>🔔</i> Change Log</div>
         <div class="card-body">Tap the 🔔 bell icon at the top to see who changed what room and when. A red dot appears when a teammate makes a change.</div>
         <div class="tip">💡 Your own changes won't show as alerts — only changes made by other team members.</div>
       </div>
@@ -886,7 +889,7 @@ tr:nth-child(even) td{background:#F9F8F6;}
     <div class="section">
       <div class="section-header"><div class="section-num">7</div><div class="section-title">Using as an App (iPhone)</div></div>
       <div class="card">
-        <div class="card-title"><i class="ti ti-device-mobile"></i> Add to Home Screen</div>
+        <div class="card-title"><i>📱</i> Add to Home Screen</div>
         <div class="steps">
           <div class="step"><div class="step-n">1</div><div class="step-t">Open Safari → go to <strong>pwr-clair.github.io/housekeeping</strong></div></div>
           <div class="step"><div class="step-n">2</div><div class="step-t">Tap the Share button 📤 at the bottom</div></div>

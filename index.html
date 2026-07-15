@@ -143,7 +143,6 @@ input,select,button,textarea{font-family:inherit;}
 .date-chip-label{font-size:9px;color:var(--text2);}
 .date-chip-val{font-size:11px;font-weight:600;color:var(--text);}
 .date-chip-clear{background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0;}
-.auto-badge{font-size:9px;background:#E6F1FB;color:#185FA5;border-radius:100px;padding:1px 5px;font-weight:600;margin-left:3px;}
 .btn-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;}
 .modal-btn{padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--text);width:100%;text-align:center;}
 .modal-btn.primary{background:var(--accent);color:#E6F1FB;border-color:var(--accent);}
@@ -502,7 +501,7 @@ input,select,button,textarea{font-family:inherit;}
         </div>
       </div>
 
-      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:5px;" id="modal-state-label">객실 상태 <span class="auto-badge" id="auto-badge" style="display:none;" data-i18n="auto_badge">자동반영</span></div>
+      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:5px;" id="modal-state-label">객실 상태 </div>
       <div class="status-grid" id="status-opts"></div>
 
       <!-- 현재 예약 -->
@@ -762,6 +761,12 @@ let waMessages={};
 let mailConfigStages={};
 const MAILCFG_STAGE_KEYS=['s2_reminder','s4_checkout','s5_checkoutConfirm','s6_review'];
 const SOURCE_LABEL={booking:'Booking.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};
+// OTA 소스 뱃지 공통 팔레트 (여러 렌더 함수에서 동일 리터럴 반복하던 것 통합)
+const SRC_BG={booking:'#003580',agoda:'#CC0000',expedia:'#FFD700',direct:'#F97316'};
+const SRC_TXT={booking:'#fff',agoda:'#fff',expedia:'#7A6000',direct:'#fff'};
+const SRC_LBL={booking:'B.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};
+const SRC_INIT={booking:'B',agoda:'A',expedia:'E',direct:'D'};
+const SRC_AVA={agoda:{c:'A',bg:'#FCEBEB',fg:'#A32D2D'},booking:{c:'B',bg:'#E6F1FB',fg:'#185FA5'},expedia:{c:'E',bg:'#FAEEDA',fg:'#854F0B'},direct:{c:'D',bg:'#F1EFE8',fg:'#5F5E5A'}};
 const ADMIN_NAMES=['Clara','Dennis']; // 관리자(배정/발송 탭) — 이 이름들이 관리자
 // 금액 열람 권한 — 관리자와 별개 개념. 명단에 없으면 금액이 어디에도 안 보이는 게 의도된 동작.
 const AMOUNT_VIEWERS=['clara','dennis','bibian'];
@@ -769,7 +774,12 @@ function canViewAmount(){return AMOUNT_VIEWERS.includes(String(currentUser||'').
 let unreadLogs=0;
 
 function toMin(t){if(!t)return null;const p=t.split(':');if(p.length<2||isNaN(+p[0])||isNaN(+p[1]))return null;return +p[0]*60+ +p[1];}
-function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function ymdOffset(n){const d=new Date();d.setDate(d.getDate()+n);return ymd(d);}
+function todayStr(){return ymd(new Date());}
+// "HH:MM" → "3pm"/"10:05am" (소문자 am/pm, 정각이면 분 생략). 대문자 AM/PM 표기는 fmtTimeKo 별도.
+const fmtAmPm=e=>{ const m=String(e||'').match(/^(\d{1,2}):(\d{2})/); if(!m)return e||'';
+  const h=+m[1],mm=+m[2],ap=h<12?'am':'pm'; return ((h%12)||12)+(mm?':'+String(mm).padStart(2,'0'):'')+ap; };
 function ymdToStr(y,m,d){return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
 function fmtDate(s){if(!s)return currentLang==='ko'?'미설정':'Not set';const p=s.split('-');return p[1]+'/'+p[2];}
 // 예약 원본(pendingBookings)에서 이 방/예약의 sv_ 레코드 찾기 — 복사 아닌 참조(원본이 single source of truth)
@@ -905,8 +915,7 @@ function scheduleAutoTransitions(){
     const histSnap=await get(ref(db,'app/bookingHistory'));
     if(histSnap.exists()){
       const hist=histSnap.val();
-      const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);
-      const cutoffStr=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+      const cutoffStr=ymdOffset(-7);
       for(const [key,h] of Object.entries(hist)){
         if(h.checkoutDate&&h.checkoutDate<cutoffStr){
           await set(ref(db,`app/bookingHistory/${key}`),null);
@@ -1188,14 +1197,12 @@ function renderCsNoticeBoard(){
   if(!items.length){ el.innerHTML=''; return; }
   const fmtT=iso=>{ const t=Date.parse(iso); if(isNaN(t))return''; const d=new Date(t);
     return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
-  const fmtEta=e=>{ const m=String(e||'').match(/^(\d{1,2}):(\d{2})/); if(!m)return e||'';
-    const h=+m[1],mm=+m[2],ap=h<12?'am':'pm'; return ((h%12)||12)+(mm?':'+String(mm).padStart(2,'0'):'')+ap; };
   const clean=s=>String(s||'').replace(/[<>&"]/g,'');
   el.innerHTML=items.map(([k,s])=>
     '<div style="display:flex;align-items:center;gap:7px;background:#fff;border:0.5px solid #9AB2D8;border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:11px;">'+
     '<span style="flex-shrink:0;background:#E6F1FB;color:#185FA5;font-size:8px;font-weight:700;border-radius:4px;padding:2px 5px;">CS 반영</span>'+
     '<span style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#2C2C2A;">'+
-      (s.room?('<b>'+clean(s.room)+'호</b> '):'')+clean(s.guest||'게스트')+' · ETA <b style="color:#9C2448;">'+clean(fmtEta(s.eta))+'</b>'+
+      (s.room?('<b>'+clean(s.room)+'호</b> '):'')+clean(s.guest||'게스트')+' · ETA <b style="color:#9C2448;">'+clean(fmtAmPm(s.eta))+'</b>'+
       (s.checkinDate?(' · 체크인 '+clean(String(s.checkinDate).slice(5).replace('-','/'))):'')+'</span>'+
     '<span style="flex-shrink:0;color:#9E9A95;font-size:9px;">'+fmtT(s.appliedAt)+'</span>'+
     '<span onclick="ackCsNotice(\''+k+'\')" style="flex-shrink:0;cursor:pointer;color:#9E9A95;padding:0 3px;font-size:12px;" title="확인함">✕</span>'+
@@ -1224,7 +1231,7 @@ function renderCheckinOrder(){
   }
   if(!list.length){ el.style.display='none'; return; }
   list.sort((a,b)=>a.min-b.min||(+a.num)-(+b.num));
-  const fmt=m=>{ const h24=Math.floor(m/60),mm=m%60,ap=h24<12?'am':'pm',h=(h24%12)||12; return h+(mm?':'+String(mm).padStart(2,'0'):'')+ap; };
+  const fmt=m=>fmtAmPm(Math.floor(m/60)+':'+String(m%60).padStart(2,'0'));
   el.innerHTML='<span style="font-size:10px;font-weight:600;color:var(--text);flex-shrink:0;">🕐 '+(currentLang==='ko'?'입실':'IN')+'</span>'
     +list.map(x=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+x.num+'</b> <span style="font-size:10px;font-weight:600;color:#9C2448;">'+fmt(x.min)+'</span></span>')
       .join('<span style="color:var(--text);flex-shrink:0;">‣</span>');
@@ -1271,17 +1278,15 @@ function renderRooms(){
       const nxt=getNextBookings(r)[0];
       // 오늘/내일 입실 손님 정보 (시간 기준, 객실상태 무관)
       const _td=todayStr();
-      const _tb=new Date();_tb.setDate(_tb.getDate()+1);
-      const _tmr=_tb.getFullYear()+'-'+String(_tb.getMonth()+1).padStart(2,'0')+'-'+String(_tb.getDate()).padStart(2,'0');
+      const _tmr=ymdOffset(1);
       // 퇴실 당일 오전(11:00 전): 현재 투숙객을 '현재' 칩으로 표시(11시까지는 방에 있는 게 맞음), 내일 도착분은 11시 이후부터 (2026-07-14 Clara)
       const _nowMin2=new Date().getHours()*60+new Date().getMinutes();
       const _curStaying=canSendMail&&_nowMin2<660&&cur&&cur.guest&&cur.checkoutDate===_td;
       const _arrivingList=canSendMail?[cur,...getNextBookings(r)].filter(b=>b&&b.guest&&b!==(_curStaying?cur:null)&&(b.checkinDate===_td||(!_curStaying&&b.checkinDate===_tmr))):[];
       let guestPanel='';
       if(_arrivingList.length||_curStaying){
-        const _srcInit={agoda:{c:'A',bg:'#FCEBEB',fg:'#A32D2D'},booking:{c:'B',bg:'#E6F1FB',fg:'#185FA5'},expedia:{c:'E',bg:'#FAEEDA',fg:'#854F0B'},direct:{c:'D',bg:'#F1EFE8',fg:'#5F5E5A'}};
         const _curRow=_curStaying?(()=>{
-          const _si=_srcInit[srcKey(cur.source)]||_srcInit.direct;
+          const _si=SRC_AVA[srcKey(cur.source)]||SRC_AVA.direct;
           return `<div style="display:flex;align-items:center;gap:5px;text-align:left;">`
             +`<div style="flex-shrink:0;width:11px;height:11px;border-radius:50%;background:#5F5E5A;color:#fff;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">현</div>`
             +`<div style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:9px;font-weight:600;color:#2C2C2A;">${cur.guest}</div>`
@@ -1292,7 +1297,7 @@ function renderRooms(){
           const _isToday=b.checkinDate===_td;
           const _dayNum=parseInt(String(b.checkinDate).slice(-2),10);
           const _circleBg=_isToday?'#B81E24':'#1A4FA0';
-          const _si=_srcInit[srcKey(b.source)]||_srcInit.direct;
+          const _si=SRC_AVA[srcKey(b.source)]||SRC_AVA.direct;
           return `<div style="display:flex;align-items:center;gap:5px;text-align:left;">`
             +`<div style="flex-shrink:0;width:11px;height:11px;border-radius:50%;background:${_circleBg};color:#fff;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;">${_dayNum}</div>`
             +`<div style="min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:9px;font-weight:600;color:#2C2C2A;">${b.guest}</div>`
@@ -1304,10 +1309,8 @@ function renderRooms(){
       const dateLine=cur&&(cur.checkinDate||cur.checkoutDate)?`<div style="font-size:8px;margin-top:1px;opacity:.7;"><span style="position:relative;display:inline-block;">${cur.checkinDate?fmtDate(cur.checkinDate):''}${cur.checkinDate&&cur.checkoutDate?'→':''}${cur.checkoutDate?fmtDate(cur.checkoutDate):''}${nightsOf(cur.checkinDate,cur.checkoutDate)>=2?'<span style="position:absolute;right:-6px;top:-1px;width:5.1px;height:5.1px;border-radius:50%;background:#E53935;"></span>':''}</span></div>`:'';
       // 오후 3시 기준으로 날짜 계산
       const today2=todayStr();
-      const tmrBaseDate=new Date();tmrBaseDate.setDate(tmrBaseDate.getDate()+1);
-      const tmrStr2=tmrBaseDate.getFullYear()+'-'+String(tmrBaseDate.getMonth()+1).padStart(2,'0')+'-'+String(tmrBaseDate.getDate()).padStart(2,'0');
-      const dayAfterDate=new Date();dayAfterDate.setDate(dayAfterDate.getDate()+2);
-      const dayAfterStr=dayAfterDate.getFullYear()+'-'+String(dayAfterDate.getMonth()+1).padStart(2,'0')+'-'+String(dayAfterDate.getDate()).padStart(2,'0');
+      const tmrStr2=ymdOffset(1);
+      const dayAfterStr=ymdOffset(2);
       // 오늘/내일/모레 - cur, nxt, allNext 전부 확인해서 각각 독립적으로
       const allBkForBadge=[cur,...getNextBookings(r)].filter(b=>b&&b.guest);
       const isNextToday=allBkForBadge.some(b=>b.checkinDate===today2);
@@ -1373,8 +1376,7 @@ function renderRooms(){
     }).join('');
   });
   const today=todayStr();
-  const tmr=new Date();tmr.setDate(tmr.getDate()+1);
-  const tmrStr=tmr.getFullYear()+'-'+String(tmr.getMonth()+1).padStart(2,'0')+'-'+String(tmr.getDate()).padStart(2,'0');
+  const tmrStr=ymdOffset(1);
 
   // 오늘 퇴실 - 방 번호 기준으로 중복 없이 카운트
   const todayCheckouts=new Set();
@@ -1434,7 +1436,6 @@ function openRoomModal(num){
   const mns=document.getElementById('modal-next-sub');if(mns)mns.textContent=t('modal_drag');
   const msl=document.getElementById('modal-state-label');if(msl)msl.childNodes[0]&&(msl.childNodes[0].textContent=t('modal_state')+' ');
   const mal=document.getElementById('assignee-label-modal');if(mal)mal.textContent=t('modal_assignee');
-  const badge=document.getElementById('auto-badge');if(badge)badge.textContent=t('auto_badge');
   const bcr=document.getElementById('btn-close-room');if(bcr)bcr.textContent=t('modal_close');
   document.getElementById('room-modal').classList.add('open');
 }
@@ -1478,11 +1479,8 @@ function renderCurrentBooking(cur){
   if(!wrap)return;
   const notes=cur&&cur.notes?cur.notes:'';
   if(cur&&cur.guest){
-    const srcBgMap={booking:'#003580',agoda:'#CC0000',expedia:'#FFD700',direct:'#F97316'};
-    const srcTxtMap={booking:'#fff',agoda:'#fff',expedia:'#7A6000',direct:'#fff'};
-    const srcLblMap={booking:'B.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};
-    const srcLbl=srcLblMap[cur.source]||'';
-    const srcBadge=srcLbl?`<span style="font-size:9px;font-weight:700;background:${srcBgMap[cur.source]};color:${srcTxtMap[cur.source]};border-radius:100px;padding:1px 6px;margin-left:5px;vertical-align:middle;">${srcLbl}</span>`:'';
+    const srcLbl=SRC_LBL[cur.source]||'';
+    const srcBadge=srcLbl?`<span style="font-size:9px;font-weight:700;background:${SRC_BG[cur.source]};color:${SRC_TXT[cur.source]};border-radius:100px;padding:1px 6px;margin-left:5px;vertical-align:middle;">${srcLbl}</span>`:'';
     wrap.innerHTML=`<div class="booking-card current" style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start;"
       draggable="true" id="cur-booking-card"
       ondragstart="onCurDragStart(event)" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondragend="this.classList.remove('dragging','drag-over')" ondrop="onCurDrop(event)">
@@ -1595,7 +1593,7 @@ function renderNextBookings(list){
       ondragend="onDragEnd(event)">
       <div class="drag-handle" title="드래그하여 순서 변경"><i class="ti ti-grip-vertical"></i></div>
       <div>
-        <div class="booking-guest">${nxt.guest}${(()=>{const bg={booking:'#003580',agoda:'#CC0000',expedia:'#FFD700',direct:'#F97316'};const tc={booking:'#fff',agoda:'#fff',expedia:'#7A6000',direct:'#fff'};const lb={booking:'B.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};return lb[nxt.source]?`<span style="font-size:9px;font-weight:700;background:${bg[nxt.source]};color:${tc[nxt.source]};border-radius:100px;padding:1px 6px;margin-left:5px;vertical-align:middle;">${lb[nxt.source]}</span>`:'';})()} </div>
+        <div class="booking-guest">${nxt.guest}${SRC_LBL[nxt.source]?`<span style="font-size:9px;font-weight:700;background:${SRC_BG[nxt.source]};color:${SRC_TXT[nxt.source]};border-radius:100px;padding:1px 6px;margin-left:5px;vertical-align:middle;">${SRC_LBL[nxt.source]}</span>`:''} </div>
         <div class="booking-dates">${fmtDate(nxt.checkinDate)} → ${fmtDate(nxt.checkoutDate)}${longStayDot(nxt.checkinDate,nxt.checkoutDate)}</div>
         ${nxt.checkinTime||nxt.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${nxt.checkinTime?'IN '+nxt.checkinTime:''}${nxt.checkinTime&&nxt.checkoutTime?' · ':''}${nxt.checkoutTime?'OUT '+nxt.checkoutTime:''}${bkEtaTag(nxt)}</div>`:''}
         ${bkMoneyBlock(nxt,'next',i)}
@@ -1893,7 +1891,6 @@ function renderStatusOpts(cur){
 function selStatus(s){
   currentStatus=s;
   document.querySelectorAll('.status-opt').forEach(el=>el.classList.toggle('selected',el.classList.contains('sel-'+s)));
-  document.getElementById('auto-badge').style.display='none';
 }
 window.selStatus=selStatus;
 
@@ -2095,12 +2092,7 @@ window.openWorkLogModal=openWorkLogModal;window.saveWorkLog=saveWorkLog;window.d
 
 function openCounterModal(type){
   const today=todayStr();
-  const tmrD=new Date();tmrD.setDate(tmrD.getDate()+1);
-  const tmrStr=tmrD.getFullYear()+'-'+String(tmrD.getMonth()+1).padStart(2,'0')+'-'+String(tmrD.getDate()).padStart(2,'0');
-
-  const srcColor={booking:'#003580',agoda:'#CC0000',expedia:'#FFD700',direct:'#F97316'};
-  const srcText={booking:'#fff',agoda:'#fff',expedia:'#7A6000',direct:'#fff'};
-  const srcLbl={booking:'B',agoda:'A',expedia:'E',direct:'D'};
+  const tmrStr=ymdOffset(1);
 
   let title='';
   let list=[];
@@ -2142,7 +2134,7 @@ function openCounterModal(type){
 
   document.getElementById('counter-modal-title').textContent=title;
   document.getElementById('counter-modal-list').innerHTML=list.length?list.map(b=>{
-    const badge=b.source&&srcLbl[b.source]?`<div style="width:20px;height:20px;border-radius:50%;background:${srcColor[b.source]};color:${srcText[b.source]};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${srcLbl[b.source]}</div>`:' ';
+    const badge=b.source&&SRC_INIT[b.source]?`<div style="width:20px;height:20px;border-radius:50%;background:${SRC_BG[b.source]};color:${SRC_TXT[b.source]};font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${SRC_INIT[b.source]}</div>`:' ';
     const timeStr=b.checkinTime&&b.checkinTime!=='15:00'?` · IN ${b.checkinTime}`:'';
     const noteStr=cleanNote(b.note)?`<div style="font-size:11px;color:#c0392b;font-weight:600;margin-top:4px;"><i class="ti ti-alert-triangle" style="font-size:11px;"></i> ${cleanNote(b.note)}</div>`:'';
     return `<div style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;">
@@ -2224,8 +2216,7 @@ function fmtTimeKo(t){
 function renderUpcoming(){
   const el=document.getElementById('upcoming-list');if(!el)return;
   const today=todayStr();
-  const tmrD=new Date();tmrD.setDate(tmrD.getDate()+1);
-  const tmrStr=tmrD.getFullYear()+'-'+String(tmrD.getMonth()+1).padStart(2,'0')+'-'+String(tmrD.getDate()).padStart(2,'0');
+  const tmrStr=ymdOffset(1);
   const list=[];
   roomNums().forEach(num=>{
     const r=rooms[num];if(!r)return;
@@ -2270,10 +2261,8 @@ function renderUpcoming(){
     <div style="margin-bottom:4px;">
       <div style="font-size:11px;font-weight:700;color:var(--text2);padding:4px 2px;letter-spacing:.04em;">${date===today?'오늘 · ':date===tmrStr?'내일 · ':''}${fmtDate(date)}</div>
       ${bookings.map(b=>{
-        const srcMap={booking:'B',agoda:'A',expedia:'E',direct:'D'};
-        const srcColor={booking:'#003580',agoda:'#CC0000',expedia:'#FFD700',direct:'#F97316'};
-        const srcLbl=srcMap[b.source]||'';
-        const srcBadge=srcLbl?`<div style="width:22px;height:22px;border-radius:50%;background:${srcColor[b.source]||'#666'};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${srcLbl}</div>`:'<div style="width:22px;"></div>';
+        const srcLbl=SRC_INIT[b.source]||'';
+        const srcBadge=srcLbl?`<div style="width:22px;height:22px;border-radius:50%;background:${SRC_BG[b.source]||'#666'};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${srcLbl}</div>`:'<div style="width:22px;"></div>';
         const isToday=b.checkinDate===today;
         const ckId=`${b.room}_${b.checkinDate}`;
         const checked=checkedSentSet.has(ckId);
@@ -2732,7 +2721,7 @@ function renderAssignCalendar(){
   for(let i=0;i<7;i++){
     const d=new Date();d.setDate(d.getDate()+i);
     days.push({
-      ymd:d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),
+      ymd:ymd(d),
       label:(d.getMonth()+1)+'/'+d.getDate(),
       dow:['일','월','화','수','목','금','토'][d.getDay()]
     });
@@ -2815,7 +2804,7 @@ function renderAssignCalendar(){
 function renderSendTab(){
   if(!canSendMail)return;
   const today=todayStr();
-  const tomorrow=(()=>{const d=new Date();d.setDate(d.getDate()+1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  const tomorrow=ymdOffset(1);
 
   renderAssignCalendar();
   renderChangeAlerts();
@@ -2841,7 +2830,7 @@ function renderSendTab(){
     const cancelled=Object.entries(pendingBookings).filter(([k,b])=>b&&b.assignedRoom&&b.cancelled);
     document.getElementById('pending-cnt').textContent=items.length?items.length+'건':'';
     items.sort((a,c)=>String(a[1].checkinDate||'9999').localeCompare(String(c[1].checkinDate||'9999')));
-    const soonCut=(()=>{const d=new Date();d.setDate(d.getDate()+30);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+    const soonCut=ymdOffset(30);
     const groups={};
     for(const [gk,gb] of items){const gm=(gb.checkinDate||'').slice(0,7)||'날짜미정';(groups[gm]=groups[gm]||[]).push([gk,gb]);}
     const cardHtml=([key,b])=>{
@@ -2913,7 +2902,7 @@ function renderSendTab(){
   };
   const logHit=(bid,stage)=>{
     if(!bid)return false;
-    return !!mailLogs[String(bid).replace(/[.#$\[\]\/]/g,'_')+'_'+stage];
+    return !!mailLogs[safeBid(bid)+'_'+stage];
   };
   const dot=(n,done,clickJs,why)=>{
     const base='display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:10px;font-weight:700;flex-shrink:0;';
@@ -2932,8 +2921,7 @@ function renderSendTab(){
   // 플랫폼 이니셜 뱃지
   const srcBadge=(source)=>{
     const k=srcKey(source);
-    const map={agoda:{c:'A',bg:'#FCEBEB',fg:'#A32D2D'},booking:{c:'B',bg:'#E6F1FB',fg:'#185FA5'},expedia:{c:'E',bg:'#FAEEDA',fg:'#854F0B'},direct:{c:'D',bg:'#F1EFE8',fg:'#5F5E5A'}};
-    const m=map[k]||map.direct;
+    const m=SRC_AVA[k]||SRC_AVA.direct;
     return '<span title="'+(SOURCE_LABEL[k]||source||'')+'" style="display:inline-flex;width:14px;height:14px;border-radius:50%;background:'+m.bg+';color:'+m.fg+';font-size:8px;font-weight:600;align-items:center;justify-content:center;flex-shrink:0;">'+m.c+'</span>';
   };
 
@@ -2965,7 +2953,7 @@ function renderSendTab(){
     let waPart='';
     if(ph){
       const wn=ph.replace('+','');
-      const waKey=(bid||num).replace(/[.#$\[\]\/]/g,'_');
+      const waKey=safeBid(bid||num);
       const koId='wa_'+waKey+'_ko', enId='wa_'+waKey+'_en', doneId='wa_'+waKey+'_done';
       const GRAY='#AAB0B8';
       if(checkedSentSet.has(doneId)){
@@ -3005,7 +2993,7 @@ function renderSendTab(){
   if(tm)tm.innerHTML=tomorrowRows.length?tomorrowRows.join(''):'<div class="empty-msg">내일 체크인 예약이 없어요</div>';
 
   // 체크아웃 추적 (내일 + 오늘 + 어제)
-  const yesterday=(()=>{const d=new Date();d.setDate(d.getDate()-1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+  const yesterday=ymdOffset(-1);
   const coRows=[];const seenBid=new Set();
   for(const num of roomNums()){
     const r=rooms[num];const cb=r&&r.currentBooking;
@@ -3374,7 +3362,6 @@ const TEXTS = {
     bk_guest: '투숙객 이름', bk_ci: '체크인', bk_co: '체크아웃',
     bk_ci_time: '체크인 시간', bk_co_time: '체크아웃 시간',
     bk_notes: '특이사항', bk_save: '저장', bk_cancel: '취소',
-    auto_badge: '자동반영',
     assignee_title: '청소 담당자',
     assignee_add: '+ 팀원 추가', assignee_save: '저장',
     notif_title: '알림 설정', notif_browser: '브라우저 알림',
@@ -3418,7 +3405,6 @@ const TEXTS = {
     bk_guest: 'Guest Name', bk_ci: 'Check-in', bk_co: 'Check-out',
     bk_ci_time: 'Check-in Time', bk_co_time: 'Check-out Time',
     bk_notes: 'Special Notes', bk_save: 'Save', bk_cancel: 'Cancel',
-    auto_badge: 'Auto',
     assignee_title: 'Cleaners',
     assignee_add: '+ Add Member', assignee_save: 'Save',
     notif_title: 'Notifications', notif_browser: 'Browser Alerts',
