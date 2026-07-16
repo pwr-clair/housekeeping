@@ -2720,6 +2720,7 @@ window.ackBookingChange=ackBookingChange;
 function renderAssignCalendar(){
   const el=document.getElementById('assign-calendar');
   if(!el)return;
+  if(window._gridDragging){window._gridRerenderPending=true;return;}   // 드래그 중 재렌더 보류
   const SRC_COLOR={booking:'#1A4FA0',agoda:'#C0392B',expedia:'#B7791F',direct:'#5A6B7B'};
   // 7일 날짜 배열
   const days=[];
@@ -2757,7 +2758,7 @@ function renderAssignCalendar(){
         days.forEach(dd=>{if(dd.ymd>=s&&dd.ymd<e)confDates.add(dd.ymd);});
       }
     }
-    html+='<tr><td style="position:sticky;left:0;background:'+(confDates.size?'#FDEEF3':'#fff')+';border:0.5px solid var(--border);padding:6px 8px;font-weight:800;font-size:11px;z-index:1;'+(confDates.size?'color:#9C2448;':'')+'">'+(confDates.size?'⚠️ ':'')+num+'</td>';
+    html+='<tr data-rrow="'+num+'"><td style="position:sticky;left:0;background:'+(confDates.size?'#FDEEF3':'#fff')+';border:0.5px solid var(--border);padding:6px 8px;font-weight:800;font-size:11px;z-index:1;'+(confDates.size?'color:#9C2448;':'')+'">'+(confDates.size?'⚠️ ':'')+num+'</td>';
     let i=0;
     while(i<days.length){
       const d=days[i];
@@ -2790,8 +2791,9 @@ function renderAssignCalendar(){
       const ttl=confHit
         ?books.filter(b=>b.checkinDate<bk.checkoutDate&&bk.checkinDate<b.checkoutDate).map(b=>b.guest+' ('+b.checkinDate+'~'+b.checkoutDate+')').join(' / ')
         :bk.guest+' ('+bk.checkinDate+'~'+bk.checkoutDate+')';
+      const _amt=amountOf(bk,num);
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;'+(confHit?'background:#FDECEC;':'')+'">'
-        +'<div style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
+        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
         +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+'</div></td>';
       i+=span;
     }
@@ -2804,6 +2806,90 @@ function renderAssignCalendar(){
       +allConflicts.map(c=>c.room+'호 '+c.date.slice(5).replace('-','/')+'~ ('+c.guests.join(' ↔ ')+')').join(' · ')+'</div>';
   }
   el.innerHTML=banner+html;
+  initGridDrag(el);
+}
+
+// ── 주간표 인터랙션: 짧은 탭=금액 표시 / 길게(0.45초)=드래그로 방 이동 ──
+function gKey(b){return safeBid(b.bookingId||'')||((b.guest||'')+'|'+(b.checkinDate||''));}
+let _gd=null,_gdHl=null;
+window._gridDragging=false;
+function initGridDrag(el){
+  if(el._dragInit)return;el._dragInit=true;
+  el.addEventListener('contextmenu',e=>{if(e.target.closest('[data-gbar]'))e.preventDefault();});
+  el.addEventListener('pointerdown',e=>{
+    const bar=e.target.closest('[data-gbar]');if(!bar)return;
+    _gd={bar,srcNum:bar.dataset.room,bid:decodeURIComponent(bar.dataset.bid),sx:e.clientX,sy:e.clientY,active:false,moved:false,timer:null,ghost:null};
+    _gd.timer=setTimeout(()=>{if(_gd&&!_gd.moved)startGridDrag();},450);
+  });
+  document.addEventListener('pointermove',e=>{
+    if(!_gd)return;
+    if(!_gd.active){
+      // 활성 전 8px 이상 움직임 = 스크롤 의도 → 취소
+      if(Math.abs(e.clientX-_gd.sx)>8||Math.abs(e.clientY-_gd.sy)>8){clearTimeout(_gd.timer);_gd=null;}
+      return;
+    }
+    moveGhost(e.clientX,e.clientY);hlRowAt(e.clientX,e.clientY);
+  });
+  document.addEventListener('pointerup',e=>{
+    if(!_gd)return;clearTimeout(_gd.timer);
+    const g=_gd;_gd=null;
+    if(g.active){
+      const tgt=rowNumAt(e.clientX,e.clientY);
+      endGridDrag(g);
+      if(tgt&&tgt!==g.srcNum)moveGridBooking(g.srcNum,g.bid,tgt);
+    }else if(!g.moved){showBarAmount(g.bar);}   // 짧은 탭 → 금액
+  });
+  document.addEventListener('pointercancel',()=>{if(_gd){clearTimeout(_gd.timer);if(_gd.active)endGridDrag(_gd);_gd=null;}});
+  document.addEventListener('touchmove',e=>{if(_gd&&_gd.active)e.preventDefault();},{passive:false});   // 드래그 중 화면 스크롤 잠금
+}
+function startGridDrag(){
+  _gd.active=true;window._gridDragging=true;
+  if(navigator.vibrate)navigator.vibrate(30);
+  const rc=_gd.bar.getBoundingClientRect();
+  const gh=_gd.bar.cloneNode(true);
+  gh.style.cssText+=';position:fixed;left:'+rc.left+'px;top:'+rc.top+'px;width:'+rc.width+'px;z-index:9999;pointer-events:none;opacity:.92;box-shadow:0 6px 16px rgba(0,0,0,.35);margin:0;';
+  document.body.appendChild(gh);_gd.ghost=gh;
+  _gd.bar.style.opacity='.3';
+}
+function moveGhost(x,y){const gh=_gd&&_gd.ghost;if(!gh)return;gh.style.left=(x-gh.offsetWidth/2)+'px';gh.style.top=(y-34)+'px';}
+function rowNumAt(x,y){const t=document.elementFromPoint(x,y);const tr=t&&t.closest?t.closest('tr[data-rrow]'):null;return tr?tr.dataset.rrow:null;}
+function hlRowAt(x,y){
+  const num=rowNumAt(x,y);
+  if(_gdHl===num)return;_gdHl=num;
+  document.querySelectorAll('tr[data-rrow]').forEach(tr=>{tr.style.outline=tr.dataset.rrow===num?'2px solid #E8A33D':'';tr.style.outlineOffset='-2px';});
+}
+function endGridDrag(g){
+  window._gridDragging=false;_gdHl=null;
+  if(g.ghost)g.ghost.remove();
+  if(g.bar)g.bar.style.opacity='';
+  document.querySelectorAll('tr[data-rrow]').forEach(tr=>tr.style.outline='');
+  if(window._gridRerenderPending){window._gridRerenderPending=false;renderAssignCalendar();}
+}
+function showBarAmount(bar){
+  if(bar._amtShowing)return;bar._amtShowing=true;
+  const amt=bar.dataset.amt,old=bar.innerHTML;
+  bar.innerHTML='<span style="width:100%;text-align:center;font-size:10px;">'+(amt?'₩'+Number(amt).toLocaleString('ko-KR'):(currentLang==='ko'?'금액없음':'no amount'))+'</span>';
+  setTimeout(()=>{bar.innerHTML=old;bar._amtShowing=false;},2500);
+}
+async function moveGridBooking(srcNum,bid,tgtNum){
+  const src=rooms[srcNum],tgt=rooms[tgtNum];
+  if(!src||!tgt)return;
+  let bk=null,fromCur=false;
+  if(src.currentBooking&&src.currentBooking.guest&&gKey(src.currentBooking)===bid){bk=src.currentBooking;fromCur=true;}
+  else bk=getNextBookings(src).find(b=>b&&gKey(b)===bid)||null;
+  if(!bk){alert(currentLang==='ko'?'예약을 찾지 못했어요 — 새로고침 후 다시 시도해주세요':'Booking not found — refresh and retry');return;}
+  if(!confirm(bk.guest+' ('+String(bk.checkinDate).slice(5)+'~'+String(bk.checkoutDate).slice(5)+')\n'+srcNum+(currentLang==='ko'?'호 → ':' → ')+tgtNum+(currentLang==='ko'?'호로 이동할까요?':'?')))return;
+  const today=todayStr();
+  // 대상: 재실 기간이고 대상 현재예약이 비어 있으면 현재로, 아니면 예정목록에 무삭제 정렬 (중복은 배정탭 ⚠️로 재조정)
+  if(bk.checkinDate<=today&&today<bk.checkoutDate&&!(tgt.currentBooking&&tgt.currentBooking.guest)){
+    await update(ref(db,'app/rooms/'+tgtNum),{currentBooking:bk});
+  }else{
+    await update(ref(db,'app/rooms/'+tgtNum),{nextBookings:sortByCheckin([...getNextBookings(tgt),bk])});
+  }
+  if(fromCur)await update(ref(db,'app/rooms/'+srcNum),{currentBooking:null});
+  else await update(ref(db,'app/rooms/'+srcNum),{nextBookings:getNextBookings(src).filter(b=>!(b&&gKey(b)===bid))});
+  const _svk=svKeyOf(bk,srcNum);   // 원본 assignedRoom 동기화 (못 찾으면 스킵)
+  if(_svk)await update(ref(db,'app/pendingBookings/'+_svk),{assignedRoom:String(tgtNum)});
 }
 
 function renderSendTab(){
