@@ -276,6 +276,7 @@ function sendS5Visit(){
 function masterTick(){
   const min=nowMinKST();
   syncAmounts();   // 매 틱(5분)마다 금액 동기화
+  promoteVacantArrivals_();   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
   if(min>=420&&min<430) sendByDate('s2_reminder','checkinDate',kstDate(1));   // ★ 07:00 (KST)
   if(min>=665&&min<675) sendS5Visit();
   if(min>=750&&min<760) sendByDate('s6_review','checkoutDate',kstDate(-1));
@@ -595,6 +596,22 @@ function t1159_moveBookings(){
         r={...r,currentBooking:null};
         fbUpdate('app/rooms/'+num,{currentBooking:null,nextBookings:nextArr,status:'need_clean'});
       }
+    }
+  }
+  promoteVacantArrivals_();   // 턴오버 정리 후 공실 방 승격
+}
+
+// 공실 방 승격 — 현재예약 없고 다음예약[0]이 오늘 이하 체크인이면 현재로 올림.
+// masterTick(5분)에서도 호출 → 창 열림·트리거 타이밍과 무관하게 최대 5분 내 무조건 승격.
+// status는 건드리지 않는다(청소완료 등 기존 상태 보존 — 리셋하면 발송·입실전환이 깨짐).
+function promoteVacantArrivals_(){
+  const rooms=fbGet('app/rooms')||{},today=todayKST();
+  for(const num of Object.keys(rooms)){
+    const r=rooms[num];if(!r||r.blocked)continue;
+    if(r.currentBooking&&r.currentBooking.guest)continue;
+    const nextArr=(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{})).filter(b=>b);
+    if(nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=today){
+      fbUpdate('app/rooms/'+num,{currentBooking:nextArr[0],nextBookings:nextArr.slice(1)});
     }
   }
 }

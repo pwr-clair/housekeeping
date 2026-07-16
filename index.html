@@ -936,8 +936,8 @@ function scheduleAutoTransitions(){
           source:cur.source||'',
           completedAt:todayS2+' '+nowTime()
         });
-        // 다음예약[0]이 오늘 체크인인 경우만 현재로 올림
-        if(nextArr.length>0&&nextArr[0].checkinDate===todayS2){
+        // 다음예약[0]이 오늘 이하 체크인인 경우만 현재로 올림
+        if(nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=todayS2){
           const [next,...rest]=nextArr;
           await update(ref(db,`app/rooms/${num}`),{
             currentBooking:next,nextBookings:rest,status:'need_clean'
@@ -948,6 +948,11 @@ function scheduleAutoTransitions(){
             currentBooking:null,nextBookings:nextArr,status:'need_clean'
           });
         }
+      } else if(!(cur&&cur.guest)&&nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=todayS2){
+        // 공실 방 승격: 현재예약 없고 다음예약[0]이 오늘 이하 체크인 → 현재로.
+        // status는 건드리지 않는다(청소완료 등 기존 상태 보존).
+        const [next,...rest]=nextArr;
+        await update(ref(db,`app/rooms/${num}`),{currentBooking:next,nextBookings:rest});
       }
     }
     scheduleAutoTransitions();
