@@ -38,7 +38,9 @@ function etaStart(eta){
   if(!em) return '';
   return String(em[1]).padStart(2,'0') + ':' + em[2];
 }
-function syncEtaToRoom(bookingId, eta){
+// force=true(웹훅에서 ETA가 실제로 바뀐 경우)만 기존 checkinTime을 덮어쓴다.
+// force 없으면 빈칸 채움만 — 수기 입력·CS 승인 반영이 15분 트리거·웹훅 재푸시에 되돌아가던 사고 방지 (2026-07-15 클라라: 최신 입력 최우선).
+function syncEtaToRoom(bookingId, eta, force){
   if(!bookingId) return;
   var ci = etaStart(eta);
   if(!ci) return;
@@ -47,11 +49,11 @@ function syncEtaToRoom(bookingId, eta){
     var r = rooms[rm]; if(!r) return;
     var changed = false;
     if(r.currentBooking && String(r.currentBooking.bookingId) === String(bookingId)){
-      if(r.currentBooking.checkinTime !== ci){ r.currentBooking.checkinTime = ci; changed = true; }
+      if((force||!r.currentBooking.checkinTime) && r.currentBooking.checkinTime !== ci){ r.currentBooking.checkinTime = ci; changed = true; }
     }
     if(Array.isArray(r.nextBookings)){
       r.nextBookings.forEach(function(b){
-        if(b && String(b.bookingId) === String(bookingId) && b.checkinTime !== ci){
+        if(b && String(b.bookingId) === String(bookingId) && (force||!b.checkinTime) && b.checkinTime !== ci){
           b.checkinTime = ci; changed = true;
         }
       });
@@ -59,7 +61,7 @@ function syncEtaToRoom(bookingId, eta){
     if(changed) fbSet('app/rooms/'+rm, r);
   });
 }
-function syncAllEtaToRooms(){
+function syncAllEtaToRooms(){  // 15분 트리거 — 빈칸 채움만(force 없음)
   var pend = fbGet('app/pendingBookings') || {};
   var count = 0;
   Object.keys(pend).forEach(function(k){
@@ -141,6 +143,8 @@ function doPost(e){
         .replace(/^[\s;,.\-]+|[\s;,.\-]+$/g,'')
         .replace(/\s{2,}/g,' ').trim();
 
+    // ETA 최신 우선 (2026-07-15 클라라): 웹훅이 마지막으로 준 값(etaWebhook)과 같으면 재푸시일 뿐 —
+    // 그 사이 수기·CS 승인으로 바뀐 eta를 덮지 않는다. 웹훅 값이 실제로 바뀐 경우만 최신으로 반영(force).
     var __rooms = (b && Array.isArray(b.rooms)) ? b.rooms : [];
     if (__rooms.length >= 2) {
       __rooms.forEach(function(__rm){
@@ -148,6 +152,7 @@ function doPost(e){
         if (!__rn) return;
         var __mkey = targetKey + '_' + __rn;
         var __mprev = (pend && pend[__mkey]) || {};
+        var __etaNew = !!eta && eta !== (__mprev.etaWebhook||'');
         fbSet('app/pendingBookings/'+__mkey, {
           bookingId:__mprev.bookingId||(String(b.bookingId)+'_'+__rn),
           channelBookingId:chId||__mprev.channelBookingId||'',
@@ -156,14 +161,15 @@ function doPost(e){
           guestEmail:(b.guest&&b.guest.email)||__mprev.guestEmail||'',
           guestPhone:(b.guest&&b.guest.phone)||__mprev.guestPhone||'',
           checkinDate:(__rm.arrivalDate||b.arrivalDate||''),checkoutDate:(__rm.departureDate||b.departureDate||''),
-          eta:eta,notes:notes,
+          eta:__etaNew?eta:(__mprev.eta||''),etaWebhook:eta,notes:notes,
           cancelled:false,
           assignedRoom:__mprev.assignedRoom||null,
           receivedAt:__mprev.receivedAt||(todayKST()+' '+nowHM())
         });
-        syncEtaToRoom(__mprev.bookingId || String(b.bookingId), eta);
+        if(__etaNew) syncEtaToRoom(__mprev.bookingId || String(b.bookingId), eta, true);
       });
     } else {
+      var __etaNew1 = !!eta && eta !== (prev.etaWebhook||'');
       fbSet('app/pendingBookings/'+targetKey,{
       bookingId:prev.bookingId||String(b.bookingId),
       channelBookingId:chId||prev.channelBookingId||'',
@@ -172,12 +178,12 @@ function doPost(e){
       guestEmail:(b.guest&&b.guest.email)||prev.guestEmail||'',
       guestPhone:(b.guest&&b.guest.phone)||prev.guestPhone||'',
       checkinDate:b.arrivalDate||'',checkoutDate:b.departureDate||'',
-      eta:eta,notes:notes,
+      eta:__etaNew1?eta:(prev.eta||''),etaWebhook:eta,notes:notes,
       cancelled:false,
       assignedRoom:prev.assignedRoom||null,
       receivedAt:prev.receivedAt||(todayKST()+' '+nowHM())
     });
-    syncEtaToRoom(prev.bookingId || String(b.bookingId), eta);
+    if(__etaNew1) syncEtaToRoom(prev.bookingId || String(b.bookingId), eta, true);
     }
   }catch(err){}
   return ContentService.createTextOutput('OK');
@@ -306,22 +312,34 @@ function checkinDueNow(cb){
   return nowMin >= 870;   // 14:30 이후면 발송 (checkinTime 무관, 참고용일 뿐)
 }
 
+// 방의 오늘 체크인 예약 탐색: currentBooking 우선, 없으면 nextBookings까지 (수동 sendRoom과 동일 —
+// 공실 하루 이상 후 체크인은 11:59 승격 대상이 아니라 nextBookings에 머무름)
+function todayCheckinOf_(r,today){
+  if(r.currentBooking&&r.currentBooking.guest&&r.currentBooking.checkinDate===today)return r.currentBooking;
+  const nexts=(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{})).filter(b=>b);
+  return nexts.find(b=>b&&b.guest&&b.checkinDate===today)||null;
+}
+
 function findCheckinDue(){
   const rooms=fbGet('app/rooms')||{},sent=fbGet('app/sentChecks')||{},today=todayKST();
+  // 멀티룸 가드 (2026-07-15 클라라): 같은 게스트(이메일)가 다른 방으로 오늘 이미 입실안내를 받았으면 스킵.
+  // 한 통에 두 방 비번을 몰아 보낸 뒤 나머지 방이 청소완료되며 자동 재발송되던 사고 방지.
+  const emailSent=new Set();
+  for(const o of Object.keys(rooms)){
+    if(!sent[o+'_'+today])continue;
+    const ro=rooms[o];if(!ro)continue;
+    const ob=todayCheckinOf_(ro,today);
+    if(ob&&ob.guestEmail)emailSent.add(String(ob.guestEmail).toLowerCase());
+  }
   const due=[];
   for(const num of Object.keys(rooms)){
     const r=rooms[num];if(!r||r.blocked)continue;
-    // 오늘 체크인 예약 탐색: currentBooking 우선, 없으면 nextBookings까지 (수동 sendRoom과 동일 —
-    // 공실 하루 이상 후 체크인은 11:59 승격 대상이 아니라 nextBookings에 머무름)
-    let cb=(r.currentBooking&&r.currentBooking.guest&&r.currentBooking.checkinDate===today)?r.currentBooking:null;
-    if(!cb){
-      const nexts=(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{})).filter(b=>b);
-      cb=nexts.find(b=>b&&b.guest&&b.checkinDate===today)||null;
-    }
+    const cb=todayCheckinOf_(r,today);
     if(!cb)continue;
     if(sent[num+'_'+today])continue;           // 이미 발송 → skip
     if(r.status!=='clean_done')continue;        // 청소완료만
     if(!cb.guestEmail)continue;                 // 이메일 있어야
+    if(emailSent.has(String(cb.guestEmail).toLowerCase()))continue; // ★ 같은 게스트 타방 기발송 → skip (수동 발송은 여전히 가능)
     if(!checkinDueNow(cb))continue;             // ★ 발송 시각 창에 들었나
     due.push({num,r,cb});
   }
@@ -589,12 +607,14 @@ function t1159_moveBookings(){
       const cb=r.currentBooking;
       const nextArr=(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{})).filter(b=>b);
       fbSet('app/bookingHistory/h_'+Date.now()+'_'+num+'_'+guard,{room:num,guest:cb.guest,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate,source:cb.source||'',completedAt:today+' auto'});
+      // 오전에 이미 청소중/청소완료 처리된 방은 상태 보존 — 정오 이동이 청소필요로 되돌리면 안 됨 (2026-07-15 클라라)
+      const st=['cleaning','clean_done'].includes(r.status)?r.status:'need_clean';
       if(nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=today){
         r={...r,currentBooking:nextArr[0],nextBookings:nextArr.slice(1)};
-        fbUpdate('app/rooms/'+num,{currentBooking:nextArr[0],nextBookings:nextArr.slice(1),status:'need_clean'});
+        fbUpdate('app/rooms/'+num,{currentBooking:nextArr[0],nextBookings:nextArr.slice(1),status:st});
       }else{
         r={...r,currentBooking:null};
-        fbUpdate('app/rooms/'+num,{currentBooking:null,nextBookings:nextArr,status:'need_clean'});
+        fbUpdate('app/rooms/'+num,{currentBooking:null,nextBookings:nextArr,status:st});
       }
     }
   }

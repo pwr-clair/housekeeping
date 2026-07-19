@@ -936,16 +936,18 @@ function scheduleAutoTransitions(){
           source:cur.source||'',
           completedAt:todayS2+' '+nowTime()
         });
+        // 오전에 이미 청소중/청소완료 처리된 방은 상태 보존 — 정오 이동이 청소필요로 되돌리면 안 됨 (2026-07-15 클라라)
+        const st=['cleaning','clean_done'].includes(r.status)?r.status:'need_clean';
         // 다음예약[0]이 오늘 이하 체크인인 경우만 현재로 올림
         if(nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=todayS2){
           const [next,...rest]=nextArr;
           await update(ref(db,`app/rooms/${num}`),{
-            currentBooking:next,nextBookings:rest,status:'need_clean'
+            currentBooking:next,nextBookings:rest,status:st
           });
         } else {
           // 다음예약이 오늘 체크인이 아니면 현재예약만 비움
           await update(ref(db,`app/rooms/${num}`),{
-            currentBooking:null,nextBookings:nextArr,status:'need_clean'
+            currentBooking:null,nextBookings:nextArr,status:st
           });
         }
       } else if(!(cur&&cur.guest)&&nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=todayS2){
