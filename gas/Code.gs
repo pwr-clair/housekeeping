@@ -211,12 +211,10 @@ function sendStageMail(stage,bk,room,force){
   if(fbGet('app/mailLogs/'+logKey))return false;
   const tpl=fbGet('app/mailTemplates/'+stage);
   if(!tpl||!tpl.subject)return false;
-  const r=room?(fbGet('app/rooms/'+room)||{}):{};
-  const fill=s=>String(s)
-    .replace(/{guest}/g,bk.guest||'Guest').replace(/{checkinDate}/g,bk.checkinDate||'')
-    .replace(/{checkoutDate}/g,bk.checkoutDate||'').replace(/{room}/g,room||'')
-    .replace(/{floor}/g,room?floorOf(room):'').replace(/{doorPw}/g,r.doorPw||'')
-    .replace(/{reviewGuide}/g,reviewGuideFor(bk.source));
+  // room: 문자열(단일) 또는 배열(멀티룸 몰아보내기 — 같은 게스트 방 여러 개를 1통에)
+  const roomList=Array.isArray(room)?room.map(String):(room?[String(room)]:[]);
+  const rData={};roomList.forEach(n=>{rData[n]=fbGet('app/rooms/'+n)||{};});
+  const fill=s=>fillTpl_(s,bk,roomList,rData);
   try{
     var __subject = fill(tpl.subject);
     var __ko = (tpl.bodyKo && String(tpl.bodyKo).trim()) ? fill(tpl.bodyKo) : '';
@@ -228,7 +226,7 @@ function sendStageMail(stage,bk,room,force){
       var __body = (tpl.body && String(tpl.body).trim()) ? fill(tpl.body) : '';
       if(__body) sendMail(bk.guestEmail, __subject, __body);
     }
-    fbSet('app/mailLogs/'+logKey,{stage,time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:room||''});
+    fbSet('app/mailLogs/'+logKey,{stage,time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:roomList.join(',')});
     return true;
   }catch(err){
     GmailApp.sendEmail(ADMIN_EMAIL,'[PW] '+stage+' 발송 실패: '+bk.guest,String(err));
@@ -320,38 +318,66 @@ function todayCheckinOf_(r,today){
   return nexts.find(b=>b&&b.guest&&b.checkinDate===today)||null;
 }
 
-function findCheckinDue(){
-  const rooms=fbGet('app/rooms')||{},sent=fbGet('app/sentChecks')||{},today=todayKST();
-  // 멀티룸 가드 (2026-07-15 클라라): 같은 게스트(이메일)가 다른 방으로 오늘 이미 입실안내를 받았으면 스킵.
-  // 한 통에 두 방 비번을 몰아 보낸 뒤 나머지 방이 청소완료되며 자동 재발송되던 사고 방지.
-  const emailSent=new Set();
-  for(const o of Object.keys(rooms)){
-    if(!sent[o+'_'+today])continue;
-    const ro=rooms[o];if(!ro)continue;
+// 같은 게스트(이메일)의 오늘 체크인 방 전부 (멀티룸 몰아보내기 그룹, 2026-07-15 클라라)
+function sameGuestRooms_(email,today,roomsAll){
+  const g=[];
+  if(!email)return g;
+  for(const rn of Object.keys(roomsAll)){
+    const ro=roomsAll[rn];if(!ro||ro.blocked)continue;
     const ob=todayCheckinOf_(ro,today);
-    if(ob&&ob.guestEmail)emailSent.add(String(ob.guestEmail).toLowerCase());
+    if(ob&&ob.guestEmail&&String(ob.guestEmail).toLowerCase()===String(email).toLowerCase())g.push(rn);
   }
-  const due=[];
+  return g.sort();
+}
+
+// 템플릿 치환 — roomList가 2개 이상이면 {doorPw}가 든 문단(▶ Room Access 블록)을
+// 방 수만큼 반복해 한 통에 담는다(클라라 확정 레이아웃 2026-07-15). 나머지 문단은 방번호 나열.
+function fillTpl_(s,bk,roomList,rData){
+  s=String(s||'')
+    .replace(/{guest}/g,bk.guest||'Guest').replace(/{checkinDate}/g,bk.checkinDate||'')
+    .replace(/{checkoutDate}/g,bk.checkoutDate||'')
+    .replace(/{reviewGuide}/g,reviewGuideFor(bk.source));
+  const fillRoom=(t,n)=>t.replace(/{room}/g,n).replace(/{floor}/g,floorOf(n)).replace(/{doorPw}/g,(rData[n]&&rData[n].doorPw)||'');
+  if(roomList.length<=1)return roomList.length?fillRoom(s,roomList[0]):s.replace(/{room}/g,'').replace(/{floor}/g,'').replace(/{doorPw}/g,'');
+  const roomLabel=roomList.join(', ');
+  const floorLabel=[...new Set(roomList.map(floorOf))].join(', ');
+  return s.split(/\n[ \t]*\n/).map(p=>
+    /\{doorPw\}/.test(p)?roomList.map(n=>fillRoom(p,n)).join('\n\n')
+      :p.replace(/{room}/g,roomLabel).replace(/{floor}/g,floorLabel).replace(/{doorPw}/g,'')
+  ).join('\n\n');
+}
+
+function findCheckinDue(){
+  // 게스트(이메일) 단위 그룹 반환 — 멀티룸이면 nums 여러 개를 1통에 몰아보냄 (2026-07-15 클라라).
+  const rooms=fbGet('app/rooms')||{},sent=fbGet('app/sentChecks')||{},today=todayKST();
+  const groups={};
   for(const num of Object.keys(rooms)){
     const r=rooms[num];if(!r||r.blocked)continue;
     const cb=todayCheckinOf_(r,today);
-    if(!cb)continue;
-    if(sent[num+'_'+today])continue;           // 이미 발송 → skip
-    if(r.status!=='clean_done')continue;        // 청소완료만
-    if(!cb.guestEmail)continue;                 // 이메일 있어야
-    if(emailSent.has(String(cb.guestEmail).toLowerCase()))continue; // ★ 같은 게스트 타방 기발송 → skip (수동 발송은 여전히 가능)
-    if(!checkinDueNow(cb))continue;             // ★ 발송 시각 창에 들었나
-    due.push({num,r,cb});
+    if(!cb||!cb.guestEmail)continue;
+    const key=String(cb.guestEmail).toLowerCase();
+    (groups[key]=groups[key]||[]).push({num,r,cb});
+  }
+  const due=[];
+  for(const key of Object.keys(groups)){
+    const g=groups[key];
+    if(g.some(x=>sent[x.num+'_'+today]))continue;      // 그룹 내 기발송 → 전체 스킵 (재발송 방지)
+    if(g.some(x=>x.r.status!=='clean_done'))continue;  // ★ 전 방 청소완료 필수 — 부분 준비 발송 금지 (클라라: 필수 중의 필수)
+    if(!checkinDueNow(g[0].cb))continue;               // ★ 발송 시각 창에 들었나
+    due.push({nums:g.map(x=>x.num).sort(),cb:g[0].cb});
   }
   return due;
 }
 
 function sendCheckinDue(){
   const due=findCheckinDue(),today=todayKST();let count=0;
-  for(const {num,cb} of due){
-    const bk={bookingId:cb.bookingId||('room_'+num+'_'+today),source:cb.source||'',
+  for(const {nums,cb} of due){
+    const bk={bookingId:cb.bookingId||('room_'+nums[0]+'_'+today),source:cb.source||'',
       guest:cb.guest,guestEmail:cb.guestEmail,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate};
-    if(sendStageMail('s3_checkin',bk,num,false)){fbSet('app/sentChecks/'+num+'_'+today,today);count++;}
+    if(sendStageMail('s3_checkin',bk,nums.length>1?nums:nums[0],false)){
+      nums.forEach(n=>fbSet('app/sentChecks/'+n+'_'+today,today));  // 전 방 발송 마크(초록)
+      count++;
+    }
   }
   return count;
 }
@@ -417,13 +443,22 @@ function doGet(e){
     if(!cb||!cb.guest)return ContentService.createTextOutput(num+'호: 오늘 체크인 예약이 없어요');
     if(!cb.guestEmail)return ContentService.createTextOutput(num+'호: 손님 이메일이 없어요');
     const logKey=String(cb.bookingId||('room_'+num+'_'+today)).replace(/[.#$\[\]\/]/g,'_')+'_s3_checkin';
+    let sendTarget=num,markNums=[num];
     if(p.force==='1'){fbDelete('app/mailLogs/'+logKey);fbDelete('app/sentChecks/'+num+'_'+today);}
-    else if(fbGet('app/sentChecks/'+num+'_'+today))return ContentService.createTextOutput(num+'호: 이미 발송됨 (재발송 버튼 사용)');
+    else{
+      if(fbGet('app/sentChecks/'+num+'_'+today))return ContentService.createTextOutput(num+'호: 이미 발송됨 (재발송 버튼 사용)');
+      // 멀티룸(2026-07-15 클라라): 같은 게스트 타방 기발송이면 차단, 미발송이면 전 방을 1통에 몰아 발송
+      const g=sameGuestRooms_(cb.guestEmail,today,fbGet('app/rooms')||{});
+      const sentAll=fbGet('app/sentChecks')||{};
+      const sentOther=g.find(rn=>rn!==num&&sentAll[rn+'_'+today]);
+      if(sentOther)return ContentService.createTextOutput(num+'호: 같은 게스트에게 '+sentOther+'호(함께)로 이미 발송됨 (재발송 버튼 사용)');
+      if(g.length>1){sendTarget=g;markNums=g;}
+    }
     const bk={bookingId:cb.bookingId||('room_'+num+'_'+today),source:cb.source||'',
       guest:cb.guest,guestEmail:cb.guestEmail,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate};
-    if(sendStageMail('s3_checkin',bk,num,true)){
-      fbSet('app/sentChecks/'+num+'_'+today,today);
-      return ContentService.createTextOutput('✅ '+num+'호 '+cb.guest+'님께 발송 완료');
+    if(sendStageMail('s3_checkin',bk,sendTarget,true)){
+      markNums.forEach(n=>fbSet('app/sentChecks/'+n+'_'+today,today));
+      return ContentService.createTextOutput('✅ '+markNums.join('·')+'호 '+cb.guest+'님께 발송 완료'+(markNums.length>1?' (1통 몰아보내기)':''));
     }
     return ContentService.createTextOutput(num+'호: 발송 실패');
   }
@@ -441,14 +476,16 @@ function doGet(e){
     const nights=(cb.checkinDate&&cb.checkoutDate)?Math.round((new Date(cb.checkoutDate)-new Date(cb.checkinDate))/86400000):null;
     const stage=(nights===1)?'s34_combined':'s3_checkin';
     const tpl=fbGet('app/mailTemplates/'+stage)||{};
-    const fill=s=>String(s||'')
-      .replace(/{guest}/g,cb.guest||'Guest').replace(/{checkinDate}/g,cb.checkinDate||'')
-      .replace(/{checkoutDate}/g,cb.checkoutDate||'').replace(/{room}/g,num)
-      .replace(/{floor}/g,floorOf(num)).replace(/{doorPw}/g,r.doorPw||'')
-      .replace(/{reviewGuide}/g,reviewGuideFor(cb.source));
+    // 멀티룸(2026-07-15): 같은 게스트 방 전부의 Room Access 블록을 미리보기에도 몰아서 표시
+    const roomsAll=fbGet('app/rooms')||{};
+    const g=sameGuestRooms_(cb.guestEmail,today,roomsAll);
+    const roomList=g.length>1?g:[num];
+    const rData={};roomList.forEach(n=>{rData[n]=roomsAll[n]||{};});
+    const sentAll=fbGet('app/sentChecks')||{};
+    const fill=s=>fillTpl_(s,cb,roomList,rData);
     return jsonOut({
-      ok:true,room:num,guest:cb.guest,stage:stage,
-      alreadySent:!!fbGet('app/sentChecks/'+num+'_'+today),
+      ok:true,room:roomList.join(', '),guest:cb.guest,stage:stage,
+      alreadySent:roomList.some(n=>!!sentAll[n+'_'+today]),
       subject:fill(tpl.subject||''),
       bodyKo:fill(tpl.bodyKo||(tpl.bodyEn?'':tpl.body||'')),
       bodyEn:fill(tpl.bodyEn||'')
@@ -470,16 +507,26 @@ function doGet(e){
     const nights=(cb.checkinDate&&cb.checkoutDate)?Math.round((new Date(cb.checkoutDate)-new Date(cb.checkinDate))/86400000):null;
     const stg=(nights===1)?'s34_combined':'s3_checkin';
     const logKey=String(cb.bookingId||('room_'+num+'_'+today)).replace(/[.#$\[\]\/]/g,'_')+'_'+stg;
+    let markNums=[num];
     if(p.force==='1'){fbDelete('app/mailLogs/'+logKey);fbDelete('app/sentChecks/'+num+'_'+today);}
-    else if(fbGet('app/sentChecks/'+num+'_'+today))return ContentService.createTextOutput(num+'호: 이미 발송됨 (재발송 버튼 사용)');
+    else{
+      if(fbGet('app/sentChecks/'+num+'_'+today))return ContentService.createTextOutput(num+'호: 이미 발송됨 (재발송 버튼 사용)');
+      // 멀티룸(2026-07-15 클라라): 타방 기발송 차단 + 발송 성공 시 그룹 전 방 마크
+      // (미리보기가 그룹 몰아보기 본문을 생성하므로 편집본도 전 방 안내를 담고 있음)
+      const g=sameGuestRooms_(cb.guestEmail,today,fbGet('app/rooms')||{});
+      const sentAll=fbGet('app/sentChecks')||{};
+      const sentOther=g.find(rn=>rn!==num&&sentAll[rn+'_'+today]);
+      if(sentOther)return ContentService.createTextOutput(num+'호: 같은 게스트에게 '+sentOther+'호(함께)로 이미 발송됨 (재발송 버튼 사용)');
+      if(g.length>1)markNums=g;
+    }
     try{
       const subject=ov.subject||('Check-in Info / 체크인 안내 — Room '+num);
       if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(cb.guestEmail,subject,ov.bodyKo);
       if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(cb.guestEmail,subject,ov.bodyEn);
-      fbSet('app/mailLogs/'+logKey,{stage:stg,time:todayKST()+' '+nowHM(),email:cb.guestEmail,guest:cb.guest,room:num,edited:true});
-      fbSet('app/sentChecks/'+num+'_'+today,today);
+      fbSet('app/mailLogs/'+logKey,{stage:stg,time:todayKST()+' '+nowHM(),email:cb.guestEmail,guest:cb.guest,room:markNums.join(','),edited:true});
+      markNums.forEach(n=>fbSet('app/sentChecks/'+n+'_'+today,today));
       fbDelete('app/sendOverrides/'+num+'_'+today);
-      return ContentService.createTextOutput('✅ '+num+'호 '+cb.guest+'님께 발송 완료 (편집본)');
+      return ContentService.createTextOutput('✅ '+markNums.join('·')+'호 '+cb.guest+'님께 발송 완료 (편집본)');
     }catch(err){
       GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 편집발송 실패: '+cb.guest,String(err));
       return ContentService.createTextOutput(num+'호: 발송 실패');
