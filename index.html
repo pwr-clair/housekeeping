@@ -2983,15 +2983,18 @@ function renderSendTab(){
     const txt=(waMessages&&waMessages[lang])?waMessages[lang]:fallback;
     return encodeURIComponent(txt);
   };
+  // 한국 번호(+82)는 아이폰 기본 메시지(sms:), 그 외는 WhatsApp
+  const msgApp=(ph)=>ph.startsWith('+82')?'메시지':'WhatsApp';
+  const msgHref=(ph,guest,lang)=>ph.startsWith('+82')
+    ? 'sms:'+ph+'&body='+waMsg(guest,lang)
+    : 'https://wa.me/'+ph.replace('+','')+'?text='+waMsg(guest,lang);
   const waBtn=(bk)=>{
     const ph=cleanPhone(bk.guestPhone);
     if(!ph)return '';
-    const num=ph.replace('+','');
-    const ko='https://wa.me/'+num+'?text='+waMsg(bk.guest,'ko');
-    const en='https://wa.me/'+num+'?text='+waMsg(bk.guest,'en');
+    const app=msgApp(ph);
     const st='text-decoration:none;height:30px;box-sizing:border-box;padding:0 13px;border-radius:7px;background:#042C53;color:#fff;font-size:11px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;';
-    return '<a href="'+ko+'" target="_blank" title="WhatsApp 한국어" style="'+st+'">KR</a>'
-      +'<a href="'+en+'" target="_blank" title="WhatsApp English" style="'+st+'">EN</a>';
+    return '<a href="'+msgHref(ph,bk.guest,'ko')+'" target="_blank" title="'+app+' 한국어" style="'+st+'">KR</a>'
+      +'<a href="'+msgHref(ph,bk.guest,'en')+'" target="_blank" title="'+app+' English" style="'+st+'">EN</a>';
   };
   const logHit=(bid,stage)=>{
     if(!bid)return false;
@@ -3045,7 +3048,6 @@ function renderSendTab(){
     const ph=cleanPhone(bk.guestPhone);
     let waPart='';
     if(ph){
-      const wn=ph.replace('+','');
       const waKey=safeBid(bid||num);
       const koId='wa_'+waKey+'_ko', enId='wa_'+waKey+'_en', doneId='wa_'+waKey+'_done';
       const GRAY='#AAB0B8';
@@ -3056,8 +3058,9 @@ function renderSendTab(){
       } else {
         const koBg=checkedSentSet.has(koId)?GREEN:'#042C53';
         const enBg=checkedSentSet.has(enId)?GREEN:'#042C53';
-        waPart='<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'ko')+'" target="_blank" title="WhatsApp 한국어 — 탭하면 보냄 표시" onclick="markWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+koBg+';">KR</a>'
-          +'<a href="https://wa.me/'+wn+'?text='+waMsg(bk.guest,'en')+'" target="_blank" title="WhatsApp English — tap to mark sent" onclick="markWa(\''+enId+'\',\''+koId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+enBg+';">EN</a>';
+        const app=msgApp(ph);
+        waPart='<a href="'+msgHref(ph,bk.guest,'ko')+'" target="_blank" title="'+app+' 한국어 — 탭하면 보냄 표시" onclick="markWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+koBg+';">KR</a>'
+          +'<a href="'+msgHref(ph,bk.guest,'en')+'" target="_blank" title="'+app+' English — tap to mark sent" onclick="markWa(\''+enId+'\',\''+koId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+enBg+';">EN</a>';
       }
     }
     let note='';
