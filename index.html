@@ -1047,7 +1047,8 @@ function startListeners(){
     const today=todayStr();
     if(snap.exists()){
       Object.entries(snap.val()).forEach(([id,date])=>{
-        if(date===today)checkedSentSet.add(id);
+        // 값 = 유지 만료일(그 날짜까지 유효). 내일 체크인에 미리 마크한 건 체크인 당일까지 살아있어야 하므로 미래 날짜도 유지.
+        if(date>=today)checkedSentSet.add(id);
         else set(ref(db,`app/sentChecks/${id}`),null);
       });
     }
@@ -2184,22 +2185,49 @@ async function toggleSentCheck(id,el){
   }
 }
 window.toggleSentCheck=toggleSentCheck;
-// WhatsApp KR/EN 수동 발송마크: 첫 언어 탭=초록(보냄) 고정, 해제 없음. 나머지 언어를 탭하면 두 언어 모두 발송된 것이므로 '종결'(둘 다 회색·클릭 블락) 처리. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks, 일일만료 — 종결도 값 확장(_done 키)로 같은 경로에 저장). 왓츠앱 열기는 <a href>가 담당하고, 이 함수는 마크만 한다.
-async function markWa(thisId,otherId,doneId,el){
+// WhatsApp/SMS KR/EN 수동 발송마크: 첫 언어 탭=초록(보냄) 고정, 해제 없음. 나머지 언어를 탭하면 두 언어 모두 발송된 것이므로 '종결'(둘 다 회색·클릭 블락) 처리. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks). 만료일 = 게스트 체크인 날짜(내일 체크인에 미리 마크해도 체크인 당일까지 유지, 다음날 자동 삭제). 왓츠앱/메시지 열기는 <a href>가 담당하고, 이 함수는 마크만 한다.
+async function markWa(thisId,otherId,doneId,el,expDate){
   if(checkedSentSet.has(doneId))return;         // 종결 상태 → 아무 동작 없음(방어)
   if(checkedSentSet.has(thisId))return;         // 이미 초록(자기) 재클릭 → 마크 변화 없음(왓츠앱만 열림)
+  const exp=(expDate&&/^\d{4}-\d{2}-\d{2}$/.test(expDate))?expDate:todayStr();
   if(checkedSentSet.has(otherId)){
     // 나머지가 이미 초록 → 이번 탭으로 두 언어 모두 발송 = 종결
     checkedSentSet.add(thisId);checkedSentSet.add(doneId);
-    try{ await update(ref(db,'app/sentChecks'),{[thisId]:todayStr(),[doneId]:todayStr()}); }catch(e){}
+    try{ await update(ref(db,'app/sentChecks'),{[thisId]:exp,[doneId]:exp}); }catch(e){}
   } else {
     // 첫 언어 → 초록 마크(기존 동작)
     checkedSentSet.add(thisId);
     if(el)el.style.background='#2F6B45';          // 즉시 초록 피드백 (GREEN)
-    try{ await set(ref(db,`app/sentChecks/${thisId}`),todayStr()); }catch(e){}
+    try{ await set(ref(db,`app/sentChecks/${thisId}`),exp); }catch(e){}
   }
 }
 window.markWa=markWa;
+// 발송탭 번호입력: 전화번호 없는 예약에 수동으로 번호를 넣는다. 방 예약(currentBooking/nextBookings)에 저장하고, 웹훅 수정(replace) 시 유지되도록 pendingBookings에도 반영.
+async function promptGuestPhone(num,bid,ckd){
+  const raw=prompt('게스트 전화번호 입력\n(예: 010-1234-5678, 해외는 +로 시작)');
+  if(raw==null||!raw.trim())return;
+  const ph=cleanPhone(raw);
+  if(!ph){alert('번호 형식을 인식하지 못했어요: '+raw);return;}
+  const r=rooms[num];if(!r)return;
+  const match=b=>!!b&&((bid&&safeBid(String(b.bookingId||''))===bid)||(!bid&&!b.bookingId&&b.checkinDate===ckd));
+  if(match(r.currentBooking)){
+    await update(ref(db,`app/rooms/${num}/currentBooking`),{guestPhone:ph});
+  }else{
+    const arr=Array.isArray(r.nextBookings)?[...r.nextBookings]:Object.values(r.nextBookings||{});
+    const i=arr.findIndex(match);
+    if(i<0){alert('해당 예약을 찾지 못했어요');return;}
+    arr[i]={...arr[i],guestPhone:ph};
+    await update(ref(db,`app/rooms/${num}`),{nextBookings:arr});
+  }
+  if(bid){
+    for(const [k,b] of Object.entries(pendingBookings||{})){
+      if(b&&safeBid(String(b.bookingId||''))===bid){
+        try{ await update(ref(db,`app/pendingBookings/${k}`),{guestPhone:ph}); }catch(e){}
+      }
+    }
+  }
+}
+window.promptGuestPhone=promptGuestPhone;
 function switchUpcomingTab(mode){
   upcomingTabMode=mode;
   document.getElementById('sub-upcoming').style.background=mode==='upcoming'?'#042C53':'var(--bg2)';
@@ -2664,6 +2692,21 @@ function srcKey(src){
 
 const safeBid=b=>String(b).replace(/[.#$\[\]\/]/g,'_');
 
+// 전화번호 정리: 숫자만 추출, 국제번호 형태로. 쓰레기번호(반복/너무짧음)는 null
+const cleanPhone=(raw)=>{
+  if(!raw)return null;
+  let p=String(raw).replace(/[^\d+]/g,'');
+  p=p.replace(/^00/,'+');
+  const digits=p.replace(/\D/g,'');
+  if(digits.length<7)return null;                    // 너무 짧음
+  if(/^(\d)\1+$/.test(digits))return null;            // 1111111 같은 반복
+  if(/^0+$/.test(digits))return null;
+  if(!p.startsWith('+')){                            // +없으면 한국번호로 가정
+    p=digits.replace(/^0/,'');p='+82'+p;
+  }
+  return p;
+};
+
 function findRoomBookingsByBid(){
   // bookingId → {num, where:'current'|index, bk} 매핑
   const map={};
@@ -2966,20 +3009,6 @@ function renderSendTab(){
 
   // ── 단계 동그라미 ──
   const GREEN='#2F6B45';
-  // 전화번호 정리: 숫자만 추출, 국제번호 형태로. 쓰레기번호(반복/너무짧음)는 null
-  const cleanPhone=(raw)=>{
-    if(!raw)return null;
-    let p=String(raw).replace(/[^\d+]/g,'');
-    p=p.replace(/^00/,'+');
-    const digits=p.replace(/\D/g,'');
-    if(digits.length<7)return null;                    // 너무 짧음
-    if(/^(\d)\1+$/.test(digits))return null;            // 1111111 같은 반복
-    if(/^0+$/.test(digits))return null;
-    if(!p.startsWith('+')){                            // +없으면 한국번호로 가정
-      p=digits.replace(/^0/,'');p='+82'+p;
-    }
-    return p;
-  };
   const waMsg=(guest,lang)=>{
     const fallback=lang==='ko'
       ? '[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
@@ -2992,13 +3021,15 @@ function renderSendTab(){
   const msgHref=(ph,guest,lang)=>ph.startsWith('+82')
     ? 'sms:'+ph+'&body='+waMsg(guest,lang)
     : 'https://wa.me/'+ph.replace('+','')+'?text='+waMsg(guest,lang);
+  // sms: 같은 커스텀 스킴은 target="_blank"로 열면 iOS(특히 홈화면 앱)에서 조용히 실패할 수 있어 sms는 현재 창에서 연다
+  const msgTgt=(ph)=>ph.startsWith('+82')?'':' target="_blank"';
   const waBtn=(bk)=>{
     const ph=cleanPhone(bk.guestPhone);
     if(!ph)return '';
     const app=msgApp(ph);
     const st='text-decoration:none;height:30px;box-sizing:border-box;padding:0 13px;border-radius:7px;background:#042C53;color:#fff;font-size:11px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;';
-    return '<a href="'+msgHref(ph,bk.guest,'ko')+'" target="_blank" title="'+app+' 한국어" style="'+st+'">KR</a>'
-      +'<a href="'+msgHref(ph,bk.guest,'en')+'" target="_blank" title="'+app+' English" style="'+st+'">EN</a>';
+    return '<a href="'+msgHref(ph,bk.guest,'ko')+'"'+msgTgt(ph)+' title="'+app+' 한국어" style="'+st+'">KR</a>'
+      +'<a href="'+msgHref(ph,bk.guest,'en')+'"'+msgTgt(ph)+' title="'+app+' English" style="'+st+'">EN</a>';
   };
   const logHit=(bid,stage)=>{
     if(!bid)return false;
@@ -3063,9 +3094,13 @@ function renderSendTab(){
         const koBg=checkedSentSet.has(koId)?GREEN:'#042C53';
         const enBg=checkedSentSet.has(enId)?GREEN:'#042C53';
         const app=msgApp(ph);
-        waPart='<a href="'+msgHref(ph,bk.guest,'ko')+'" target="_blank" title="'+app+' 한국어 — 탭하면 보냄 표시" onclick="markWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+koBg+';">KR</a>'
-          +'<a href="'+msgHref(ph,bk.guest,'en')+'" target="_blank" title="'+app+' English — tap to mark sent" onclick="markWa(\''+enId+'\',\''+koId+'\',\''+doneId+'\',this)" style="'+waStBase+'background:'+enBg+';">EN</a>';
+        const ckd=bk.checkinDate||'';
+        waPart='<a href="'+msgHref(ph,bk.guest,'ko')+'"'+msgTgt(ph)+' title="'+app+' 한국어 — 탭하면 보냄 표시" onclick="markWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\',this,\''+ckd+'\')" style="'+waStBase+'background:'+koBg+';">KR</a>'
+          +'<a href="'+msgHref(ph,bk.guest,'en')+'"'+msgTgt(ph)+' title="'+app+' English — tap to mark sent" onclick="markWa(\''+enId+'\',\''+koId+'\',\''+doneId+'\',this,\''+ckd+'\')" style="'+waStBase+'background:'+enBg+';">EN</a>';
       }
+    } else {
+      // 전화번호가 없거나(웹훅에 미포함) 형식 불량 → KR/EN 대신 번호 직접 입력 버튼. 저장하면 실시간 반영으로 KR/EN이 바로 뜬다.
+      waPart='<span onclick="promptGuestPhone(\''+num+'\',\''+safeBid(bid)+'\',\''+(bk.checkinDate||'')+'\')" style="'+waStBase+'border:0.5px solid #185FA5;background:#fff;color:#042C53;cursor:pointer;" title="전화번호가 없어 메시지 발송 버튼이 안 보입니다 — 탭해서 번호 입력">번호입력</span>';
     }
     let note='';
     if(bk.checkinTime)note='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkinTime)+'</span>';
