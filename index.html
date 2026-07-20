@@ -834,6 +834,8 @@ function svPieceCount(booking){
 }
 function nightsOf(ci,co){if(!ci||!co)return 0;return Math.round((new Date(co)-new Date(ci))/86400000);}
 function longStayDot(ci,co,size){const s=size||6;return nightsOf(ci,co)>=2?'<span style="display:inline-block;width:'+s+'px;height:'+s+'px;border-radius:50%;background:#E53935;margin-left:5px;vertical-align:middle;"></span>':'';}
+// CS 자동 반영 마커(2026-07-20) — CS가 게스트 ETA를 감지해 checkinTime을 자동으로 넣은 예약 표시
+function csEtaDot(bk,size){const s=size||6;return bk&&bk.etaFromCs?'<span title="CS 자동 반영(게스트 ETA)" style="display:inline-block;width:'+s+'px;height:'+s+'px;border-radius:50%;background:#E53935;margin-left:5px;vertical-align:middle;"></span>':'';}
 function nowTime(){const d=new Date();return d.getHours()+':'+(d.getMinutes()+'').padStart(2,'0');}
 
 function setConnected(ok){
@@ -1313,7 +1315,8 @@ function renderRooms(){
         })).join('<div style="height:3px;"></div>');
         guestPanel=`<div style="margin-top:6px;background:#fff;border-radius:8px;padding:5px 7px;width:100%;box-sizing:border-box;overflow:hidden;">${rows}</div>`;
       }
-      const dateLine=cur&&(cur.checkinDate||cur.checkoutDate)?`<div style="font-size:8px;margin-top:1px;opacity:.7;"><span style="position:relative;display:inline-block;">${cur.checkinDate?fmtDate(cur.checkinDate):''}${cur.checkinDate&&cur.checkoutDate?'→':''}${cur.checkoutDate?fmtDate(cur.checkoutDate):''}${nightsOf(cur.checkinDate,cur.checkoutDate)>=2?'<span style="position:absolute;right:-6px;top:-1px;width:5.1px;height:5.1px;border-radius:50%;background:#E53935;"></span>':''}</span></div>`:'';
+      const hasCsEta=[cur,...getNextBookings(r)].some(b=>b&&b.etaFromCs); // CS가 ETA를 자동 반영한 예약 있음(2026-07-20)
+      const dateLine=cur&&(cur.checkinDate||cur.checkoutDate)?`<div style="font-size:8px;margin-top:1px;opacity:.7;"><span style="position:relative;display:inline-block;">${cur.checkinDate?fmtDate(cur.checkinDate):''}${cur.checkinDate&&cur.checkoutDate?'→':''}${cur.checkoutDate?fmtDate(cur.checkoutDate):''}${nightsOf(cur.checkinDate,cur.checkoutDate)>=2?'<span style="position:absolute;right:-6px;top:-1px;width:5.1px;height:5.1px;border-radius:50%;background:#E53935;"></span>':''}</span>${hasCsEta?'<span title="CS 자동 반영(게스트 ETA)" style="display:inline-block;width:5.1px;height:5.1px;border-radius:50%;background:#E53935;margin-left:9px;vertical-align:middle;"></span>':''}</div>`:'';
       // 오후 3시 기준으로 날짜 계산
       const today2=todayStr();
       const tmrStr2=ymdOffset(1);
@@ -1495,7 +1498,7 @@ function renderCurrentBooking(cur){
       <div>
         <div class="booking-guest">${cur.guest}${srcBadge}</div>
         <div class="booking-dates">${fmtDate(cur.checkinDate)} → ${fmtDate(cur.checkoutDate)}${longStayDot(cur.checkinDate,cur.checkoutDate)}</div>
-        ${cur.checkinTime||cur.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${cur.checkinTime?'IN '+cur.checkinTime:''}${cur.checkinTime&&cur.checkoutTime?' · ':''}${cur.checkoutTime?'OUT '+cur.checkoutTime:''}${bkEtaTag(cur)}</div>`:''}
+        ${cur.checkinTime||cur.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${cur.checkinTime?'IN '+cur.checkinTime:''}${cur.checkinTime&&cur.checkoutTime?' · ':''}${cur.checkoutTime?'OUT '+cur.checkoutTime:''}${bkEtaTag(cur)}${csEtaDot(cur)}</div>`:''}
         ${bkMoneyBlock(cur,'current',null)}
         ${cleanNote(notes)?`<div style="font-size:11px;color:#c0392b;font-weight:600;margin-top:4px;">⚠ ${cleanNote(notes)}</div>`:''}
       </div>
@@ -1602,7 +1605,7 @@ function renderNextBookings(list){
       <div>
         <div class="booking-guest">${nxt.guest}${SRC_LBL[nxt.source]?`<span style="font-size:9px;font-weight:700;background:${SRC_BG[nxt.source]};color:${SRC_TXT[nxt.source]};border-radius:100px;padding:1px 6px;margin-left:5px;vertical-align:middle;">${SRC_LBL[nxt.source]}</span>`:''} </div>
         <div class="booking-dates">${fmtDate(nxt.checkinDate)} → ${fmtDate(nxt.checkoutDate)}${longStayDot(nxt.checkinDate,nxt.checkoutDate)}</div>
-        ${nxt.checkinTime||nxt.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${nxt.checkinTime?'IN '+nxt.checkinTime:''}${nxt.checkinTime&&nxt.checkoutTime?' · ':''}${nxt.checkoutTime?'OUT '+nxt.checkoutTime:''}${bkEtaTag(nxt)}</div>`:''}
+        ${nxt.checkinTime||nxt.checkoutTime?`<div style="font-size:12px;font-weight:700;color:#c0392b;margin-top:3px;">${nxt.checkinTime?'IN '+nxt.checkinTime:''}${nxt.checkinTime&&nxt.checkoutTime?' · ':''}${nxt.checkoutTime?'OUT '+nxt.checkoutTime:''}${bkEtaTag(nxt)}${csEtaDot(nxt)}</div>`:''}
         ${bkMoneyBlock(nxt,'next',i)}
         ${cleanNote(nxt.notes)?`<div style="font-size:11px;color:#c0392b;font-weight:600;margin-top:4px;">⚠ ${cleanNote(nxt.notes)}</div>`:''}
       </div>
@@ -1827,6 +1830,7 @@ async function saveBooking(){
   const guestEmail=document.getElementById('bk-email').value.trim();
   const guestPhone=document.getElementById('bk-phone').value.trim();
   const bkData={...(currentEditingBk||{}),guest,checkinDate:bkCiDate||'',checkoutDate:bkCoDate||'',checkinTime:ciTime,checkoutTime:coTime,notes:bkNotes,source:bkSource,guestEmail,guestPhone};
+  if(bkData.etaFromCs&&currentEditingBk&&currentEditingBk.checkinTime!==ciTime)delete bkData.etaFromCs; // 시간을 수동으로 고치면 CS 자동 반영 점 제거
   // 얼리체크인: currentBooking 체크인 시간이 15:00 이전이면 자동 켜짐
   const curBk=rooms[currentRoomNum]&&rooms[currentRoomNum].currentBooking;
 
