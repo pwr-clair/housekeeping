@@ -520,7 +520,8 @@ function doGet(e){
       if(g.length>1)markNums=g;
     }
     try{
-      const subject=ov.subject||('Check-in Info / 체크인 안내 — Room '+num);
+      // 제목: 편집창에서 일부러 비우면 빈 제목 그대로 발송. 기본 제목은 편집값이 아예 없을 때만.
+      const subject=(ov.subject==null)?('Check-in Info / 체크인 안내 — Room '+num):String(ov.subject);
       if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(cb.guestEmail,subject,ov.bodyKo);
       if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(cb.guestEmail,subject,ov.bodyEn);
       fbSet('app/mailLogs/'+logKey,{stage:stg,time:todayKST()+' '+nowHM(),email:cb.guestEmail,guest:cb.guest,room:markNums.join(','),edited:true});
@@ -595,7 +596,8 @@ function doGet(e){
       const NAME={s2_reminder:'체크인 리마인더',s4_checkout:'퇴실 안내',s5_checkoutConfirm:'방문 고지',s6_review:'후기'};
       let label=NAME[p.stage];
       if(!label&&isCustom){const ct=fbGet('app/mailTemplates/'+p.stage)||{};label=ct.name||'안내';}
-      const subject=ov.subject||((label||'안내')+' — Paradise Walk Residence');
+      // 제목: 편집창에서 일부러 비우면 빈 제목 그대로 발송(플랫폼 채팅에 제목 헤더 안 뜨게). 기본 제목은 편집값이 아예 없을 때만.
+      const subject=(ov.subject==null)?((label||'안내')+' — Paradise Walk Residence'):String(ov.subject);
       if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(bk.guestEmail,subject,ov.bodyKo);
       if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(bk.guestEmail,subject,ov.bodyEn);
       fbSet('app/mailLogs/'+logKey,{stage:p.stage,time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:room||'',edited:true});
