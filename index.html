@@ -3110,7 +3110,7 @@ function renderSendTab(){
     return '<div style="display:flex;align-items:center;gap:6px;border:0.5px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;background:#fff;">'
       +'<span style="font-size:13px;font-weight:700;color:'+numColor+';flex-shrink:0;">'+num+'</span>'
       +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
-      +(ph?'<span title="'+ph+'" style="font-size:11px;font-weight:700;color:#2C2C2A;flex-shrink:0;">···'+ph.slice(-4)+'</span>':'')
+      +(ph?'<span title="'+ph+'" style="font-size:11px;font-weight:700;color:#2C2C2A;flex-shrink:0;">'+ph.slice(-4)+'</span>':'')
       +srcBadge(bk.source)
       +note
       +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+lblInfo+waPart+lblReminder+lblCheckin+'</span>'
