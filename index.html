@@ -3067,11 +3067,17 @@ function renderSendTab(){
     const numColor=(r.status==='clean_done')?'#0F6E56':'#042C53';
     const Rc='#185FA5',I='#185FA5';
     const ph=cleanPhone(bk.guestPhone);
+    const isKr=!!ph&&ph.startsWith('+82');
     const waKey=safeBid(bid||num);
     const koId='wa_'+waKey+'_ko', enId='wa_'+waKey+'_en', doneId='wa_'+waKey+'_done';
-    // RE 탭 = 메신저 발송 종결(2026-07-22 Clara): KR/EN이 초록(보냄)이면 RE를 누르는 순간(실제 재발송 여부 무관) 메신저 버튼을 회색 블락으로 잠근다
-    const reClose=ph?'closeWaOnRe(\''+koId+'\',\''+enId+'\',\''+doneId+'\',\''+(bk.checkinDate||'')+'\');':'';
-    const lblReminder=stageLabel('RE',logHit(bid,'s2_reminder'),(bid&&bk.guestEmail)?reClose+'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'',Rc,bid?'이메일 없음':'웹훅 예약 아님');
+    // RE 탭 = EN(왓츠앱) 종결 트리거(2026-07-22 Clara): EN이 초록(보냄)이면 RE를 누르는 순간(실제 재발송 여부 무관) EN을 회색 블락. 용도=왓츠앱 계정 없는 손님 구분(여러 번 안 누르게). KR(+82, SMS)은 번호가 확실해 블락 개념 없음 — 종결 미적용.
+    const reClose=(ph&&!isKr)?'closeWaOnRe(\''+koId+'\',\''+enId+'\',\''+doneId+'\',\''+(bk.checkinDate||'')+'\');':'';
+    const reJs=(bid&&bk.guestEmail)?reClose+'openStagePreview(\''+bid+'\',\''+num+'\',\'s2_reminder\',\'체크인 리마인더\')':'';
+    // RE는 발송됨(파랑 채움)이어도 클릭 가능 — 재발송 미리보기 열림+EN 종결 트리거 (2026-07-22 Clara)
+    const reBase='height:22px;box-sizing:border-box;padding:0 7px;font-size:9px;border-radius:5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
+    const lblReminder=(logHit(bid,'s2_reminder')&&reJs)
+      ?'<span onclick="'+reJs+'" style="'+reBase+'background:'+Rc+';color:#fff;cursor:pointer;" title="발송됨 — 클릭하면 재발송 미리보기">RE</span>'
+      :stageLabel('RE',logHit(bid,'s2_reminder'),reJs,Rc,bid?'이메일 없음':'웹훅 예약 아님');
     // [안내] — 커스텀 템플릿 선택 발송 (항상 파랑, 발송 이력별 초록 없음: 템플릿마다 다른 안내라서)
     const lblInfo=stageLabel('안내',false,(bid&&bk.guestEmail)?'openInfoPicker(\''+bid+'\',\''+num+'\')':'',I,bid?'이메일 없음':'웹훅 예약 아님');
     // 입실 라벨: 부킹 알리아스 릴레이가 간헐적으로 메일을 조용히 드랍하므로, 발송 완료 후에도 재발송을 허용한다. 미발송=파란 클릭(confirm 없음), 발송됨=초록 유지+클릭 시 confirm 후 재발송.
@@ -3088,17 +3094,16 @@ function renderSendTab(){
     const waStBase='text-decoration:none;height:22px;box-sizing:border-box;padding:0 8px;border-radius:5px;color:#fff;font-size:9px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
     let waPart='';
     if(ph){
-      const isKr=ph.startsWith('+82');
       const lang=isKr?'ko':'en', waLbl=isKr?'KR':'EN', sentId=isKr?koId:enId;
       const GRAY='#AAB0B8';
-      if(checkedSentSet.has(doneId)){
-        // 종결 상태: 회색·클릭 블락(메신저도 안 열림)
+      if(!isKr&&checkedSentSet.has(doneId)){
+        // 종결 상태(EN 전용): 회색·클릭 블락(왓츠앱도 안 열림). KR은 doneId가 저장돼 있어도 무시(블락 없음).
         waPart='<span title="발송 종결" style="'+waStBase+'background:'+GRAY+';cursor:default;">'+waLbl+'</span>';
       } else {
         // 초록 판정은 ko/en 어느 쪽 마크든 인정(개편 전 데이터 호환)
         const bg=(checkedSentSet.has(koId)||checkedSentSet.has(enId))?GREEN:'#042C53';
         const ckd=bk.checkinDate||'';
-        waPart='<a href="'+msgHref(ph,bk.guest,lang)+'"'+msgTgt(ph)+' title="'+msgApp(ph)+(isKr?' 한국어':' English')+' — 탭하면 보냄 표시" onclick="markWa(\''+sentId+'\',\'\',\''+doneId+'\',this,\''+ckd+'\')" style="'+waStBase+'background:'+bg+';">'+waLbl+'</a>';
+        waPart='<a href="'+msgHref(ph,bk.guest,lang)+'"'+msgTgt(ph)+' title="'+msgApp(ph)+(isKr?' 한국어':' English')+' — 탭하면 보냄 표시" onclick="markWa(\''+sentId+'\',\'\',\''+(isKr?'':doneId)+'\',this,\''+ckd+'\')" style="'+waStBase+'background:'+bg+';">'+waLbl+'</a>';
       }
     } else {
       // 전화번호가 없거나(웹훅에 미포함) 형식 불량 → 번호 직접 입력 버튼. 저장하면 실시간 반영으로 메신저 버튼이 바로 뜬다.
