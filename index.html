@@ -1235,15 +1235,28 @@ function renderCheckinOrder(){
       if(b&&b.guest&&b.checkinDate===today){
         const t=(b.checkinTime&&/^\d{1,2}:\d{2}/.test(b.checkinTime))?b.checkinTime:'';
         const p=(t||'15:00').split(':');
-        list.push({num:num,min:(+p[0])*60+(+p[1]),assumed:!t});
+        // 묶음 키: 멀티룸은 bookingId가 '원본bid_방이름' 꼴이라 앞부분이 같다. bid 없으면 이메일→이름 순.
+        const bid=String(b.bookingId||'');
+        const gkey=bid?bid.split('_')[0]:String(b.guestEmail||b.guest||num).toLowerCase();
+        list.push({num:num,min:(+p[0])*60+(+p[1]),assumed:!t,gkey:gkey});
       }
     });
   }
   if(!list.length){ el.style.display='none'; return; }
-  list.sort((a,b)=>a.min-b.min||(+a.num)-(+b.num));
+  // 같은 예약의 멀티룸은 (920·930)처럼 한 묶음으로 표시
+  const byKey={},groups=[];
+  list.forEach(x=>{
+    const g=byKey[x.gkey];
+    if(g){g.nums.push(x.num);g.min=Math.min(g.min,x.min);}
+    else{const n={nums:[x.num],min:x.min};byKey[x.gkey]=n;groups.push(n);}
+  });
+  groups.forEach(g=>g.nums.sort((a,b)=>(+a)-(+b)));
+  // 새벽(00:00~05:59) 입실 = 다음날 새벽 도착(당일 새벽 입실은 안 받음) → 예외 없이 맨 뒤로. 표시 시각은 그대로.
+  const sortMin=g=>g.min+(g.min<360?1440:0);
+  groups.sort((a,b)=>sortMin(a)-sortMin(b)||(+a.nums[0])-(+b.nums[0]));
   const fmt=m=>fmtAmPm(Math.floor(m/60)+':'+String(m%60).padStart(2,'0'));
   el.innerHTML='<span style="font-size:10px;font-weight:600;color:var(--text);flex-shrink:0;">🕐 '+(currentLang==='ko'?'입실':'IN')+'</span>'
-    +list.map(x=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+x.num+'</b> <span style="font-size:10px;font-weight:600;color:#9C2448;">'+fmt(x.min)+'</span></span>')
+    +groups.map(g=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+(g.nums.length>1?'('+g.nums.join('·')+')':g.nums[0])+'</b> <span style="font-size:10px;font-weight:600;color:#9C2448;">'+fmt(g.min)+'</span></span>')
       .join('<span style="color:var(--text);flex-shrink:0;">‣</span>');
   el.style.display='flex';
 }
