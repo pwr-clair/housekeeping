@@ -3166,9 +3166,11 @@ function renderSendTab(){
     let note='';
     if(!isTmrCo){const isTd=bk.checkoutDate===today;note+='<span style="font-size:9px;font-weight:600;flex-shrink:0;color:'+(isTd?'#C0392B':'var(--text3)')+';">'+(isTd?'오늘':'어제')+'</span>';}
     if(bk.checkoutTime)note+='<span style="font-size:9px;color:#9C2448;font-weight:500;flex-shrink:0;">⏰'+fmtTimeKo(bk.checkoutTime)+'</span>';
+    const ph=cleanPhone(bk.guestPhone);
     return '<div style="display:flex;align-items:center;gap:6px;border:0.5px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:6px;background:#fff;">'
       +'<span style="font-size:13px;font-weight:700;color:#042C53;flex-shrink:0;">'+num+'</span>'
-      +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
+      +'<span style="font-size:11px;font-weight:500;color:#2C2C2A;overflow:hidden;text-overflow:clip;white-space:nowrap;min-width:0;">'+bk.guest+'</span>'
+      +(ph?'<span title="'+ph+'" style="font-size:11px;font-weight:700;color:#2C2C2A;flex-shrink:0;">'+ph.slice(-4)+'</span>':'')
       +srcBadge(bk.source)
       +note
       +'<span style="margin-left:auto;display:flex;gap:3px;flex-shrink:0;">'+btns+'</span>'
