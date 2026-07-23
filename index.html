@@ -598,7 +598,7 @@ input,select,button,textarea{font-family:inherit;}
         </div>
         <div class="field-row" style="margin-bottom:0;">
           <div class="field-box">
-            <div class="field-label" id="bk-ci-time-label">체크인 시간</div>
+            <div class="field-label" id="bk-ci-time-label">체크인 시간 <span id="bk-eta-fixed" onclick="toggleEtaFixed()" title="비행 등으로 시간이 확실할 때 켜면 입실 바에 동그라미 표시" style="font-size:10px;font-weight:600;border:1px solid #9C2448;border-radius:8px;padding:1px 7px;margin-left:6px;cursor:pointer;color:#9C2448;">확정</span></div>
             <input class="field-input" type="text" id="bk-ci-time" placeholder="15:00">
           </div>
           <div class="field-box">
@@ -1238,7 +1238,7 @@ function renderCheckinOrder(){
         // 묶음 키: 멀티룸은 bookingId가 '원본bid_방이름' 꼴이라 앞부분이 같다. bid 없으면 이메일→이름 순.
         const bid=String(b.bookingId||'');
         const gkey=bid?bid.split('_')[0]:String(b.guestEmail||b.guest||num).toLowerCase();
-        list.push({num:num,min:(+p[0])*60+(+p[1]),assumed:!t,gkey:gkey});
+        list.push({num:num,min:(+p[0])*60+(+p[1]),assumed:!t,gkey:gkey,fixed:!!t&&!!b.etaFixed});
       }
     });
   }
@@ -1247,8 +1247,8 @@ function renderCheckinOrder(){
   const byKey={},groups=[];
   list.forEach(x=>{
     const g=byKey[x.gkey];
-    if(g){g.nums.push(x.num);g.min=Math.min(g.min,x.min);}
-    else{const n={nums:[x.num],min:x.min};byKey[x.gkey]=n;groups.push(n);}
+    if(g){g.nums.push(x.num);g.min=Math.min(g.min,x.min);g.fixed=g.fixed||x.fixed;}
+    else{const n={nums:[x.num],min:x.min,fixed:x.fixed};byKey[x.gkey]=n;groups.push(n);}
   });
   groups.forEach(g=>g.nums.sort((a,b)=>(+a)-(+b)));
   // 새벽(00:00~05:59) 입실 = 다음날 새벽 도착(당일 새벽 입실은 안 받음) → 예외 없이 맨 뒤로. 표시 시각은 그대로.
@@ -1256,7 +1256,7 @@ function renderCheckinOrder(){
   groups.sort((a,b)=>sortMin(a)-sortMin(b)||(+a.nums[0])-(+b.nums[0]));
   const fmt=m=>fmtAmPm(Math.floor(m/60)+':'+String(m%60).padStart(2,'0'));
   el.innerHTML='<span style="font-size:10px;font-weight:600;color:var(--text);flex-shrink:0;">🕐 '+(currentLang==='ko'?'입실':'IN')+'</span>'
-    +groups.map(g=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+(g.nums.length>1?'('+g.nums.join('·')+')':g.nums[0])+'</b> <span style="font-size:10px;font-weight:600;color:#9C2448;">'+fmt(g.min)+'</span></span>')
+    +groups.map(g=>'<span style="flex-shrink:0;"><b style="color:#042C53;font-weight:700;">'+(g.nums.length>1?'('+g.nums.join('·')+')':g.nums[0])+'</b> <span style="font-size:10px;font-weight:600;color:#9C2448;'+(g.fixed?'border:1.2px solid #9C2448;border-radius:9px;padding:0 5px;':'')+'" '+(g.fixed?'title="시간 확정"':'')+'>'+fmt(g.min)+'</span></span>')
       .join('<span style="color:var(--text);flex-shrink:0;">‣</span>');
   el.style.display='flex';
 }
@@ -1791,8 +1791,18 @@ function openBookingForm(type){
 window.openBookingForm=openBookingForm;
 
 let currentEditingBk=null;
+// 시간 확정 토글 (비행 등으로 레이트 체크인이 확실한 예약) — 입실 바에서 시간에 동그라미 표시
+let bkEtaFixed=false;
+function paintEtaFixed(){
+  const el=document.getElementById('bk-eta-fixed');if(!el)return;
+  el.style.background=bkEtaFixed?'#9C2448':'transparent';
+  el.style.color=bkEtaFixed?'#fff':'#9C2448';
+}
+function toggleEtaFixed(){bkEtaFixed=!bkEtaFixed;paintEtaFixed();}
+window.toggleEtaFixed=toggleEtaFixed;
 function openBookingFormWith(bk, title){
   currentEditingBk=bk||null;
+  bkEtaFixed=!!(bk&&bk.etaFixed);paintEtaFixed();
   document.getElementById('bk-title').textContent=title;
   document.getElementById('bk-guest').value=bk&&bk.guest?bk.guest:'';
   document.getElementById('bk-email').value=bk&&bk.guestEmail?bk.guestEmail:'';
@@ -1843,7 +1853,7 @@ async function saveBooking(){
   if(!guest)return;
   const guestEmail=document.getElementById('bk-email').value.trim();
   const guestPhone=document.getElementById('bk-phone').value.trim();
-  const bkData={...(currentEditingBk||{}),guest,checkinDate:bkCiDate||'',checkoutDate:bkCoDate||'',checkinTime:ciTime,checkoutTime:coTime,notes:bkNotes,source:bkSource,guestEmail,guestPhone};
+  const bkData={...(currentEditingBk||{}),guest,checkinDate:bkCiDate||'',checkoutDate:bkCoDate||'',checkinTime:ciTime,checkoutTime:coTime,notes:bkNotes,source:bkSource,guestEmail,guestPhone,etaFixed:bkEtaFixed};
   if(bkData.etaFromCs&&currentEditingBk&&currentEditingBk.checkinTime!==ciTime)delete bkData.etaFromCs; // 시간을 수동으로 고치면 CS 자동 반영 점 제거
   // 얼리체크인: currentBooking 체크인 시간이 15:00 이전이면 자동 켜짐
   const curBk=rooms[currentRoomNum]&&rooms[currentRoomNum].currentBooking;
