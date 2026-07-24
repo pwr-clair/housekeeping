@@ -608,6 +608,35 @@ function doGet(e){
       return ContentService.createTextOutput('발송 실패');
     }
   }
+  if(p.action==='waMirror'){
+    // KR/EN 메신저 첫 발송 시 같은 안내문을 OTA 채널(게스트 릴레이 이메일)로도 1회 미러 발송 (2026-07-24 클라라).
+    // 예약당 1회만(mailLogs _waMirror 키 가드) — "맨 첫 메시지"만 복제, 이후 대화는 메신저에서.
+    let bk=null,room=p.room||null;
+    if(p.bid){
+      const pb=fbGet('app/pendingBookings/sv_'+p.bid)||fbGet('app/pendingBookings/'+p.bid);
+      if(pb&&!pb.cancelled){bk=pb;if(!room&&pb.assignedRoom&&pb.assignedRoom!=='manual')room=pb.assignedRoom;}
+    }
+    if(!bk&&room){
+      const r=fbGet('app/rooms/'+room);const cb=r&&r.currentBooking;
+      if(cb&&cb.guest)bk={bookingId:cb.bookingId||('room_'+room+'_'+todayKST()),guest:cb.guest,guestEmail:cb.guestEmail};
+    }
+    if(!bk)return ContentService.createTextOutput('예약을 찾지 못했어요');
+    if(!bk.guestEmail)return ContentService.createTextOutput('이메일 없음');
+    const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_waMirror';
+    if(fbGet('app/mailLogs/'+logKey))return ContentService.createTextOutput('이미 발송됨');
+    const lang=(p.lang==='ko')?'ko':'en';
+    const wm=fbGet('app/waMessages')||{};
+    const fallback=lang==='ko'
+      ?'[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
+      :'[Incheon Airport T1 Residence] Hello, we\'ve sent your check-in details via your booking platform\'s message. Please check it. Contact: 010-8227-2845';
+    try{
+      sendMail(bk.guestEmail,'',wm[lang]||fallback);
+      fbSet('app/mailLogs/'+logKey,{stage:'waMirror',time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:room||''});
+      return ContentService.createTextOutput('OK');
+    }catch(err){
+      return ContentService.createTextOutput('발송 실패: '+String(err));
+    }
+  }
   if(p.action==='sendStage'&&p.stage){
     const ALLOW=['s2_reminder','s4_checkout','s5_checkoutConfirm','s6_review'];
     if(ALLOW.indexOf(p.stage)<0)return ContentService.createTextOutput('지원하지 않는 단계예요');
