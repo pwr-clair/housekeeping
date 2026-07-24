@@ -85,4 +85,14 @@ const okSend = vm.runInContext('doGet({parameter:{token:"x",action:"sendRoom",ro
 console.assert(sentMails.length === 1 && sentMails[0].b.includes('620') && sentMails[0].b.includes('628'), '⑥-2 FAIL: 그룹 1통이 아님 → ' + sentMails.length + '통');
 console.assert(db.app.sentChecks['620_2026-07-15'] && db.app.sentChecks['628_2026-07-15'], '⑥-3 FAIL: 전방 마크 안 됨');
 
-console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통)');
+// ⑦ doPost 멀티룸 분할 시 구 단일 카드 삭제 (1방→2방 수정 replace, 2026-07-24 Sorokin 건)
+db = { app: { pendingBookings: { sv_777: { bookingId: '777', guest: 'Maxim, Sorokin', checkinDate: '2026-08-06', checkoutDate: '2026-09-15' } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'777',bookingSource:'frontdesk',guest:{lastName:'Maxim',firstName:'Sorokin',email:'s@x.com'},arrivalDate:'2026-08-06',departureDate:'2026-09-15',rooms:[{RoomName:'1037'},{RoomName:'1240'}]})}})`, ctx);
+console.assert(!db.app.pendingBookings.sv_777, '⑦-1 FAIL: 구 단일 카드가 안 지워짐');
+console.assert(db.app.pendingBookings.sv_777_1037 && db.app.pendingBookings.sv_777_1240, '⑦-2 FAIL: 방별 카드 미생성 → ' + Object.keys(db.app.pendingBookings));
+// RoomName이 전부 비면(기록 실패) 구 카드 보존
+db = { app: { pendingBookings: { sv_778: { bookingId: '778', guest: 'X' } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'778',rooms:[{},{RoomName:''}]})}})`, ctx);
+console.assert(db.app.pendingBookings.sv_778, '⑦-3 FAIL: 방별 기록 실패인데 구 카드 삭제됨');
+
+console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제)');

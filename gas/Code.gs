@@ -147,9 +147,11 @@ function doPost(e){
     // 그 사이 수기·CS 승인으로 바뀐 eta를 덮지 않는다. 웹훅 값이 실제로 바뀐 경우만 최신으로 반영(force).
     var __rooms = (b && Array.isArray(b.rooms)) ? b.rooms : [];
     if (__rooms.length >= 2) {
+      var __wrote = 0;
       __rooms.forEach(function(__rm){
         var __rn = String((__rm && __rm.RoomName) || '').trim();
         if (!__rn) return;
+        __wrote++;
         var __mkey = targetKey + '_' + __rn;
         var __mprev = (pend && pend[__mkey]) || {};
         var __etaNew = !!eta && eta !== (__mprev.etaWebhook||'');
@@ -168,6 +170,10 @@ function doPost(e){
         });
         if(__etaNew) syncEtaToRoom(__mprev.bookingId || String(b.bookingId), eta, true);
       });
+      // 수정=replace(§5): 1방→멀티룸으로 바뀐 예약은 구 단일 카드를 삭제 (방별 카드로 대체됨).
+      // 단일 레코드 판별 = bookingId에 '_' 없음(위 매칭 로직과 동일 규약). 방별 기록 실패 시엔 보존.
+      var __old = pend[targetKey];
+      if (__wrote >= 2 && __old && String(__old.bookingId||'').indexOf('_') < 0) fbDelete('app/pendingBookings/'+targetKey);
     } else {
       var __etaNew1 = !!eta && eta !== (prev.etaWebhook||'');
       fbSet('app/pendingBookings/'+targetKey,{
