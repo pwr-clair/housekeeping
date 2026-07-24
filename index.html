@@ -3189,7 +3189,10 @@ function renderSendTab(){
     const why=bk.guestEmail?'웹훅 예약 아님':'이메일 없음';
     const nights=Math.round((new Date(bk.checkoutDate)-new Date(bk.checkinDate))/86400000);
     const isTmrCo=bk.checkoutDate===tomorrow;
-    const btns=(nights>=2?stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why):'')
+    // [안내] — 커스텀 템플릿 선택 발송 (체크인 줄과 동일: 항상 파랑, 발송 이력별 초록 없음)
+    const lblInfo=stageLabel('안내',false,(bid&&bk.guestEmail)?'openInfoPicker(\''+bid+'\',\''+(num==='—'?'':num)+'\')':'','#185FA5',bid?'이메일 없음':'웹훅 예약 아님');
+    const btns=lblInfo
+      +(nights>=2?stageLabel('퇴실안내',logHit(bid,'s4_checkout'),can('s4_checkout'),GREEN,why):'')
       +(isTmrCo?''
         :stageLabel('방문고지',logHit(bid,'s5_checkoutConfirm'),can('s5_checkoutConfirm'),GREEN,why)
          +stageLabel('후기',logHit(bid,'s6_review'),can('s6_review'),GREEN,why));
