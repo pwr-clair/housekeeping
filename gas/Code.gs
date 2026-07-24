@@ -617,8 +617,9 @@ function doGet(e){
     }
   }
   if(p.action==='waMirror'){
-    // KR/EN 메신저 첫 발송 시 같은 안내문을 OTA 채널(게스트 릴레이 이메일)로도 1회 미러 발송 (2026-07-24 클라라).
-    // 예약당 1회만(mailLogs _waMirror 키 가드) — "맨 첫 메시지"만 복제, 이후 대화는 메신저에서.
+    // KR/EN 메신저 발송 시 같은 안내문을 OTA 채널(게스트 릴레이 이메일)로도 미러 발송 (2026-07-24 클라라).
+    // 2차 개편(2026-07-24): 프런트가 confirm 대신 편집 가능한 발송창을 띄운다 —
+    //   편집본은 app/sendOverrides/{logKey} {body}로 도착(사용 후 삭제), 재발송은 force=1(경고창 확인 후)로만 가드 해제.
     let bk=null,room=p.room||null;
     if(p.bid){
       const pb=fbGet('app/pendingBookings/sv_'+p.bid)||fbGet('app/pendingBookings/'+p.bid);
@@ -631,16 +632,20 @@ function doGet(e){
     if(!bk)return ContentService.createTextOutput('예약을 찾지 못했어요');
     if(!bk.guestEmail)return ContentService.createTextOutput('이메일 없음');
     const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_waMirror';
-    if(fbGet('app/mailLogs/'+logKey))return ContentService.createTextOutput('이미 발송됨');
+    if(p.force==='1'){fbDelete('app/mailLogs/'+logKey);}
+    else if(fbGet('app/mailLogs/'+logKey))return ContentService.createTextOutput('이미 발송됨 — 다시 보내려면 초록 버튼을 다시 탭해 발송창에서 재발송');
     const lang=(p.lang==='ko')?'ko':'en';
     const wm=fbGet('app/waMessages')||{};
     const fallback=lang==='ko'
       ?'[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
       :'[Incheon Airport T1 Residence] Hello, we\'ve sent your check-in details via your booking platform\'s message. Please check it. Contact: 010-8227-2845';
+    const ov=fbGet('app/sendOverrides/'+logKey)||{};
+    const body=(ov.body&&String(ov.body).trim())?ov.body:(wm[lang]||fallback);
     try{
-      sendMail(bk.guestEmail,'',wm[lang]||fallback);
+      sendMail(bk.guestEmail,'',body);
       fbSet('app/mailLogs/'+logKey,{stage:'waMirror',time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:room||''});
-      return ContentService.createTextOutput('OK');
+      fbDelete('app/sendOverrides/'+logKey);
+      return ContentService.createTextOutput('✅ '+bk.guest+'님께 OTA 채팅(이메일) 안내 발송 완료');
     }catch(err){
       return ContentService.createTextOutput('발송 실패: '+String(err));
     }

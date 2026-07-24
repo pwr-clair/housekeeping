@@ -103,4 +103,17 @@ db = { app: { pendingBookings: { sv_801_1037: { bookingId: '801_1037', amount: 3
 vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'801',guest:{lastName:'M',firstName:'S'},rooms:[{RoomName:'1037'},{RoomName:'1240'}]})}})`, ctx);
 console.assert(db.app.pendingBookings.sv_801_1037.amount === 3200000 && db.app.pendingBookings.sv_801_1240.amount === 3200000, '⑧-2 FAIL: 멀티룸 재푸시에 amount 소실');
 
-console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존)');
+// ⑨ waMirror 발송창: 편집본(sendOverrides) 우선·사용 후 삭제 / 예약당 1회 가드 / force=1 재발송(기본문 복귀)
+//   (⑤에서 VM 안 sendMail이 sentMails 캡처 스텁으로 교체돼 있음 — 그대로 재사용)
+const wBase = sentMails.length;
+db = { app: { mailLogs: {}, waMessages: { ko: '기본 한국어 안내' }, sendOverrides: { w1_waMirror: { body: '수정된 안내', lang: 'ko' } }, pendingBookings: { sv_w1: { bookingId: 'w1', guest: 'H', guestEmail: 'h@x.com', assignedRoom: '620' } }, rooms: {} } };
+let wOut = vm.runInContext('doGet({parameter:{token:"x",action:"waMirror",bid:"w1",room:"620",lang:"ko"}})', ctx);
+console.assert(sentMails.length === wBase + 1 && sentMails[wBase].b === '수정된 안내' && sentMails[wBase].s === '', '⑨-1 FAIL: 편집본 미사용 → ' + JSON.stringify(sentMails.slice(wBase)));
+console.assert(get('app/sendOverrides/w1_waMirror') === null, '⑨-2 FAIL: 편집본 사용 후 미삭제');
+console.assert(!!get('app/mailLogs/w1_waMirror'), '⑨-3 FAIL: mailLogs 기록 없음');
+wOut = vm.runInContext('doGet({parameter:{token:"x",action:"waMirror",bid:"w1",room:"620",lang:"ko"}})', ctx);
+console.assert(sentMails.length === wBase + 1 && String(wOut).indexOf('이미 발송됨') === 0, '⑨-4 FAIL: 1회 가드 뚫림 → ' + wOut);
+wOut = vm.runInContext('doGet({parameter:{token:"x",action:"waMirror",bid:"w1",room:"620",lang:"ko",force:"1"}})', ctx);
+console.assert(sentMails.length === wBase + 2 && sentMails[wBase + 1].b === '기본 한국어 안내', '⑨-5 FAIL: force 재발송 안 됨/기본문 복귀 실패 → ' + JSON.stringify(sentMails.slice(wBase)));
+
+console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존 ⑨waMirror 편집본·가드·force)');

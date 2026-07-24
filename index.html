@@ -440,6 +440,24 @@ input,select,button,textarea{font-family:inherit;}
     </div>
   </div>
 
+  <!-- OTA 미러 발송창 (KR/EN 메신저 탭 시 confirm 대신 뜨는 편집·발송 모달. 초록 재탭=다시보기) -->
+  <div class="modal-overlay" id="wa-mirror-modal" onclick="if(event.target===this)closeModal('wa-mirror-modal')">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">
+        <div id="wam-title" style="font-size:14px;font-weight:700;color:var(--text);line-height:1.4;"></div>
+        <button onclick="closeModal('wa-mirror-modal')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:0;flex-shrink:0;"><i class="ti ti-x"></i></button>
+      </div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:10px;">같은 안내문을 OTA 채팅(게스트 릴레이 이메일)으로도 보냅니다. 내용을 고쳐서 보낼 수 있어요. 취소해도 메신저 발송 표시는 그대로이고, 초록 버튼을 다시 탭하면 이 창이 다시 열립니다.</div>
+      <div id="wam-warn" style="display:none;background:#FEF3C7;color:#92400E;border:0.5px solid #F0D98A;border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;font-weight:600;margin-bottom:10px;">⚠️ 이미 발송됨 — 발송 시 재발송됩니다</div>
+      <div id="wam-body-label" style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">본문</div>
+      <textarea id="wam-body" style="width:100%;height:180px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button onclick="sendWaMirror()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">발송</button>
+        <button onclick="closeModal('wa-mirror-modal')" style="flex:1;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">취소</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 메일 템플릿 관리 모달 -->
   <div class="modal-overlay" id="template-manager-modal" onclick="if(event.target===this)closeModal('template-manager-modal')">
     <div class="modal">
@@ -2235,7 +2253,10 @@ window.toggleSentCheck=toggleSentCheck;
 // WhatsApp/SMS 수동 발송마크(2026-07-22 개편: 버튼은 번호 국적별 KR 또는 EN 하나만): 탭=초록(보냄) 고정, 해제 없음. 종결(회색 블락)은 RE 탭의 closeWaOnRe가 담당. 저장은 기존 발송 동그라미와 동일 경로(app/sentChecks). 만료일 = 게스트 체크인 날짜(내일 체크인에 미리 마크해도 체크인 당일까지 유지, 다음날 자동 삭제). 왓츠앱/메시지 열기는 <a href>가 담당하고, 이 함수는 마크만 한다. otherId는 개편 후 ''로 호출됨(교차종결 경로는 미사용).
 async function markWa(thisId,otherId,doneId,el,expDate,lang,bid,num){
   if(checkedSentSet.has(doneId))return;         // 종결 상태 → 아무 동작 없음(방어)
-  if(checkedSentSet.has(thisId))return;         // 이미 초록(자기) 재클릭 → 마크 변화 없음(왓츠앱만 열림)
+  if(checkedSentSet.has(thisId)){               // 이미 초록(자기) 재클릭 → 마크 변화 없음, 미러 발송창 다시보기 (2026-07-24 클라라: 한번 취소해도 다시 열 수 있게)
+    if(lang&&(bid||num))openWaMirror(lang,bid,num);
+    return;
+  }
   const exp=(expDate&&/^\d{4}-\d{2}-\d{2}$/.test(expDate))?expDate:todayStr();
   if(checkedSentSet.has(otherId)){
     // 나머지가 이미 초록 → 이번 탭으로 두 언어 모두 발송 = 종결
@@ -2245,16 +2266,45 @@ async function markWa(thisId,otherId,doneId,el,expDate,lang,bid,num){
     // 첫 언어 → 초록 마크(기존 동작)
     checkedSentSet.add(thisId);
     if(el)el.style.background='#2F6B45';          // 즉시 초록 피드백 (GREEN)
-    // OTA 미러(2026-07-24 클라라): 무조건 발송이 아니라 확인창에서 OK일 때만. confirm은 await 전에(동기) 물어야
-    // 메신저 열기가 답변 전에 진행되지 않는다. 취소해도 초록 마크·메신저 열기는 그대로. 예약당 1회는 GAS(mailLogs _waMirror) 가드.
-    const mirror=!!(lang&&(bid||num))&&confirm('이 안내문을 OTA 채팅(이메일)으로도 보낼까요?\n(예약당 1회 · 취소해도 메신저는 열립니다)');
+    // OTA 미러(2026-07-24 클라라 2차): confirm 대신 다른 발송창처럼 내용이 보이고 수정 가능한 모달.
+    // 모달은 비동기라 메신저 열기(href)를 막지 않는다 — 메신저 다녀오면 창이 떠 있음. 취소해도 초록 마크·메신저는 그대로.
+    if(lang&&(bid||num))openWaMirror(lang,bid,num);
     try{ await set(ref(db,`app/sentChecks/${thisId}`),exp); }catch(e){}
-    if(mirror){
-      try{ fetch(GAS_URL+'?action=waMirror&bid='+encodeURIComponent(bid||'')+'&room='+encodeURIComponent(num||'')+'&lang='+lang+'&token='+encodeURIComponent(GAS_TOKEN)).catch(()=>{}); }catch(e){}
-    }
   }
 }
 window.markWa=markWa;
+// OTA 미러 발송창: waMessages 본문을 편집 가능한 형태로 보여주고 [발송]에서만 실발송.
+// 키 = GAS waMirror의 mailLogs 키와 동일 규칙(bookingId sanitize, 방 fallback은 room_방_날짜).
+const waMirrorKey=(bid,num)=>safeBid(bid||('room_'+num+'_'+todayStr()))+'_waMirror';
+let waMirrorCtx=null;
+function openWaMirror(lang,bid,num){
+  const fallback=lang==='ko'
+    ? '[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
+    : '[Incheon Airport T1 Residence] Hello, we\'ve sent your check-in details via your booking platform\'s message. Please check it. Contact: 010-8227-2845';
+  const alreadySent=!!mailLogs[waMirrorKey(bid,num)];
+  waMirrorCtx={lang,bid:bid||'',num:num||'',alreadySent};
+  document.getElementById('wam-title').textContent='OTA 채팅(이메일) 안내 발송'+(num?' — '+num+'호':'');
+  document.getElementById('wam-warn').style.display=alreadySent?'block':'none';
+  document.getElementById('wam-body-label').textContent=lang==='ko'?'본문 (한국어)':'본문 (English)';
+  document.getElementById('wam-body').value=(waMessages&&waMessages[lang])||fallback;
+  document.getElementById('wa-mirror-modal').classList.add('open');
+}
+window.openWaMirror=openWaMirror;
+async function sendWaMirror(){
+  const c=waMirrorCtx;
+  if(!c)return;
+  const body=document.getElementById('wam-body').value;
+  if(!body.trim()){alert('본문이 비어 있어요.');return;}
+  // 편집본은 sendOverrides에 저장 → GAS waMirror가 우선 사용 후 삭제 (기존 편집발송과 같은 규약)
+  try{ await set(ref(db,'app/sendOverrides/'+waMirrorKey(c.bid,c.num)),{body,lang:c.lang}); }
+  catch(e){alert('편집 내용 저장 실패: '+e);return;}
+  try{
+    const res=await fetch(GAS_URL+'?action=waMirror&bid='+encodeURIComponent(c.bid)+'&room='+encodeURIComponent(c.num)+'&lang='+c.lang+'&token='+encodeURIComponent(GAS_TOKEN)+(c.alreadySent?'&force=1':''));
+    alert(await res.text());
+  }catch(e){alert('발송 요청 실패: '+e);return;}
+  closeModal('wa-mirror-modal');
+}
+window.sendWaMirror=sendWaMirror;
 // RE 탭 = 메신저 발송 종결(2026-07-22 Clara): KR/EN이 초록(보냄)인 상태에서 RE를 누르면(리마인더 실제 발송 여부 무관) 메신저 버튼을 회색 블락으로 잠근다. 초록 전이면 아무것도 안 함.
 async function closeWaOnRe(koId,enId,doneId,expDate){
   if(checkedSentSet.has(doneId))return;
