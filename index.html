@@ -2234,6 +2234,14 @@ async function closeWaOnRe(koId,enId,doneId,expDate){
   try{ await set(ref(db,`app/sentChecks/${doneId}`),exp); }catch(e){}
 }
 window.closeWaOnRe=closeWaOnRe;
+// 종결(회색) 잘못 눌림 구제(2026-07-24 Clara): 회색 버튼 탭 → confirm → 메신저 마크 3키 전부 삭제 = 미발송(남색)으로 초기화.
+async function resetWa(koId,enId,doneId){
+  if(!confirm('메신저 발송 표시를 되돌릴까요?\n(미발송 상태(남색)로 초기화됩니다)'))return;
+  [koId,enId,doneId].forEach(id=>checkedSentSet.delete(id));
+  try{ await update(ref(db,'app/sentChecks'),{[koId]:null,[enId]:null,[doneId]:null}); }catch(e){}
+  renderSendTab();
+}
+window.resetWa=resetWa;
 // 발송탭 번호입력: 전화번호 없는 예약에 수동으로 번호를 넣는다. 방 예약(currentBooking/nextBookings)에 저장하고, 웹훅 수정(replace) 시 유지되도록 pendingBookings에도 반영.
 async function promptGuestPhone(num,bid,ckd){
   const raw=prompt('게스트 전화번호 입력\n(예: 010-1234-5678, 해외는 +로 시작)');
@@ -3120,8 +3128,8 @@ function renderSendTab(){
       const lang=isKr?'ko':'en', waLbl=isKr?'KR':'EN', sentId=isKr?koId:enId;
       const GRAY='#AAB0B8';
       if(!isKr&&checkedSentSet.has(doneId)){
-        // 종결 상태(EN 전용): 회색·클릭 블락(왓츠앱도 안 열림). KR은 doneId가 저장돼 있어도 무시(블락 없음).
-        waPart='<span title="발송 종결" style="'+waStBase+'background:'+GRAY+';cursor:default;">'+waLbl+'</span>';
+        // 종결 상태(EN 전용): 회색·메신저 안 열림. 잘못 눌러 잠긴 경우 구제 — 탭하면 confirm 후 미발송(남색)으로 초기화.
+        waPart='<span onclick="resetWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\')" title="발송 종결 — 탭하면 되돌리기" style="'+waStBase+'background:'+GRAY+';cursor:pointer;">'+waLbl+'</span>';
       } else {
         // 초록 판정은 ko/en 어느 쪽 마크든 인정(개편 전 데이터 호환)
         const bg=(checkedSentSet.has(koId)||checkedSentSet.has(enId))?GREEN:'#042C53';
