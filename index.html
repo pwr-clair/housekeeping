@@ -1497,6 +1497,28 @@ async function promptAmountManual(type, idx){
   }
 }
 window.promptAmountManual=promptAmountManual;
+// 배정탭 미배정 카드 수기 금액 → sv.amount에 직접 저장 (직거래는 메일 동기화가 없어 이 창구가 유일).
+// 멀티룸은 GAS 메일 동기화와 같은 규약: 같은 예약(baseId)의 전 조각에 '총액' 복제 → 표시 때 방 수로 나뉨.
+// syncAmounts는 빈칸만 채우므로 수기 값 위에 안 덮는다. 웹훅 재푸시 보존은 doPost 쪽 amount 이월로 처리.
+async function promptPendingAmount(key){
+  const rec=(pendingBookings||{})[key]; if(!rec)return;
+  const n=svPieceCount(rec.bookingId?rec:{bookingId:key.replace(/^sv_/,'')});
+  const msg=n>=2
+    ?(currentLang==='ko'?'예약 총액(원)을 숫자로 입력하세요 — 방 '+n+'개 몫으로 나눠 표시됩니다':'Enter TOTAL amount (KRW) — shown split across '+n+' rooms')
+    :(currentLang==='ko'?'금액(원)을 숫자로 입력하세요':'Enter amount (KRW, digits only)');
+  const raw=prompt(msg, rec.amount!=null?rec.amount:'');
+  if(raw===null)return;
+  const val=parseInt(String(raw).replace(/[^\d]/g,''),10);
+  if(!val||val<=0){alert(currentLang==='ko'?'숫자 금액을 입력해주세요.':'Please enter a numeric amount.');return;}
+  const baseId=String(rec.bookingId||key.replace(/^sv_/,'')).split('_')[0];
+  const ups={};
+  for(const k of Object.keys(pendingBookings||{})){
+    if(k==='sv_'+baseId||k.indexOf('sv_'+baseId+'_')===0)ups['app/pendingBookings/'+k+'/amount']=val;
+  }
+  if(!Object.keys(ups).length)ups['app/pendingBookings/'+key+'/amount']=val;
+  await update(ref(db),ups);
+}
+window.promptPendingAmount=promptPendingAmount;
 
 function renderCurrentBooking(cur){
   const wrap=document.getElementById('current-booking-wrap');
@@ -3026,9 +3048,14 @@ function renderSendTab(){
         if(!r.blocked)return true;
         return !!r.operatingFrom && !!b.checkinDate && b.checkinDate>=r.operatingFrom;
       }).map(n=>'<option value="'+n+'">'+n+'호</option>').join('');
+      // 금액: 있으면 클릭해서 수정, 없으면(직거래 등 메일 동기화 밖) ₩ 입력 버튼으로 수기 등록
+      const _amt=amountOf(b,b.assignedRoom||null);
+      const amtHtml=_amt!=null
+        ?' <span style="font-weight:400;color:var(--text3);">|</span> <span onclick="promptPendingAmount(\''+key+'\')" title="클릭해서 금액 수정" style="font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;">₩'+Number(_amt).toLocaleString('ko-KR')+'</span>'
+        :' <span onclick="promptPendingAmount(\''+key+'\')" style="font-size:10px;font-weight:600;color:#185FA5;background:#E6F1FB;border:0.5px solid #B5D4F4;border-radius:5px;padding:1px 6px;cursor:pointer;">₩ '+(currentLang==='ko'?'입력':'Enter')+'</span>';
       return '<div style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;background:var(--bg2);">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-        +'<span style="font-size:13px;font-weight:700;">'+b.guest+(amountOf(b,b.assignedRoom||null)?(' <span style="font-weight:400;color:var(--text3);">|</span> <span style="font-size:12px;font-weight:600;color:var(--text2);">₩'+Number(amountOf(b,b.assignedRoom||null)).toLocaleString('ko-KR')+'</span>'):'')+'</span>'
+        +'<span style="font-size:13px;font-weight:700;">'+b.guest+amtHtml+'</span>'
         +'<span style="font-size:10px;font-weight:600;color:var(--text2);">'+srcLabel(b.source)+'</span></div>'
         +'<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">'+(b.checkinDate||'?')+' → '+(b.checkoutDate||'?')+(b.eta?' | ETA '+b.eta:'')+'</div>'
         +'<div style="font-size:10px;color:'+(b.guestEmail?'var(--text3)':'#C0392B')+';margin-bottom:8px;">'+(b.guestEmail?'📧 '+b.guestEmail:'⚠️ 이메일 없음 — 수기 입력 필요')+'</div>'

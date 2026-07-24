@@ -95,4 +95,12 @@ db = { app: { pendingBookings: { sv_778: { bookingId: '778', guest: 'X' } }, roo
 vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'778',rooms:[{},{RoomName:''}]})}})`, ctx);
 console.assert(db.app.pendingBookings.sv_778, '⑦-3 FAIL: 방별 기록 실패인데 구 카드 삭제됨');
 
-console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제)');
+// ⑧ 웹훅 재푸시에 amount 보존 (fbSet 통째 재작성이 메일 동기화·수기 금액을 날리던 것)
+db = { app: { pendingBookings: { sv_800: { bookingId: '800', guest: 'Y, Z', amount: 990000 } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'800',guest:{lastName:'Y',firstName:'Z'},arrivalDate:'2026-08-06',departureDate:'2026-08-17'})}})`, ctx);
+console.assert(db.app.pendingBookings.sv_800.amount === 990000, '⑧-1 FAIL: 단일 재푸시에 amount 소실 → ' + db.app.pendingBookings.sv_800.amount);
+db = { app: { pendingBookings: { sv_801_1037: { bookingId: '801_1037', amount: 3200000 }, sv_801_1240: { bookingId: '801_1240', amount: 3200000 } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'801',guest:{lastName:'M',firstName:'S'},rooms:[{RoomName:'1037'},{RoomName:'1240'}]})}})`, ctx);
+console.assert(db.app.pendingBookings.sv_801_1037.amount === 3200000 && db.app.pendingBookings.sv_801_1240.amount === 3200000, '⑧-2 FAIL: 멀티룸 재푸시에 amount 소실');
+
+console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존)');
