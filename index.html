@@ -822,13 +822,15 @@ function amountOf(booking, roomNum){
   return null;
 }
 // 이 예약의 sv_ 조각 수 (멀티룸 예약은 baseId로 여러 조각) — 없으면 1
+// 방별 분할 조각(sv_id_방)이 있으면 구 단일 레코드(sv_id)는 분할 전 잔재이므로 세지 않는다
+// (1방→멀티룸 수정 시 숨기기로 감춰도 레코드가 남아 조각 수가 부풀던 버그, 2026-07-24).
 function svPieceCount(booking){
   if(!booking||!booking.bookingId)return 1;
   const baseId=String(booking.bookingId).split('_')[0], pend=pendingBookings||{};
   let n=0;
   for(const k of Object.keys(pend)){
     const rec=pend[k]; if(!rec||rec.cancelled)continue;
-    if(k==='sv_'+baseId || k.indexOf('sv_'+baseId+'_')===0)n++;
+    if(k.indexOf('sv_'+baseId+'_')===0)n++;
   }
   return n<1?1:n;
 }
