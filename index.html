@@ -2221,10 +2221,11 @@ async function markWa(thisId,otherId,doneId,el,expDate,lang,bid,num){
     // 첫 언어 → 초록 마크(기존 동작)
     checkedSentSet.add(thisId);
     if(el)el.style.background='#2F6B45';          // 즉시 초록 피드백 (GREEN)
+    // OTA 미러(2026-07-24 클라라): 무조건 발송이 아니라 확인창에서 OK일 때만. confirm은 await 전에(동기) 물어야
+    // 메신저 열기가 답변 전에 진행되지 않는다. 취소해도 초록 마크·메신저 열기는 그대로. 예약당 1회는 GAS(mailLogs _waMirror) 가드.
+    const mirror=!!(lang&&(bid||num))&&confirm('이 안내문을 OTA 채팅(이메일)으로도 보낼까요?\n(예약당 1회 · 취소해도 메신저는 열립니다)');
     try{ await set(ref(db,`app/sentChecks/${thisId}`),exp); }catch(e){}
-    // OTA 미러(2026-07-24 클라라): 첫 마크(첫 메시지)일 때 같은 안내문을 게스트 릴레이 이메일(=부킹 채팅 등)로도 발송.
-    // 예약당 1회는 GAS(mailLogs _waMirror)가 가드. 실패해도 메신저 흐름은 막지 않는다(fire-and-forget).
-    if(lang&&(bid||num)){
+    if(mirror){
       try{ fetch(GAS_URL+'?action=waMirror&bid='+encodeURIComponent(bid||'')+'&room='+encodeURIComponent(num||'')+'&lang='+lang+'&token='+encodeURIComponent(GAS_TOKEN)).catch(()=>{}); }catch(e){}
     }
   }
