@@ -200,7 +200,7 @@ function doPost(e){
 // ============================================================
 // 발송 공통
 // ============================================================
-function sendStageMail(stage,bk,room,force){
+function sendStageMail(stage,bk,room,force,tplKey){
     var __nights = (bk && bk.checkinDate && bk.checkoutDate)
       ? Math.round((new Date(bk.checkoutDate) - new Date(bk.checkinDate)) / 86400000)
       : null;
@@ -217,7 +217,9 @@ function sendStageMail(stage,bk,room,force){
   }
   const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_'+stage;
   if(fbGet('app/mailLogs/'+logKey))return false;
-  const tpl=fbGet('app/mailTemplates/'+stage);
+  // 템플릿 매칭(2026-07-25 클라라): 자동발송이 mailConfig/auto/{stage}.template로 다른 템플릿을 지정할 수 있다.
+  // 지정 템플릿이 삭제·부재면 단계 기본 템플릿으로 폴백. dedupe(logKey)는 템플릿 무관하게 단계 기준 유지.
+  const tpl=fbGet('app/mailTemplates/'+(tplKey||stage))||(tplKey?fbGet('app/mailTemplates/'+stage):null);
   if(!tpl||!tpl.subject)return false;
   // room: 문자열(단일) 또는 배열(멀티룸 몰아보내기 — 같은 게스트 방 여러 개를 1통에)
   const roomList=Array.isArray(room)?room.map(String):(room?[String(room)]:[]);
@@ -250,17 +252,17 @@ function reviewGuideFor(source){
   return '';
 }
 
-function sendByDate(stage,dateField,targetDate){
+function sendByDate(stage,dateField,targetDate,tplKey){
   const pend=fbGet('app/pendingBookings')||{};let n=0;
   for(const bk of Object.values(pend)){
     if(!bk||bk.cancelled)continue;
     if(bk[dateField]!==targetDate)continue;
-    if(sendStageMail(stage,bk,null,false))n++;
+    if(sendStageMail(stage,bk,null,false,tplKey))n++;
   }
   return n;
 }
 // 방문고지(s5) 전용 — 객실이 이미 '퇴실완료(checkout_done)'면 발송 skip
-function sendS5Visit(){
+function sendS5Visit(tplKey){
   const today=todayKST();
   const pend=fbGet('app/pendingBookings')||{};
   const rooms=fbGet('app/rooms')||{};
@@ -278,21 +280,32 @@ function sendS5Visit(){
     // 이 예약이 들어있는 방 찾기 → 그 방이 퇴실완료면 skip
     const room=bk.bookingId?bidToRoom[String(bk.bookingId)]:null;
     if(room && rooms[room] && rooms[room].status==='checkout_done') continue;  // ★ 퇴실완료 제외
-    if(sendStageMail('s5_checkoutConfirm',bk,null,false))n++;
+    if(sendStageMail('s5_checkoutConfirm',bk,null,false,tplKey))n++;
   }
   return n;
 }
 // ============================================================
 // 마스터 틱 — 5분마다
 // ============================================================
+// 자동발송 시간·템플릿 설정(2026-07-25 클라라): app/mailConfig/auto/{stage} = {time:'HH:MM', template:'커스텀키'}
+// 미설정이면 기존 하드코딩 시각·단계 기본 템플릿 그대로 = 완전 하위호환. on/off는 기존 mailConfig/stages 토글.
+// 발송창 = 설정 시각부터 10분(5분 틱이 최소 1번 걸림). 중복은 mailLogs(예약+단계) 가드가 막는다.
+const AUTO_SEND_DEF={s2_reminder:420,s5_checkoutConfirm:665,s6_review:750,s4_checkout:1260};
+function autoSendWin_(auto,stage,min){
+  const c=auto&&auto[stage];let m=AUTO_SEND_DEF[stage];
+  if(c&&c.time&&/^\d{1,2}:\d{2}$/.test(String(c.time))){const p=String(c.time).split(':');m=(+p[0])*60+(+p[1]);}
+  return min>=m&&min<m+10;
+}
 function masterTick(){
   const min=nowMinKST();
   syncAmounts();   // 매 틱(5분)마다 금액 동기화
   promoteVacantArrivals_();   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
-  if(min>=420&&min<430) sendByDate('s2_reminder','checkinDate',kstDate(1));   // ★ 07:00 (KST)
-  if(min>=665&&min<675) sendS5Visit();
-  if(min>=750&&min<760) sendByDate('s6_review','checkoutDate',kstDate(-1));
-  if(min>=1260&&min<1270) sendByDate('s4_checkout','checkoutDate',kstDate(1));
+  const auto=fbGet('app/mailConfig/auto')||{};
+  const tplOf=s=>(auto[s]&&auto[s].template)||null;
+  if(autoSendWin_(auto,'s2_reminder',min)) sendByDate('s2_reminder','checkinDate',kstDate(1),tplOf('s2_reminder'));   // 기본 07:00 (KST)
+  if(autoSendWin_(auto,'s5_checkoutConfirm',min)) sendS5Visit(tplOf('s5_checkoutConfirm'));                            // 기본 11:05
+  if(autoSendWin_(auto,'s6_review',min)) sendByDate('s6_review','checkoutDate',kstDate(-1),tplOf('s6_review'));        // 기본 12:30
+  if(autoSendWin_(auto,'s4_checkout',min)) sendByDate('s4_checkout','checkoutDate',kstDate(1),tplOf('s4_checkout'));   // 기본 21:00
 
   // ★ 입실안내(s3) — 시각 기반: 매 틱마다 발송창에 든 방을 발송 (승인흐름 제거)
   const mode=fbGet('app/config/sendMode')||'manual';

@@ -296,13 +296,19 @@ input,select,button,textarea{font-family:inherit;}
 
     <div id="send-pane-checkin">
       <div style="border:0.5px solid var(--border);border-radius:9px;background:#fff;padding:0 12px;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
-          <div>
-            <div style="font-size:12px;font-weight:600;color:var(--text);">리마인더 자동발송</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:1px;">입실일 다가올 때 안내 (KST 7시)</div>
+        <div style="padding:10px 0;border-bottom:0.5px solid var(--bg2);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">리마인더 자동발송</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px;">입실 전날, 아래 시각에 발송</div>
+            </div>
+            <div id="tg-s2" onclick="toggleStage('s2_reminder')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+              <div id="knob-s2" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+            </div>
           </div>
-          <div id="tg-s2" onclick="toggleStage('s2_reminder')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
-            <div id="knob-s2" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+            <input type="time" id="at-s2" onchange="setAutoTime('s2_reminder',this.value)" style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);">
+            <select id="atpl-s2" onchange="setAutoTpl('s2_reminder',this.value)" style="flex:1;min-width:0;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);"></select>
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
@@ -326,31 +332,49 @@ input,select,button,textarea{font-family:inherit;}
     </div>
     <div id="send-pane-checkout" style="display:none;">
       <div style="border:0.5px solid var(--border);border-radius:9px;background:#fff;padding:0 12px;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
-          <div>
-            <div style="font-size:12px;font-weight:600;color:var(--text);">퇴실안내 자동발송</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 전날 발송 (2박 이상)</div>
+        <div style="padding:10px 0;border-bottom:0.5px solid var(--bg2);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">퇴실안내 자동발송</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 전날(2박 이상), 아래 시각에 발송</div>
+            </div>
+            <div id="tg-s4" onclick="toggleStage('s4_checkout')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+              <div id="knob-s4" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+            </div>
           </div>
-          <div id="tg-s4" onclick="toggleStage('s4_checkout')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
-            <div id="knob-s4" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
-          </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--bg2);">
-          <div>
-            <div style="font-size:12px;font-weight:600;color:var(--text);">방문고지 자동발송</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 당일 청소방문 안내</div>
-          </div>
-          <div id="tg-s5" onclick="toggleStage('s5_checkoutConfirm')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
-            <div id="knob-s5" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+            <input type="time" id="at-s4" onchange="setAutoTime('s4_checkout',this.value)" style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);">
+            <select id="atpl-s4" onchange="setAutoTpl('s4_checkout',this.value)" style="flex:1;min-width:0;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);"></select>
           </div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;">
-          <div>
-            <div style="font-size:12px;font-weight:600;color:var(--text);">후기 자동발송</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 다음날 후기 요청</div>
+        <div style="padding:10px 0;border-bottom:0.5px solid var(--bg2);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">방문고지 자동발송</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 당일, 아래 시각에 발송 · 퇴실완료 처리된 방은 제외</div>
+            </div>
+            <div id="tg-s5" onclick="toggleStage('s5_checkoutConfirm')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+              <div id="knob-s5" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+            </div>
           </div>
-          <div id="tg-s6" onclick="toggleStage('s6_review')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
-            <div id="knob-s6" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+            <input type="time" id="at-s5" onchange="setAutoTime('s5_checkoutConfirm',this.value)" style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);">
+            <select id="atpl-s5" onchange="setAutoTpl('s5_checkoutConfirm',this.value)" style="flex:1;min-width:0;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);"></select>
+          </div>
+        </div>
+        <div style="padding:10px 0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);">후기 자동발송</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:1px;">체크아웃 다음날, 아래 시각에 발송</div>
+            </div>
+            <div id="tg-s6" onclick="toggleStage('s6_review')" style="position:relative;width:38px;height:22px;border-radius:11px;background:var(--border);cursor:pointer;flex-shrink:0;">
+              <div id="knob-s6" style="position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:2.5px;left:2.5px;box-shadow:0 1px 2px rgba(0,0,0,.2);"></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+            <input type="time" id="at-s6" onchange="setAutoTime('s6_review',this.value)" style="border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);">
+            <select id="atpl-s6" onchange="setAutoTpl('s6_review',this.value)" style="flex:1;min-width:0;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text);"></select>
           </div>
         </div>
       </div>
@@ -777,6 +801,9 @@ let canSendMail=false;
 let pendingBookings={}, sendMode='approve', mailLogs={}, changeAcks={};
 let waMessages={};
 let mailConfigStages={};
+// 자동발송 시간·템플릿 설정(2026-07-25 클라라): app/mailConfig/auto/{stage}={time,template}. 미설정=GAS 기본 시각.
+let mailConfigAuto={}, mailTplNames={};
+const AUTO_SEND_STAGES={s2_reminder:{id:'s2',def:'07:00'},s4_checkout:{id:'s4',def:'21:00'},s5_checkoutConfirm:{id:'s5',def:'11:05'},s6_review:{id:'s6',def:'12:30'}};
 const MAILCFG_STAGE_KEYS=['s2_reminder','s4_checkout','s5_checkoutConfirm','s6_review'];
 const SOURCE_LABEL={booking:'Booking.com',agoda:'Agoda',expedia:'Expedia',direct:'직거래'};
 // OTA 소스 뱃지 공통 팔레트 (여러 렌더 함수에서 동일 리터럴 반복하던 것 통합)
@@ -1086,6 +1113,17 @@ function startListeners(){
   });
   onValue(ref(db,'app/mailConfig/stages'),snap=>{
     mailConfigStages=snap.exists()?(snap.val()||{}):{};
+    if(isLoggedIn&&canSendMail)renderSendTab();
+  });
+  onValue(ref(db,'app/mailConfig/auto'),snap=>{
+    mailConfigAuto=snap.exists()?(snap.val()||{}):{};
+    if(isLoggedIn&&canSendMail)renderSendTab();
+  });
+  // 템플릿 이름만 보관(본문은 버림) — 자동발송 템플릿 선택 드롭다운용
+  onValue(ref(db,'app/mailTemplates'),snap=>{
+    const v=snap.exists()?(snap.val()||{}):{};
+    mailTplNames={};
+    Object.keys(v).forEach(k=>{mailTplNames[k]=(v[k]&&v[k].name)||'';});
     if(isLoggedIn&&canSendMail)renderSendTab();
   });
   onValue(ref(db,'app/mailLogs'),snap=>{
@@ -2783,6 +2821,17 @@ function toggleStage(key){
   update(ref(db,'app/mailConfig/stages'),{[key]:!cur});
 }
 window.toggleStage=toggleStage;
+// 자동발송 시간 변경: HH:MM만 저장. GAS masterTick이 이 시각부터 10분 창에서 발송.
+function setAutoTime(stage,val){
+  if(!/^\d{2}:\d{2}$/.test(val||''))return;
+  update(ref(db,'app/mailConfig/auto/'+stage),{time:val});
+}
+window.setAutoTime=setAutoTime;
+// 자동발송 템플릿 매칭: ''=단계 기본 템플릿(null 저장), custom_* = 그 템플릿으로 발송.
+function setAutoTpl(stage,val){
+  update(ref(db,'app/mailConfig/auto/'+stage),{template:val||null});
+}
+window.setAutoTpl=setAutoTpl;
 function switchSendSub(mode){
   // 발송탭 내부 서브탭: 체크인 / 체크아웃 페인 전환 (상단 탭과 동일 디자인)
   document.getElementById('send-pane-checkin').style.display=mode==='checkin'?'':'none';
@@ -3082,6 +3131,21 @@ function renderSendTab(){
   paintToggle('tg-s4','knob-s4',mailConfigStages['s4_checkout']===true);
   paintToggle('tg-s5','knob-s5',mailConfigStages['s5_checkoutConfirm']===true);
   paintToggle('tg-s6','knob-s6',mailConfigStages['s6_review']===true);
+  // 시간·템플릿 설정 채움 — 편집 중인(포커스된) 입력은 건드리지 않는다(실시간 재렌더가 입력을 덮지 않게)
+  const esc=s=>String(s).replace(/[<>&"]/g,ch=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[ch]);
+  const customTpls=Object.keys(mailTplNames).filter(k=>k.indexOf('custom_')===0)
+    .sort((a,b)=>(mailTplNames[a]||a).localeCompare(mailTplNames[b]||b,'ko'));
+  for(const [stage,m] of Object.entries(AUTO_SEND_STAGES)){
+    const c=mailConfigAuto[stage]||{};
+    const ti=document.getElementById('at-'+m.id);
+    if(ti&&document.activeElement!==ti)ti.value=c.time||m.def;
+    const sel=document.getElementById('atpl-'+m.id);
+    if(sel&&document.activeElement!==sel){
+      sel.innerHTML='<option value="">기본 템플릿</option>'
+        +customTpls.map(k=>'<option value="'+k+'">📄 '+esc(mailTplNames[k]||k)+'</option>').join('');
+      sel.value=(c.template&&customTpls.indexOf(c.template)>=0)?c.template:'';
+    }
+  }
 
   // 미배정 예약
   const pl=document.getElementById('pending-list');

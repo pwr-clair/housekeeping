@@ -116,4 +116,27 @@ console.assert(sentMails.length === wBase + 1 && String(wOut).indexOf('이미 �
 wOut = vm.runInContext('doGet({parameter:{token:"x",action:"waMirror",bid:"w1",room:"620",lang:"ko",force:"1"}})', ctx);
 console.assert(sentMails.length === wBase + 2 && sentMails[wBase + 1].b === '기본 한국어 안내', '⑨-5 FAIL: force 재발송 안 됨/기본문 복귀 실패 → ' + JSON.stringify(sentMails.slice(wBase)));
 
-console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존 ⑨waMirror 편집본·가드·force)');
+// ⑩ 자동발송 시간·템플릿 설정(mailConfig/auto): 설정 시각에 발송 / 커스텀 템플릿 매칭 / 기본 시각은 설정 시 비활성 / 미설정=기본 시각 그대로
+vm.runInContext('syncAmounts=()=>{};promoteVacantArrivals_=()=>{};', ctx);
+const mkDb = () => ({ app: {
+  mailConfig: { stages: { s5_checkoutConfirm: true }, sources: { booking: true }, auto: { s5_checkoutConfirm: { time: '09:00', template: 'custom_9' } } },
+  mailTemplates: { custom_9: { subject: '커스텀 방문고지', bodyKo: '커스텀 본문' }, s5_checkoutConfirm: { subject: '기본 방문고지', bodyKo: '기본 본문' } },
+  mailLogs: {}, pendingBookings: { sv_v1: { bookingId: 'v1', guest: 'I', guestEmail: 'i@x.com', source: 'booking', checkinDate: '2026-07-14', checkoutDate: '2026-07-15' } },
+  rooms: { '620': { status: 'checkout_confirm', currentBooking: { bookingId: 'v1' } } },
+} });
+db = mkDb();
+vm.runInContext('nowMinKST=()=>545;masterTick()', ctx);   // 09:05 — 설정 시각(09:00) 창 안
+let s5Sent = sentMails.filter(m => m.s === '커스텀 방문고지');
+console.assert(s5Sent.length === 1 && s5Sent[0].b === '커스텀 본문', '⑩-1 FAIL: 설정 시각·커스텀 템플릿 발송 안 됨 → ' + JSON.stringify(sentMails.slice(-2)));
+db = mkDb();
+vm.runInContext('nowMinKST=()=>668;masterTick()', ctx);   // 11:08 — 기존 하드코딩 창은 설정 시 비활성이어야
+console.assert(sentMails.filter(m => m.s === '커스텀 방문고지' || m.s === '기본 방문고지').length === 1, '⑩-2 FAIL: 시각 이설 후에도 기본 시각(11:05)에 중복 발송');
+db = mkDb(); delete db.app.mailConfig.auto; // 미설정 → 기본 11:05 창·기본 템플릿(완전 하위호환)
+vm.runInContext('nowMinKST=()=>668;masterTick()', ctx);
+s5Sent = sentMails.filter(m => m.s === '기본 방문고지');
+console.assert(s5Sent.length === 1 && s5Sent[0].b === '기본 본문', '⑩-3 FAIL: auto 미설정 하위호환 깨짐 → ' + JSON.stringify(sentMails.slice(-2)));
+db = mkDb(); db.app.rooms['620'].status = 'checkout_done'; // 퇴실완료 스킵은 설정 경로에서도 유지
+vm.runInContext('nowMinKST=()=>545;masterTick()', ctx);
+console.assert(sentMails.filter(m => m.s === '커스텀 방문고지').length === 1, '⑩-4 FAIL: 퇴실완료 방인데 방문고지 발송됨');
+
+console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존 ⑨waMirror 편집본·가드·force ⑩자동발송 시간·템플릿 설정)');
