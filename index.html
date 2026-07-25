@@ -480,7 +480,7 @@ input,select,button,textarea{font-family:inherit;}
         <button onclick="closeModal('auto-cfg-modal')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:0;flex-shrink:0;"><i class="ti ti-x"></i></button>
       </div>
       <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">발송시간</div>
-      <input type="time" id="acfg-time" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
+      <input type="time" id="acfg-time" style="-webkit-appearance:none;appearance:none;display:block;width:100%;height:42px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;text-align:left;">
       <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">템플릿</div>
       <select id="acfg-tpl" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:12px;"></select>
       <button onclick="saveAutoCfg()" style="width:100%;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
@@ -2860,7 +2860,7 @@ function openAutoCfg(stage){
   const customs=Object.keys(mailTplNames).filter(k=>k.indexOf('custom_')===0)
     .sort((a,b)=>(mailTplNames[a]||a).localeCompare(mailTplNames[b]||b,'ko'));
   const sel=document.getElementById('acfg-tpl');
-  sel.innerHTML='<option value="">기본 템플릿</option>'
+  sel.innerHTML='<option value="">'+(AUTO_SEND_NAMES[stage]||'')+' 기본 템플릿</option>'
     +customs.map(k=>'<option value="'+k+'">📄 '+esc(mailTplNames[k]||k)+'</option>').join('');
   sel.value=(c.template&&customs.indexOf(c.template)>=0)?c.template:'';
   document.getElementById('auto-cfg-modal').classList.add('open');
@@ -3186,7 +3186,7 @@ function renderSendTab(){
     const el=document.getElementById('ainfo-'+m.id);
     if(!el)continue;
     const c=mailConfigAuto[stage]||{};
-    const tplName=(c.template&&mailTplNames[c.template]!==undefined)?('📄 '+(mailTplNames[c.template]||c.template)):'기본 템플릿';
+    const tplName=(c.template&&mailTplNames[c.template]!==undefined)?('📄 '+(mailTplNames[c.template]||c.template)):((AUTO_SEND_NAMES[stage]||'')+' 기본 템플릿');
     el.textContent='발송 시간: '+(c.time||m.def)+' · 템플릿: '+tplName;
   }
 
