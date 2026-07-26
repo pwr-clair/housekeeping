@@ -231,7 +231,7 @@ input,select,button,textarea{font-family:inherit;}
 
   <div class="tabs">
     <div class="tab active" onclick="switchTab('rooms',this)"><i class="ti ti-layout-grid"></i> 객실</div>
-    <div class="tab" onclick="switchTab('upcoming',this)"><i class="ti ti-calendar-event"></i> 예약</div>
+    <div class="tab" id="tab-upcoming" onclick="switchTab('upcoming',this)"><i class="ti ti-calendar-event"></i> <span id="tab-upcoming-label">예약</span></div>
     <div class="tab" id="tab-send" onclick="switchTab('send',this)" style="display:none;"><i class="ti ti-send"></i> 발송</div>
     <div class="tab" id="tab-assign" onclick="switchTab('assign',this)" style="display:none;"><i class="ti ti-calendar-plus"></i> 배정</div>
     <div class="tab" onclick="switchTab('history',this)"><i class="ti ti-notebook"></i> 업무일지</div>
@@ -394,11 +394,18 @@ input,select,button,textarea{font-family:inherit;}
 
   <!-- 예약 탭 -->
   <div class="page" id="page-upcoming">
-    <div style="display:flex;gap:6px;margin-bottom:12px;">
-      <button id="sub-upcoming" onclick="switchUpcomingTab('upcoming')" style="flex:1;padding:7px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:#042C53;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">현재 · 예정</button>
-      <button id="sub-past" onclick="switchUpcomingTab('past')" style="flex:1;padding:7px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">지난 예약</button>
+    <!-- 비관리자(청소팀) 뷰: 주간일정표 — 배정탭 주간표의 보기 전용 미러 (2026-07-26 클라라. 탭·드래그·금액·미배정 없음, 표만) -->
+    <div id="upcoming-weekgrid-wrap" style="display:none;">
+      <div class="section-title" style="margin-bottom:8px;">주간 객실 현황 <span style="font-size:10px;font-weight:400;color:var(--text3);">(체크아웃일은 비는 날로 표시)</span></div>
+      <div id="upcoming-weekgrid" style="overflow-x:auto;border:0.5px solid var(--border);border-radius:var(--radius-sm);"></div>
     </div>
-    <div id="upcoming-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div id="upcoming-admin-view">
+      <div style="display:flex;gap:6px;margin-bottom:12px;">
+        <button id="sub-upcoming" onclick="switchUpcomingTab('upcoming')" style="flex:1;padding:7px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:#042C53;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">현재 · 예정</button>
+        <button id="sub-past" onclick="switchUpcomingTab('past')" style="flex:1;padding:7px;border-radius:var(--radius-sm);border:0.5px solid var(--border);background:var(--bg2);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;">지난 예약</button>
+      </div>
+      <div id="upcoming-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
   </div>
 
   <!-- 업무일지 탭 -->
@@ -1174,6 +1181,13 @@ function enterApp(user){
   if(sendTab)sendTab.style.display=canSendMail?'':'none';
   const assignTab=document.getElementById('tab-assign');
   if(assignTab)assignTab.style.display=canSendMail?'':'none';
+  // 비관리자 예약탭 = '주간표'(보기 전용 주간일정표)로 개편 — 리스트·서브탭 숨김 (2026-07-26 클라라)
+  const upWrap=document.getElementById('upcoming-weekgrid-wrap');
+  if(upWrap)upWrap.style.display=canSendMail?'none':'';
+  const upAdmin=document.getElementById('upcoming-admin-view');
+  if(upAdmin)upAdmin.style.display=canSendMail?'':'none';
+  const upLbl=document.getElementById('tab-upcoming-label');
+  if(upLbl)upLbl.textContent=canSendMail?'예약':'주간표';
   if(canSendMail)renderSendTab();
 }
 
@@ -2425,6 +2439,8 @@ function fmtTimeKo(t){
   return h12+(min!=='00'?':'+min:'')+ap;
 }
 function renderUpcoming(){
+  // 비관리자는 데이터 갱신마다 주간표를 여기서 재렌더 (관리자는 renderSendTab 경로가 이미 호출)
+  if(!ADMIN_NAMES.includes(currentUser))renderAssignCalendar();
   const el=document.getElementById('upcoming-list');if(!el)return;
   const today=todayStr();
   const tmrStr=ymdOffset(1);
@@ -3070,6 +3086,9 @@ function renderAssignCalendar(){
   }
   el.innerHTML=banner+html;
   initGridDrag(el);
+  // 비관리자 예약탭 '주간표' 미러 — 같은 표를 핸들러 미부착으로 표시(탭·드래그·금액 없음). 중복배정 배너는 관리자 몫이라 제외.
+  const ro=document.getElementById('upcoming-weekgrid');
+  if(ro)ro.innerHTML=html;
 }
 
 // ── 주간표 인터랙션: 짧은 탭=금액 표시 / 길게(0.45초)=드래그로 방 이동 ──
