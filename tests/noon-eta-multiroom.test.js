@@ -139,4 +139,17 @@ db = mkDb(); db.app.rooms['620'].status = 'checkout_done'; // 퇴실완료 스�
 vm.runInContext('nowMinKST=()=>545;masterTick()', ctx);
 console.assert(sentMails.filter(m => m.s === '커스텀 방문고지').length === 1, '⑩-4 FAIL: 퇴실완료 방인데 방문고지 발송됨');
 
-console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존 ⑨waMirror 편집본·가드·force ⑩자동발송 시간·템플릿 설정)');
+// ⑪ 웹훅 재푸시에 수동 입력 번호(phoneManual) 보존 — 익스피디아 중계번호가 실번호를 덮지 않음 (2026-07-26 920 한주영 건)
+db = { app: { pendingBookings: { sv_900: { bookingId: '900', guest: 'Han, Juyoung', guestPhone: '+821012347261', phoneManual: true } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'900',bookingSource:'expedia',guest:{lastName:'Han',firstName:'Juyoung',phone:'+18005551234'},arrivalDate:'2026-07-26',departureDate:'2026-07-28'})}})`, ctx);
+console.assert(db.app.pendingBookings.sv_900.guestPhone === '+821012347261' && db.app.pendingBookings.sv_900.phoneManual === true, '⑪-1 FAIL: 재푸시가 수동 번호를 덮음 → ' + db.app.pendingBookings.sv_900.guestPhone);
+// 수동 표식 없으면 기존대로 웹훅 번호가 최신
+db = { app: { pendingBookings: { sv_901: { bookingId: '901', guest: 'X', guestPhone: '+821000000000' } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'901',guest:{lastName:'X',firstName:'Y',phone:'+18005559999'},arrivalDate:'2026-07-26',departureDate:'2026-07-28'})}})`, ctx);
+console.assert(db.app.pendingBookings.sv_901.guestPhone === '+18005559999', '⑪-2 FAIL: 수동 표식 없는데 웹훅 번호 미반영 → ' + db.app.pendingBookings.sv_901.guestPhone);
+// 멀티룸 분할 재푸시에도 보존
+db = { app: { pendingBookings: { sv_902_920: { bookingId: '902_920', guestPhone: '+821012347261', phoneManual: true } }, rooms: {} } };
+vm.runInContext(`doPost({postData:{contents:JSON.stringify({bookingId:'902',bookingSource:'expedia',guest:{lastName:'H',firstName:'J',phone:'+18005551234'},rooms:[{RoomName:'920'},{RoomName:'930'}]})}})`, ctx);
+console.assert(db.app.pendingBookings.sv_902_920.guestPhone === '+821012347261' && db.app.pendingBookings.sv_902_920.phoneManual === true, '⑪-3 FAIL: 멀티룸 재푸시에 수동 번호 소실 → ' + db.app.pendingBookings.sv_902_920.guestPhone);
+
+console.log('OK — 전 항목 통과 (①정오 보존 ②ETA force ③기발송 그룹 스킵 ④전부완료 대기+그룹 ⑤클라라 레이아웃 ⑥수동 차단+그룹 1통 ⑦멀티룸 분할 시 구 카드 삭제 ⑧재푸시 금액 보존 ⑨waMirror 편집본·가드·force ⑩자동발송 시간·템플릿 설정 ⑪재푸시 수동번호 보존)');

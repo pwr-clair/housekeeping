@@ -2379,19 +2379,20 @@ async function promptGuestPhone(num,bid,ckd){
   if(!ph){alert('번호 형식을 인식하지 못했어요: '+raw);return;}
   const r=rooms[num];if(!r)return;
   const match=b=>!!b&&((bid&&safeBid(String(b.bookingId||''))===bid)||(!bid&&!b.bookingId&&b.checkinDate===ckd));
+  // phoneManual: 운영자가 직접 넣은 실번호 표식 — 익스피디아 중계번호 블락 제외 + GAS 재푸시가 웹훅 번호로 덮지 않게 하는 근거.
   if(match(r.currentBooking)){
-    await update(ref(db,`app/rooms/${num}/currentBooking`),{guestPhone:ph});
+    await update(ref(db,`app/rooms/${num}/currentBooking`),{guestPhone:ph,phoneManual:true});
   }else{
     const arr=Array.isArray(r.nextBookings)?[...r.nextBookings]:Object.values(r.nextBookings||{});
     const i=arr.findIndex(match);
     if(i<0){alert('해당 예약을 찾지 못했어요');return;}
-    arr[i]={...arr[i],guestPhone:ph};
+    arr[i]={...arr[i],guestPhone:ph,phoneManual:true};
     await update(ref(db,`app/rooms/${num}`),{nextBookings:arr});
   }
   if(bid){
     for(const [k,b] of Object.entries(pendingBookings||{})){
       if(b&&safeBid(String(b.bookingId||''))===bid){
-        try{ await update(ref(db,`app/pendingBookings/${k}`),{guestPhone:ph}); }catch(e){}
+        try{ await update(ref(db,`app/pendingBookings/${k}`),{guestPhone:ph,phoneManual:true}); }catch(e){}
       }
     }
   }
@@ -3320,9 +3321,11 @@ function renderSendTab(){
     if(ph){
       const lang=isKr?'ko':'en', waLbl=isKr?'KR':'EN', sentId=isKr?koId:enId;
       const GRAY='#AAB0B8';
-      if(isKr&&srcKey(bk.source)==='expedia'){
-        // 익스피디아발 한국 예약(2026-07-25 클라라): 익스피디아 중계번호는 문자 미전달 — KR 버튼을 애초에 회색 블락(클릭 없음).
-        waPart='<span title="익스피디아 예약 — 중계번호라 문자 발송 안 함" style="'+waStBase+'background:'+GRAY+';">KR</span>';
+      if(isKr&&srcKey(bk.source)==='expedia'&&!bk.phoneManual){
+        // 익스피디아발 한국 예약(2026-07-25 클라라): 익스피디아 중계번호는 문자 미전달 — KR 버튼을 애초에 회색 블락.
+        // 단, 번호입력으로 직접 넣은 실번호(phoneManual)는 중계번호가 아니므로 블락 대상 아님(2026-07-26 클라라 신고 — 920 한주영 건).
+        // 무반응 회색 대신, 탭하면 실번호로 교체하는 길을 안내한다.
+        waPart='<span onclick="if(confirm(\'익스피디아 중계번호는 문자가 전달되지 않아 KR 발송이 막혀 있어요.\\n게스트 실번호를 직접 입력해 열까요?\'))promptGuestPhone(\''+num+'\',\''+safeBid(bid)+'\',\''+(bk.checkinDate||'')+'\')" title="익스피디아 예약 — 중계번호라 문자 발송 안 함. 탭하면 실번호 입력" style="'+waStBase+'background:'+GRAY+';cursor:pointer;">KR</span>';
       } else if(!isKr&&checkedSentSet.has(doneId)){
         // 종결 상태(EN 전용): 회색·메신저 안 열림. 잘못 눌러 잠긴 경우 구제 — 탭하면 confirm 후 미발송(남색)으로 초기화.
         waPart='<span onclick="resetWa(\''+koId+'\',\''+enId+'\',\''+doneId+'\')" title="발송 종결 — 탭하면 되돌리기" style="'+waStBase+'background:'+GRAY+';cursor:pointer;">'+waLbl+'</span>';

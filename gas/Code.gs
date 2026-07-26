@@ -161,7 +161,8 @@ function doPost(e){
           source:b.bookingSource||__mprev.source||'',
           guest:gName,
           guestEmail:(b.guest&&b.guest.email)||__mprev.guestEmail||'',
-          guestPhone:(b.guest&&b.guest.phone)||__mprev.guestPhone||'',
+          guestPhone:__mprev.phoneManual?(__mprev.guestPhone||''):((b.guest&&b.guest.phone)||__mprev.guestPhone||''),  // 수동 입력 번호(phoneManual)는 웹훅 중계번호로 덮지 않음 (최신 입력 최우선)
+          phoneManual:__mprev.phoneManual||null,
           checkinDate:(__rm.arrivalDate||b.arrivalDate||''),checkoutDate:(__rm.departureDate||b.departureDate||''),
           eta:__etaNew?eta:(__mprev.eta||''),etaWebhook:eta,notes:notes,
           amount:(__mprev.amount!=null&&__mprev.amount!==''?__mprev.amount:null),  // 재푸시에 금액(메일 동기화·수기) 보존 — null은 RTDB에서 필드 생략
@@ -183,7 +184,8 @@ function doPost(e){
       source:b.bookingSource||prev.source||'',
       guest:gName,
       guestEmail:(b.guest&&b.guest.email)||prev.guestEmail||'',
-      guestPhone:(b.guest&&b.guest.phone)||prev.guestPhone||'',
+      guestPhone:prev.phoneManual?(prev.guestPhone||''):((b.guest&&b.guest.phone)||prev.guestPhone||''),  // 수동 입력 번호(phoneManual)는 웹훅 중계번호로 덮지 않음
+      phoneManual:prev.phoneManual||null,
       checkinDate:b.arrivalDate||'',checkoutDate:b.departureDate||'',
       eta:__etaNew1?eta:(prev.eta||''),etaWebhook:eta,notes:notes,
       amount:(prev.amount!=null&&prev.amount!==''?prev.amount:null),  // 재푸시에 금액 보존
