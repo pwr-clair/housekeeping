@@ -231,11 +231,10 @@ input,select,button,textarea{font-family:inherit;}
 
   <div class="tabs">
     <div class="tab active" onclick="switchTab('rooms',this)"><i class="ti ti-layout-grid"></i> 객실</div>
-    <div class="tab" id="tab-upcoming" onclick="switchTab('upcoming',this)"><i class="ti ti-calendar-event"></i> <span id="tab-upcoming-label">예약</span></div>
     <div class="tab" id="tab-send" onclick="switchTab('send',this)" style="display:none;"><i class="ti ti-send"></i> 발송</div>
+    <div class="tab" id="tab-upcoming" onclick="switchTab('upcoming',this)"><i class="ti ti-calendar-event"></i> <span id="tab-upcoming-label">예약</span></div>
     <div class="tab" id="tab-assign" onclick="switchTab('assign',this)" style="display:none;"><i class="ti ti-calendar-plus"></i> 배정</div>
-    <div class="tab" onclick="switchTab('history',this)"><i class="ti ti-notebook"></i> 업무일지</div>
-    <div class="tab" id="tab-supplies" onclick="switchTab('supplies',this)" style="position:relative;"><i class="ti ti-clipboard-list"></i> 비품<span id="supply-dot" style="display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;background:#E74C3C;border-radius:50%;"></span></div>
+    <div class="tab" id="tab-supplies" onclick="switchTab('supplies',this)" style="position:relative;"><i class="ti ti-clipboard-list"></i> 비품/업무<span id="supply-dot" style="display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;background:#E74C3C;border-radius:50%;"></span></div>
   </div>
 
   <!-- 객실 탭 -->
@@ -390,6 +389,12 @@ input,select,button,textarea{font-family:inherit;}
       <div class="section-title" style="margin:0;" id="supply-tab-title">객실 비품 체크리스트</div>
     </div>
     <div id="supplies-list"></div>
+    <!-- 업무일지 — 별도 탭 폐지, '비품/업무' 탭 하단 통합 (2026-07-26 클라라) -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;">
+      <div class="section-title" style="margin:0;" id="history-tab-title">업무일지</div>
+      <button onclick="openWorkLogModal()" style="display:flex;align-items:center;gap:4px;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">✏️ 작성</button>
+    </div>
+    <div id="hist-list"></div>
   </div>
 
   <!-- 예약 탭 -->
@@ -406,15 +411,6 @@ input,select,button,textarea{font-family:inherit;}
       </div>
       <div id="upcoming-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
-  </div>
-
-  <!-- 업무일지 탭 -->
-  <div class="page" id="page-history">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-      <div class="section-title" id="history-tab-title">업무일지</div>
-      <button onclick="openWorkLogModal()" style="display:flex;align-items:center;gap:4px;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">✏️ 작성</button>
-    </div>
-    <div id="hist-list"></div>
   </div>
 
   <!-- 카운터 상세 모달 -->
@@ -2177,8 +2173,17 @@ window.moveCurrentBookingToRoom=moveCurrentBookingToRoom;
 // ── 업무일지 ──
 function renderHistory(){
   const el=document.getElementById('hist-list');if(!el)return;
-  const list=Object.values(workLogs).sort((a,b)=>b.id.localeCompare(a.id));
-  if(!list.length){el.innerHTML=`<div class="empty-msg">${currentLang==='ko'?'작성된 업무일지가 없어요':'No work logs yet'}</div>`;return;}
+  const all=Object.values(workLogs).sort((a,b)=>b.id.localeCompare(a.id));
+  // 표시는 최근 1개월(30일)만 — 데이터는 삭제하지 않고 '지난 기록 보기'로 꺼내본다 (2026-07-26 클라라)
+  const histCut=ymdOffset(-30);
+  const dOf=log=>log.date||log.id.slice(0,10);
+  const list=window._histShowAll?all:all.filter(l=>dOf(l)>=histCut);
+  const hiddenCnt=all.filter(l=>dOf(l)<histCut).length;
+  const archBtnSt='width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius-sm);background:none;color:var(--text3);font-size:11px;cursor:pointer;margin-top:4px;';
+  const archBtn=window._histShowAll
+    ?`<button onclick="window._histShowAll=false;renderHistory()" style="${archBtnSt}">${currentLang==='ko'?'최근 1개월만 보기':'Show last month only'}</button>`
+    :(hiddenCnt>0?`<button onclick="window._histShowAll=true;renderHistory()" style="${archBtnSt}">${currentLang==='ko'?`지난 기록 보기 (${hiddenCnt}건)`:`Show older logs (${hiddenCnt})`}</button>`:'');
+  if(!list.length){el.innerHTML=`<div class="empty-msg">${currentLang==='ko'?'작성된 업무일지가 없어요':'No work logs yet'}</div>`+archBtn;return;}
   // 날짜별 그룹핑
   const groups={};
   list.forEach(log=>{
@@ -2200,7 +2205,7 @@ function renderHistory(){
           </div>
           <div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;">${log.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
         </div>`).join('')}
-    </div>`).join('');
+    </div>`).join('')+archBtn;
 }
 
 function fmtDateFull(s){
@@ -3741,7 +3746,7 @@ const TEXTS = {
   ko: {
     logout: '나가기', notice_label: '📢 공지', notice_add: '📣 공지 등록',
     sync_on: '실시간 연결됨', sync_off: '연결 중',
-    tabs: ['객실','예약','발송','배정','업무일지','비품'],
+    tabs: ['객실','발송','예약','배정','비품/업무'],
     cnt: ['오늘퇴실','청소완료','오늘입실','입실중','내일입실'],
     floor: {'6':'6F','9':'9F','10':'10F','12':'12F'},
     status: {checkin:'입실중',checkout_confirm:'퇴실확인중',checkout_done:'퇴실완료',need_clean:'청소필요',cleaning:'청소중',clean_done:'청소완료',blocked:'정비중'},
@@ -3784,7 +3789,7 @@ const TEXTS = {
   en: {
     logout: 'Exit', notice_label: '📢 Notice', notice_add: '📣 Post Notice',
     sync_on: 'Live Connected', sync_off: 'Connecting',
-    tabs: ['Rooms','Bookings','Send','Assign','Work Log','Supply'],
+    tabs: ['Rooms','Send','Bookings','Assign','Supply/Log'],
     cnt: ['Checkout','Clean✓','Check-in','Occupied','Tomorrow'],
     floor: {'6':'6F','9':'9F','10':'10F','12':'12F'},
     status: {checkin:'Occupied',checkout_confirm:'Chk Out?',checkout_done:'Checked Out',need_clean:'Needs Clean',cleaning:'Cleaning',clean_done:'Clean✓',blocked:'Repair'},
@@ -3844,12 +3849,17 @@ function applyLang(){
   // 탭
   const tabs = document.querySelectorAll('.tabs .tab');
   const tabTexts = t('tabs');
-  const tabIcons = ['ti-layout-grid','ti-calendar-event','ti-send','ti-calendar-plus','ti-notebook','ti-clipboard-list'];
-  const tabIds = ['rooms','upcoming','send','assign','history','supplies'];
+  const tabIcons = ['ti-layout-grid','ti-send','ti-calendar-event','ti-calendar-plus','ti-clipboard-list'];
+  const tabIds = ['rooms','send','upcoming','assign','supplies'];
   document.querySelectorAll('.tabs .tab').forEach((tab,i) => {
     if(tabIds[i]==='supplies'){
-      // 비품 탭은 dot 배지 유지
+      // 비품/업무 탭은 dot 배지 유지
       tab.innerHTML = `<i class="ti ${tabIcons[i]}"></i> ${tabTexts[i]}<span id="supply-dot" style="display:${document.getElementById('supply-dot')?.style.display||'none'};position:absolute;top:4px;right:4px;width:7px;height:7px;background:#E74C3C;border-radius:50%;"></span>`;
+    } else if(tabIds[i]==='upcoming'){
+      // 비관리자는 '주간표' 라벨 유지(enterApp에서 세팅) — 언어 토글로 되돌아가지 않게 여기서도 분기
+      const staff=(typeof isLoggedIn!=='undefined'&&isLoggedIn)&&(typeof canSendMail!=='undefined'&&!canSendMail);
+      const lbl=staff?(currentLang==='ko'?'주간표':'Weekly'):tabTexts[i];
+      tab.innerHTML = `<i class="ti ${tabIcons[i]}"></i> <span id="tab-upcoming-label">${lbl}</span>`;
     } else {
       tab.innerHTML = `<i class="ti ${tabIcons[i]}"></i> ${tabTexts[i]}`;
     }
