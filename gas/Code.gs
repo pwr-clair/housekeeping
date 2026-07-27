@@ -299,6 +299,7 @@ function autoSendWin_(auto,stage,min){
   return min>=m&&min<m+10;
 }
 function masterTick(){
+  diagS5Once_();   // 방문고지(s5) 미발송 진단(2026-07-27, 1일 1회 관리자 메일) — 원인 확정 후 제거 예정
   const min=nowMinKST();
   syncAmounts();   // 매 틱(5분)마다 금액 동기화
   promoteVacantArrivals_();   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
@@ -849,4 +850,68 @@ function syncAmounts(){
     }
   }
   return '시도 ' + tried + '건, 채움 ' + done + '건, 메일못찾음 ' + notfound + '건';
+}
+
+// ============================================================
+// 방문고지(s5) 자동발송 진단 (2026-07-27 임시 — 원인 확정 후 제거)
+// 읽기 전용: 게스트 발송 없음, 관리자에게 리포트 메일 1통만.
+// masterTick 첫 줄에서 diagS5Once_()가 하루 1회 자동 실행 → 복붙·저장만 하면
+// 다음 5분 틱에 [PW] 방문고지(s5) 진단 메일 도착. (에디터에서 diagS5 직접 실행도 가능)
+// ============================================================
+function diagS5Once_(){
+  try{
+    const p=PropertiesService.getScriptProperties();
+    if(p.getProperty('DIAG_S5')===todayKST())return;
+    p.setProperty('DIAG_S5',todayKST());
+    diagS5();
+  }catch(e){
+    try{GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 방문고지(s5) 진단 실패',String(e&&e.stack||e));}catch(_){}
+  }
+}
+function diagS5(){
+  const today=todayKST(), min=nowMinKST();
+  const cfg=fbGet('app/mailConfig')||{};
+  const auto=cfg.auto||{};
+  const pend=fbGet('app/pendingBookings')||{};
+  const rooms=fbGet('app/rooms')||{};
+  const tpl=fbGet('app/mailTemplates/s5_checkoutConfirm');
+  const bidToRoom={};
+  for(const num of Object.keys(rooms)){
+    const r=rooms[num];if(!r)continue;
+    const cb=r.currentBooking;
+    if(cb&&cb.bookingId)bidToRoom[String(cb.bookingId)]=num;
+  }
+  const L=[];
+  L.push('실행 시각(KST): '+today+' '+nowHM()+' (min='+min+')');
+  L.push('stages 전체: '+JSON.stringify(cfg.stages||null));
+  L.push('sources 전체: '+JSON.stringify(cfg.sources||null));
+  L.push('auto 설정 전체: '+JSON.stringify(auto));
+  L.push('s5 창 활성(지금 기준): '+autoSendWin_(auto,'s5_checkoutConfirm',min));
+  L.push('s5 기본 템플릿: 존재='+(!!tpl)+(tpl?' subject='+JSON.stringify(tpl.subject||null)+' bodyKo유='+!!(tpl.bodyKo&&String(tpl.bodyKo).trim())+' bodyEn유='+!!(tpl.bodyEn&&String(tpl.bodyEn).trim())+' body유='+!!(tpl.body&&String(tpl.body).trim()):''));
+  L.push('pendingBookings 총 '+Object.keys(pend).length+'건 / rooms '+Object.keys(rooms).length+'실');
+  L.push('── 체크아웃 어제~내일 레코드 (★=발송을 막는 값) ──');
+  let candToday=0;
+  for(const [key,bk] of Object.entries(pend)){
+    if(!bk||!bk.checkoutDate)continue;
+    if(bk.checkoutDate<kstDate(-1)||bk.checkoutDate>kstDate(1))continue;
+    const isToday=bk.checkoutDate===today;
+    if(isToday)candToday++;
+    const room=bk.bookingId?bidToRoom[String(bk.bookingId)]:null;
+    const st=room&&rooms[room]?rooms[room].status:'-';
+    const src=normSource(bk.source);
+    const srcOk=!!((cfg.sources||{})[src]);
+    const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_s5_checkoutConfirm';
+    const logHit=!!fbGet('app/mailLogs/'+logKey);
+    L.push((isToday?'▶오늘':'  '+bk.checkoutDate)+' '+key+' '+(bk.guest||'')
+      +' | src='+(bk.source||'-')+'→'+src+(srcOk?'':'(★소스OFF)')
+      +' | email='+(bk.guestEmail?'유':'★무')
+      +(bk.cancelled?' | ★cancelled':'')
+      +' | 방='+(room||'★매칭실패')+'(status='+st+(st==='checkout_done'?'★퇴실완료제외':'')+')'
+      +' | s5기발송='+(logHit?'★유':'무'));
+  }
+  L.push('오늘 체크아웃 후보 '+candToday+'건'+(candToday===0?' ★← pendingBookings에 오늘 퇴실 레코드 자체가 없음(원인)':''));
+  const body=L.join('\n');
+  GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 방문고지(s5) 진단 '+today+' '+nowHM(),body);
+  Logger.log(body);
+  return body;
 }
