@@ -222,13 +222,17 @@ function sendStageMail(stage,bk,room,force,tplKey){
   // 템플릿 매칭(2026-07-25 클라라): 자동발송이 mailConfig/auto/{stage}.template로 다른 템플릿을 지정할 수 있다.
   // 지정 템플릿이 삭제·부재면 단계 기본 템플릿으로 폴백. dedupe(logKey)는 템플릿 무관하게 단계 기준 유지.
   const tpl=fbGet('app/mailTemplates/'+(tplKey||stage))||(tplKey?fbGet('app/mailTemplates/'+stage):null);
-  if(!tpl||!tpl.subject)return false;
+  // 빈 제목 템플릿 허용(2026-07-27): 방문고지 등은 OTA 채팅 제목 헤더 노출 때문에 제목을 비워 운영한다(dc234d2 편집발송과 동일 정책).
+  // 제목이 없어도 본문이 있으면 빈 제목 그대로 발송. 본문까지 전부 비어있을 때만 skip.
+  if(!tpl)return false;
+  const hasBody=(tpl.bodyKo&&String(tpl.bodyKo).trim())||(tpl.bodyEn&&String(tpl.bodyEn).trim())||(tpl.body&&String(tpl.body).trim());
+  if(!hasBody)return false;
   // room: 문자열(단일) 또는 배열(멀티룸 몰아보내기 — 같은 게스트 방 여러 개를 1통에)
   const roomList=Array.isArray(room)?room.map(String):(room?[String(room)]:[]);
   const rData={};roomList.forEach(n=>{rData[n]=fbGet('app/rooms/'+n)||{};});
   const fill=s=>fillTpl_(s,bk,roomList,rData);
   try{
-    var __subject = fill(tpl.subject);
+    var __subject = fill(tpl.subject||'');
     var __ko = (tpl.bodyKo && String(tpl.bodyKo).trim()) ? fill(tpl.bodyKo) : '';
     var __en = (tpl.bodyEn && String(tpl.bodyEn).trim()) ? fill(tpl.bodyEn) : '';
     if(__ko || __en){
