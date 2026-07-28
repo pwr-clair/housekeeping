@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PWR CS DESK</title>
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png?v=navy1">
+<link rel="icon" type="image/png" sizes="64x64" href="assets/icons/favicon-64.png?v=navy1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --paper:#F7F5F0; --card:#FFFFFF; --ink:#232E38; --ink2:#5D6771; --muted:#93938B; --line:#E5E1D7;
+  --go:#177A54; --go-soft:#E2F1E9; --night:#33509E; --night-soft:#E7ECF8;
+  --warn:#BC4430; --warn-soft:#F9E9E4; --amber:#96731C; --amber-soft:#F5EEDA;
+  --wait-red:#B5342A;
+  --r:14px; --rs:9px; --mono:'Space Grotesk','Pretendard Variable',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--paper);color:var(--ink);font-family:'Pretendard Variable',Pretendard,sans-serif;font-size:14px;line-height:1.55;}
+button{font-family:inherit;}
+.wrap{max-width:430px;margin:0 auto;padding:14px 12px 44px;}
+
+/* ── 로그인 ── */
+#login-screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--paper);padding:20px;z-index:100;}
+.login-card{width:100%;max-width:320px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 2px 10px rgba(35,46,56,.06);padding:26px 22px;text-align:center;}
+.login-logo{font-family:var(--mono);font-weight:700;font-size:20px;letter-spacing:2.5px;}
+.login-logo em{font-style:normal;color:var(--go);}
+.login-sub{font-size:11px;color:var(--muted);margin:6px 0 20px;letter-spacing:.5px;}
+.login-text-input{width:100%;border:1px solid var(--line);border-radius:var(--rs);padding:11px 12px;font-family:inherit;font-size:14px;color:var(--ink);background:var(--paper);margin-bottom:9px;}
+.login-text-input:focus{outline:2px solid var(--go);outline-offset:1px;}
+.login-btn{width:100%;padding:11px;border-radius:var(--rs);border:1px solid var(--go);background:var(--go);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:4px;}
+.login-btn:active{transform:scale(.99);}
+#login-err{font-size:11px;color:var(--warn);min-height:16px;margin-top:9px;}
+
+#app-screen{display:none;}
+
+/* ── 상단 헤더 (라이트 카드) ── */
+.board{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px 11px;margin-bottom:12px;position:relative;overflow:hidden;color:var(--ink);box-shadow:0 1px 3px rgba(35,46,56,.05);transition:box-shadow .3s;}
+.b-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:9px;}
+.b-title{font-family:var(--mono);font-weight:700;font-size:16px;letter-spacing:2.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.b-title em{font-style:normal;color:var(--go);}
+.stage-tag{font-family:var(--mono);font-size:8.5px;color:var(--ink2);letter-spacing:1px;margin-left:6px;}
+/* 자동발송 ON 배지 — 상단 행(타이틀·시계·로그아웃)을 밀지 않도록 별도 행(블록)으로 배치. ON일 때만 표시. */
+.auto-flag{display:none;align-items:center;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:1px;color:#fff;background:var(--go);border-radius:100px;padding:2px 9px;margin:0 0 9px;}
+.auto-on .auto-flag{display:inline-flex;animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+/* 녹색 링은 box-shadow(레이아웃 불변) — 폭에 영향 없음 */
+.auto-on .board{box-shadow:0 0 0 2px #34B27E,0 0 18px rgba(52,178,126,.30);}
+.b-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.b-clock{font-family:var(--mono);font-size:13px;color:var(--muted);letter-spacing:1px;white-space:nowrap;}
+.b-clock b{color:var(--ink);font-weight:500;}
+.logout{font-size:10px;color:var(--muted);border:1px solid var(--line);background:var(--paper);border-radius:100px;padding:2px 9px;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.b-row{display:flex;gap:6px;}
+.tile{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:var(--rs);padding:7px 4px 6px;text-align:center;}
+.tile .n{font-family:var(--mono);font-size:19px;font-weight:700;line-height:1.1;}
+.tile .l{font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-top:2px;}
+.tile.t-wait{border-color:rgba(181,52,42,.35);background:#FBF1EF;}
+.tile.t-wait .n{color:var(--wait-red);}
+.tile.t-wait .l{color:#A85A4F;}
+.tile.t-task .n{color:#C8552F;}
+.tile.t-sugg .n{color:var(--night);}
+
+.budget{display:flex;align-items:center;gap:8px;margin-top:9px;}
+.budget .bl{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--muted);min-width:34px;}
+.budget .bar{flex:1;height:6px;border-radius:100px;background:var(--paper);border:1px solid var(--line);overflow:hidden;}
+.budget .bar i{display:block;height:100%;width:0;border-radius:100px;background:var(--go);transition:width .4s;}
+.budget .bv{font-family:var(--mono);font-size:10px;color:var(--ink2);min-width:52px;text-align:right;}
+.budget .fetchv{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.5px;white-space:nowrap;flex-shrink:0;}
+.budget.warn .bar i{background:var(--wait-red);}
+.budget.warn .bv{color:var(--wait-red);}
+
+.autobar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:9px 13px;margin-bottom:6px;transition:background .25s,border-color .25s;}
+.autobar .txt{font-size:11.5px;color:var(--ink2);}
+.autobar .txt b{color:var(--ink);font-weight:600;}
+.auto-on .autobar{background:var(--go-soft);border-color:var(--go);}
+.auto-on .autobar .txt b{color:var(--go);}
+.sw{position:relative;flex-shrink:0;width:72px;height:30px;border-radius:100px;border:1px solid var(--line);background:var(--paper);cursor:pointer;transition:.25s;}
+.sw .knob{position:absolute;left:3px;top:2.5px;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;transition:.25s;color:var(--ink2);}
+.sw .lab{position:absolute;right:9px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:8.5px;letter-spacing:1px;color:var(--muted);}
+.sw.on{background:var(--go);border-color:var(--go);}
+.sw.on .knob{left:44px;background:#F4E9C8;color:#3A3320;border-color:transparent;}
+.sw.on .lab{left:9px;right:auto;color:#D6F0E2;}
+.sw:focus-visible{outline:2px solid var(--night);outline-offset:2px;}
+.auto-hint{font-size:9.5px;color:var(--muted);margin:0 2px 14px;}
+/* 즉석 답변 생성기 */
+.gen{background:var(--card);border:1px solid var(--night);border-radius:var(--r);padding:11px 12px;margin-bottom:12px;box-shadow:0 0 0 2px var(--night-soft);}
+.gen-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.gen-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--night);}
+.gen-sub{font-size:9.5px;color:var(--muted);}
+.gen-box{width:100%;border:1px solid var(--line);border-radius:var(--rs);padding:9px 10px;font-family:inherit;font-size:13px;background:var(--paper);color:var(--ink);min-height:64px;resize:vertical;margin-bottom:8px;}
+.gen-box:focus{outline:2px solid var(--night);outline-offset:1px;}
+.gen-btn{width:100%;padding:10px;border-radius:var(--rs);border:1px solid var(--night);background:var(--night);color:#fff;font-size:13px;font-weight:700;cursor:pointer;}
+.gen-btn:active{transform:scale(.99);}
+.gen-btn:disabled{opacity:.5;cursor:not-allowed;}
+.card.gen-pending{border:1px dashed var(--night);background:var(--night-soft);padding:12px 13px;}
+
+.tabs{display:flex;gap:4px;margin-bottom:12px;}
+.tab{flex:1;text-align:center;padding:8px 0;border-radius:var(--rs);border:1px solid var(--line);background:var(--card);font-size:11.5px;font-weight:600;color:var(--ink2);cursor:pointer;}
+.tab .n{font-family:var(--mono);font-size:10px;margin-left:2px;color:var(--muted);}
+.tab.active{background:var(--ink);border-color:var(--ink);color:#fff;}
+.tab.active .n{color:#B8C0C7;}
+.tab:focus-visible{outline:2px solid var(--go);outline-offset:1px;}
+.tab.wait-hot{border-color:#D98A80;color:var(--wait-red);}
+.tab.wait-hot .n{color:#fff;background:var(--wait-red);border-radius:100px;padding:0 6px;font-weight:700;margin-left:3px;}
+.tab.wait-hot.active{background:var(--wait-red);border-color:var(--wait-red);color:#fff;}
+.tab.wait-hot.active .n{background:rgba(255,255,255,.26);}
+.pane{display:none;}
+.pane.show{display:block;animation:up .22s;}
+@keyframes up{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:13px;margin-bottom:12px;}
+.meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.chan{font-size:9px;font-weight:700;border-radius:100px;padding:1.5px 8px;color:#fff;background:var(--ink2);}
+.guest{font-weight:700;font-size:14.5px;}
+.lang{font-family:var(--mono);font-size:9px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--ink2);}
+.cat{font-size:9px;font-weight:700;border-radius:100px;padding:1.5px 8px;background:var(--night-soft);color:var(--night);}
+.time{font-family:var(--mono);font-size:9.5px;color:var(--muted);margin-left:auto;}
+.stayline{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;color:var(--ink2);margin-bottom:10px;}
+.stayline .rm{color:var(--ink);font-weight:500;}
+.msg{border-left:3px solid var(--line);padding:2px 0 2px 10px;margin-bottom:11px;}
+.msg .who{font-size:9px;color:var(--muted);letter-spacing:.5px;margin-bottom:2px;}
+.msg .body{font-size:13px;white-space:pre-line;}
+.draft{background:var(--paper);border-radius:var(--rs);padding:10px 12px;margin-bottom:9px;}
+.draft .who{font-size:9.5px;color:var(--ink2);margin-bottom:5px;}
+.draft .who b{color:var(--go);}
+.reply{font-size:13px;white-space:pre-line;}
+.gloss{font-size:11px;color:var(--muted);white-space:pre-line;margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);}
+.gloss::before{content:'번역';display:block;font-family:var(--mono);font-size:8px;letter-spacing:1.5px;color:var(--muted);margin-bottom:3px;}
+.gloss.gloss-send::before{content:'게스트 언어 발송본';}
+.edit-hint{font-size:9.5px;color:var(--night);margin:8px 0 3px;font-weight:600;}
+.thumbwrap{margin-top:9px;padding-top:8px;border-top:1px dashed var(--line);}
+.thumblab{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;color:var(--muted);margin-bottom:5px;}
+.thumbs{display:flex;gap:7px;flex-wrap:wrap;}
+.thumb{position:relative;width:96px;height:66px;border-radius:8px;overflow:hidden;border:1px solid var(--line);flex-shrink:0;display:block;background:var(--paper);}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+.thumb span{position:absolute;left:0;right:0;bottom:0;font-size:8px;color:#fff;background:rgba(20,26,33,.66);padding:2px 4px;text-align:center;}
+/* 말투 일치 — 클라라 자기평가(수동 탭, 기본 빈칸). AI confidence와 무관. */
+.tone{display:flex;align-items:center;gap:8px;margin-bottom:11px;flex-wrap:wrap;}
+.tone .tlbl{font-size:9.5px;color:var(--ink2);}
+.tone .tcells{display:flex;gap:4px;}
+.tone .tcell{width:20px;height:16px;border-radius:5px;border:1px solid var(--line);background:var(--paper);cursor:pointer;transition:.12s;}
+.tone .tcell:hover{border-color:var(--night);}
+.tone .tcell.f{background:var(--night);border-color:var(--night);}
+.tone .tnote{font-size:9px;color:var(--muted);}
+.sw.locked{opacity:.55;cursor:not-allowed;}
+/* 업무 탭 카드 */
+.card.tk{padding:12px 13px;}
+.card.tk .meta{margin-bottom:7px;}
+.tk-badge{font-size:8.5px;font-weight:700;border-radius:100px;padding:1.5px 8px;}
+.tk-badge.tk-prop{background:var(--night-soft);color:var(--night);}
+.tk-badge.tk-act{background:var(--amber-soft);color:var(--amber);}
+.tk-badge.tk-done{background:var(--go-soft);color:var(--go);}
+.tk-meta{font-size:9.5px;color:var(--muted);margin-left:2px;}
+.tk-text{font-size:13.5px;color:var(--ink);margin-bottom:10px;line-height:1.5;}
+.card.tk-is-done .tk-text{color:var(--muted);text-decoration:line-through;}
+/* 예약 스레드 그룹 카드 */
+.card.grp{padding:0;overflow:hidden;}
+.grp-head{padding:11px 13px 9px;border-bottom:1px solid var(--line);background:var(--paper);}
+.grp-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+.grp-line .guest{font-weight:700;font-size:14.5px;}
+.thr-n{font-family:var(--mono);font-size:8.5px;font-weight:700;color:#fff;background:var(--ink2);border-radius:100px;padding:1.5px 8px;margin-left:auto;}
+.grp-head .stayline{margin-bottom:0;}
+.thr-toggle{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--night);background:none;border:none;cursor:pointer;padding:2px 0;}
+.thr-toggle:active{opacity:.6;}
+/* 시간순 말풍선 */
+.thread{padding:11px 13px;display:flex;flex-direction:column;gap:8px;background:var(--paper);border-bottom:1px solid var(--line);}
+.bub{max-width:82%;font-size:12.5px;line-height:1.5;padding:8px 11px;border-radius:12px;white-space:pre-line;word-break:break-word;}
+.bub-t{font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:3px;letter-spacing:.5px;}
+.bub-g{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:3px;color:var(--ink);}
+.bub-us{align-self:flex-end;background:var(--go-soft);border:1px solid #BEE3D2;border-bottom-right-radius:3px;color:var(--ink);}
+/* 답변 영역(그룹 안) */
+.ans{padding:12px 13px;}
+.ans-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.ans-top .who{font-size:9px;letter-spacing:1px;color:var(--muted);font-weight:700;}
+.grp-clickable{cursor:pointer;}
+.grp-clickable:active{background:var(--go-soft);}
+.draft.draft-committed{background:var(--go-soft);border:1px solid #BEE3D2;}
+.draft.draft-committed .who b{color:var(--go);}
+.btns{display:flex;gap:7px;}
+.b{flex:1;padding:10px 4px;border-radius:var(--rs);border:1px solid var(--line);background:#fff;font-size:12.5px;font-weight:600;color:var(--ink2);cursor:pointer;}
+.b.go{background:var(--go);border-color:var(--go);color:#fff;flex:1.6;}
+.b.skip{color:var(--muted);}
+.b:disabled{opacity:.45;cursor:not-allowed;}
+.b.go:disabled{background:var(--go);}
+.readonly-note{font-size:9px;color:var(--muted);text-align:center;margin-top:8px;}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:700;border-radius:100px;padding:2px 9px;margin-left:auto;}
+.status.approved{background:var(--amber-soft);color:var(--amber);}
+.status.sending{background:var(--night-soft);color:var(--night);}
+.status.error{background:var(--warn-soft);color:var(--warn);}
+.spinner{width:9px;height:9px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.auto-badge{font-size:8.5px;font-weight:700;color:#fff;background:var(--go);border-radius:100px;padding:1px 7px;margin-left:5px;}
+.edited-badge{font-size:8.5px;font-weight:700;color:var(--night);background:var(--night-soft);border-radius:100px;padding:1px 7px;margin-left:5px;}
+.editbox{width:100%;border:1px solid var(--night);border-radius:var(--rs);padding:9px 10px;font-family:inherit;font-size:13px;background:#fff;color:var(--ink);min-height:96px;margin:8px 0 4px;resize:vertical;}
+.err-row{display:flex;align-items:center;gap:8px;}
+.err-row .errmsg{flex:1;font-size:10.5px;color:var(--warn);}
+.err-row .b{flex:0 0 auto;padding:8px 14px;}
+.sent-body{border-left-color:var(--go-soft);}
+
+.bulkbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--warn-soft);border:1px solid #EFCFC5;border-radius:var(--rs);padding:9px 12px;margin-bottom:12px;}
+.bulkbar .t{font-size:10.5px;color:#8F3323;line-height:1.4;}
+.bulkbar .t b{font-weight:700;}
+.bulkbar button{flex:0 0 auto;font-size:11px;font-weight:700;color:#fff;background:var(--wait-red);border:1px solid var(--wait-red);border-radius:100px;padding:7px 13px;cursor:pointer;white-space:nowrap;}
+.bulkbar button:active{transform:scale(.98);}
+
+.empty{text-align:center;color:var(--muted);font-size:12px;padding:42px 0 30px;}
+.empty .big{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:var(--ink2);margin-bottom:5px;}
+
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;font-size:12px;font-weight:600;padding:9px 16px;border-radius:100px;opacity:0;pointer-events:none;transition:.3s;white-space:nowrap;z-index:120;}
+#toast.show{opacity:1;transform:translateX(-50%);}
+.footnote{font-size:9.5px;color:var(--muted);text-align:center;margin-top:22px;line-height:1.8;}
+.footnote code{font-family:var(--mono);font-size:9px;background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 4px;}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+</style>
+</head>
+<body>
+
+<!-- ══ 로그인 화면 (로그인 전 유일 표시) ══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">PWR <em>CS</em> DESK</div>
+    <div class="login-sub">승인 데스크 · 로그인</div>
+    <input class="login-text-input" id="id-inp" type="text" maxlength="24" placeholder="이름" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()">
+    <input class="login-text-input" id="pw-inp" type="password" maxlength="32" placeholder="비밀번호" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">입장</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- ══ 앱 화면 (로그인 후) ══ -->
+<div id="app-screen"><div class="wrap">
+
+  <div class="board">
+    <div class="b-top">
+      <div class="b-title">PWR <em>CS</em> DESK <span class="stage-tag">M2b·2</span></div>
+      <div class="b-right"><span class="b-clock"><b id="clk">--:--</b> KST</span><button class="logout" onclick="logout()">로그아웃</button></div>
+    </div>
+    <span class="auto-flag" id="autoFlag">⚡ 자동발송 ON</span>
+    <div class="b-row">
+      <div class="tile t-wait"><div class="n" id="nWait">0</div><div class="l">대기</div></div>
+      <div class="tile t-task"><div class="n" id="nTask">—</div><div class="l">업무</div></div>
+      <div class="tile t-sugg"><div class="n" id="nSugg">—</div><div class="l">제안</div></div>
+    </div>
+    <div class="budget" id="gmailGauge">
+      <span class="bl">GMAIL</span>
+      <div class="bar"><i id="gmailFill"></i></div>
+      <span class="bv" id="gmailVal">— /150</span>
+      <span class="fetchv" id="fetchVal" title="오늘 urlfetch 호출 수 (계측용, 상한·차단 없음)">FETCH —</span>
+      <span class="fetchv" id="hbVal" title="엔진(GAS) 마지막 신호 시각 — 10분 넘게 무신호면 빨간색(트리거 확인)">엔진 —</span>
+    </div>
+  </div>
+
+  <div class="autobar">
+    <div class="txt" id="autoTxt">자동응대 <b>수동 승인 모드</b> — 전건 승인</div>
+    <div class="sw" id="autoSw" role="switch" aria-checked="false" tabindex="0" onclick="toggleAuto()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAuto();}">
+      <span class="knob" id="swKnob">☀</span><span class="lab" id="swLab">수동</span>
+    </div>
+  </div>
+  <div class="auto-hint">ON = 새 초안 중 <b>confidence 0.8 이상</b>만 자동 발송(그 미만은 대기) · OFF = 전건 승인 · 저장 위치 <code style="font-family:var(--mono)">cs/config/autoSend</code></div>
+
+  <!-- 즉석 답변 생성기: 익스트라넷 메시지 붙여넣기 → 폴링 대기 없이 즉시 초안 -->
+  <div class="gen">
+    <div class="gen-head"><span class="gen-title">⚡ 즉석 답변 생성</span><span class="gen-sub" id="genStatus">게스트 메시지를 붙여넣으면 바로 초안이 대기에 올라옵니다</span></div>
+    <textarea class="gen-box" id="genBox" placeholder="익스트라넷의 게스트 메시지를 붙여넣기…"></textarea>
+    <button class="gen-btn" id="genBtn" onclick="generateInstant()">답변 생성</button>
+  </div>
+
+  <!-- 금칙 문구 (cs/config/bannedPhrases): 등록 즉시 모든 새 초안 프롬프트에서 금지 + 위반 초안엔 ⚠️ (2026-07-25) -->
+  <details class="gen" style="margin-top:8px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:700;padding:2px 0;">🚫 금칙 문구 <span id="banCount" style="font-weight:400;color:#8a8a80;"></span></summary>
+    <div style="font-size:11px;color:#8a8a80;margin:6px 0;">여기 등록한 표현·내용은 이후 모든 초안에서 금지되고, 그래도 나오면 대기 카드에 ⚠️가 붙습니다. 예: "곧 코드를 보내드리겠다는 약속", "무료 짐 보관 안내"</div>
+    <div id="banList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;"></div>
+    <div style="display:flex;gap:6px;">
+      <input class="gen-box" id="banBox" style="min-height:0;height:36px;flex:1;" placeholder="금지할 표현·내용을 한 줄로…">
+      <button class="gen-btn" style="width:auto;padding:0 16px;" onclick="addBan()">등록</button>
+    </div>
+  </details>
+
+  <!-- 정보 교육 (cs/config/knowledgeNotes): 등록 즉시 모든 새 초안이 최신 확정 사실로 사용 (2026-07-25) -->
+  <details class="gen" style="margin-top:8px;">
+    <summary style="cursor:pointer;font-size:13px;font-weight:700;padding:2px 0;">📘 정보 교육 <span id="knowCount" style="font-weight:400;color:#8a8a80;"></span></summary>
+    <div style="font-size:11px;color:#8a8a80;margin:6px 0;">여기 등록한 내용은 이후 모든 초안이 최신 확정 정보로 알고 답합니다(기존 안내·과거 예시와 어긋나면 이쪽이 우선). 예: "8/1~8/5 엘리베이터 점검 — 오전 9~11시 운행 중단", "짐 보관은 불가 대신 공항 T1 3층 유인보관소 안내". 낡으면 삭제하세요.</div>
+    <div id="knowList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px;"></div>
+    <div style="display:flex;gap:6px;">
+      <input class="gen-box" id="knowBox" style="min-height:0;height:36px;flex:1;" placeholder="게스트 응대에 반영할 정보를 한 줄로…">
+      <button class="gen-btn" style="width:auto;padding:0 16px;" onclick="addKnow()">등록</button>
+    </div>
+  </details>
+
+  <div class="tabs">
+    <button class="tab active wait-hot" onclick="showTab(0,this)">대기<span class="n" id="tWait">0</span></button>
+    <button class="tab" onclick="showTab(1,this)">업무<span class="n" id="tTask">—</span></button>
+    <button class="tab" onclick="showTab(2,this)">제안<span class="n" id="tSugg">—</span></button>
+    <button class="tab" onclick="showTab(3,this)">후기<span class="n" id="tReview">—</span></button>
+    <button class="tab" onclick="showTab(4,this)"><span id="tSentLbl">보냄</span><span class="n" id="tSent">—</span></button>
+  </div>
+
+  <!-- 대기 (실데이터 cs/drafts pending) -->
+  <div class="pane show" id="p0">
+    <div id="suggNotice"></div>
+    <div id="bulkBar"></div>
+    <div id="waitList"></div>
+    <div class="empty" id="emptyWait" style="display:none;"><div class="big">대기 중인 초안 없음</div>새 초안이 생성되면 여기에 표시됩니다.</div>
+  </div>
+
+  <!-- 업무 (cs/tasks — 엔진 후보 추출, 클라라 승인/기각/완료) -->
+  <div class="pane" id="p1">
+    <div id="taskList"></div>
+    <div class="empty" id="emptyTask" style="display:none;"><div class="big">업무 후보 없음</div>게스트 문의에 나중에 처리할 요청이 있으면 여기에 후보로 올라옵니다.</div>
+  </div>
+  <div class="pane" id="p2">
+    <div id="suggList"></div>
+    <div class="empty" id="emptySugg" style="display:none;"><div class="big">제안 없음</div>게스트의 도착예정(ETA)이 감지되면 자동으로 HK 대시보드에 반영돼요(최대 5분). 이 탭은 반영 이력입니다.</div>
+  </div>
+  <div class="pane" id="p3">
+    <div id="reviewList"></div>
+    <div class="empty" id="emptyReview" style="display:none;"><div class="big">후기 후보 없음</div>어제 체크아웃한 게스트 중 감정 긍정+소통 원활한 분이 매일 아침 자동 선별돼 올라옵니다. 여기서 승인하면 그대로 발송돼요(학습모드 중엔 발송 없음 — 8월 전환 후 재개). 결과는 보냄 탭에서.</div>
+  </div>
+  <div class="pane" id="p4"><div id="sentList"></div></div>
+
+  <div class="footnote">
+    7월 학습 모드 · 승인 시 게스트 발송 없이 CS-DB 시트에 학습 저장 (실발송 8월 복귀)<br>
+    Gmail → GAS(PWR-CS-Engine) → <code>cs/*</code> → 이 앱
+  </div>
+
+</div></div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, onValue, set, update, push, remove } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+
+// HK와 동일 프로젝트의 공개 web config (비밀 아님). cs/* 만 사용.
+const firebaseConfig = {
+  apiKey: "AIzaSyCHGeD4GBYeatmrsNFaMLJ7rradXnzbSE8",
+  authDomain: "paradise-walk-residence.firebaseapp.com",
+  projectId: "paradise-walk-residence",
+  storageBucket: "paradise-walk-residence.firebasestorage.app",
+  messagingSenderId: "539327839432",
+  appId: "1:539327839432:web:40a824be8e420c9fa8b9fd",
+  databaseURL: "https://paradise-walk-residence-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch(()=>{});
+
+// 이름 → 가짜 이메일 (HK와 동일 방식, 대소문자 무관)
+const nameToEmail = (name)=> String(name||'').trim().toLowerCase() + '@pwr.local';
+
+let isLoggedIn=false, currentUser=null, listenersStarted=false;
+let drafts={}, auto=false, budgetData=null, learnMode=true; // 학습모드 기본 ON(노드 부재 시 발송 금지)
+let bans={}; // cs/config/bannedPhrases — 금칙 문구(초안 프롬프트 금지+위반 ⚠️)
+let knows={}; // cs/config/knowledgeNotes — 정보 교육(초안이 최신 확정 사실로 사용)
+let saveHookUrl=''; // GAS 웹앱 즉시저장 엔드포인트(cs/config/saveHookUrl). 미배포면 '' → 5분 폴링 폴백.
+let tasks={}; // cs/tasks (업무 후보/활성/완료)
+let manualQueue={}; // cs/manualQueue (즉석 생성 요청 상태)
+let suggestions={}; // cs/suggestions (ETA 등 HK 반영 — 2026-07-20부터 자동 승인 적재, GAS 워커가 5분 내 반영. 탭=이력)
+let reviewQueue={}; // cs/reviewQueue (후기 요청 후보 — 승인=최종, GAS가 초안 생성 후 바로 발송. 대기 탭 미경유 2026-07-20)
+let edits={}, editingIds=new Set(); // 인라인 수정 버퍼(편집창 열림 동안)
+let committedEdit={}; // [저장]으로 확정한 편집본(승인이 이 값만 사용 → AI 초안 덮임 원천 차단)
+let selfScores={}; // 말투 일치 자기평가(카드별 1~5, 0/미설정=빈칸) — 승인 시 draft.claraToneScore로 기록
+let optimisticSaved=new Set(); // (2) 승인 즉시 '저장됨' 낙관적 표시 id (Firebase 왕복 대기 없이 체감 즉시)
+let expandedGroups=new Set(); // 예약 스레드 펼침 상태(재렌더 넘어 유지)
+
+// ── 로그인 ──
+async function doLogin(){
+  const name=(document.getElementById('id-inp')||{}).value||'';
+  const pw=(document.getElementById('pw-inp')||{}).value||'';
+  const err=document.getElementById('login-err');
+  if(!name.trim()){err.textContent='이름을 입력하세요';return;}
+  if(!pw){err.textContent='비밀번호를 입력하세요';return;}
+  err.textContent='확인 중...';
+  try{
+    await signInWithEmailAndPassword(auth, nameToEmail(name), pw);
+    // 성공 시 onAuthStateChanged가 화면 전환 + 구독 시작
+  }catch(e){
+    err.textContent='이름 또는 비밀번호가 올바르지 않습니다';
+    const p=document.getElementById('pw-inp'); if(p)p.value='';
+  }
+}
+function logout(){ signOut(auth); }
+
+// ── 로그인 완료 후에만 RTDB 구독 시작 (순서 위반 금지) ──
+onAuthStateChanged(auth, (user)=>{
+  if(user){
+    currentUser = String(user.email||'').split('@')[0];
+    if(!listenersStarted){ listenersStarted=true; startListeners(); }
+    isLoggedIn=true;
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-screen').style.display='block';
+    renderAll();
+  }else{
+    isLoggedIn=false; currentUser=null;
+    document.getElementById('app-screen').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+  }
+});
+
+function startListeners(){
+  const permErr = (path)=> (e)=>{ toast('읽기 권한 오류: '+path+' — Firebase 규칙 확인'); };
+  onValue(ref(db,'cs/drafts'), snap=>{ drafts = snap.exists()?(snap.val()||{}):{}; reconcileOptimistic(); if(isLoggedIn){ renderWait(); renderSent(); } }, permErr('cs/drafts'));
+  onValue(ref(db,'cs/config/autoSend'), snap=>{ auto = snap.exists()? !!snap.val() : false; if(isLoggedIn)renderAuto(); }, permErr('cs/config/autoSend'));
+  onValue(ref(db,'cs/config/learnMode'), snap=>{ learnMode = snap.exists()? (snap.val()!==false) : true; if(isLoggedIn){ renderWait(); renderSent(); renderAuto(); } }, permErr('cs/config/learnMode'));
+  onValue(ref(db,'cs/config/saveHookUrl'), snap=>{ saveHookUrl = snap.exists()? String(snap.val()||'') : ''; }, permErr('cs/config/saveHookUrl'));
+  onValue(ref(db,'cs/config/bannedPhrases'), snap=>{ bans = snap.exists()?(snap.val()||{}):{}; if(isLoggedIn)renderBans(); }, permErr('cs/config/bannedPhrases'));
+  onValue(ref(db,'cs/config/knowledgeNotes'), snap=>{ knows = snap.exists()?(snap.val()||{}):{}; if(isLoggedIn)renderKnows(); }, permErr('cs/config/knowledgeNotes'));
+  onValue(ref(db,'cs/suggestions'), snap=>{ suggestions = snap.exists()?(snap.val()||{}):{}; if(isLoggedIn)renderSugg(); }, permErr('cs/suggestions'));
+  onValue(ref(db,'cs/reviewQueue'), snap=>{ reviewQueue = snap.exists()?(snap.val()||{}):{}; if(isLoggedIn)renderReview(); }, permErr('cs/reviewQueue'));
+  onValue(ref(db,'cs/tasks'), snap=>{ tasks = snap.exists()?(snap.val()||{}):{}; if(isLoggedIn)renderTasks(); }, permErr('cs/tasks'));
+  onValue(ref(db,'cs/manualQueue'), snap=>{ manualQueue = snap.exists()?(snap.val()||{}):{}; if(isLoggedIn){ renderGenStatus(); renderWait(); } }, permErr('cs/manualQueue'));
+  onValue(ref(db,'cs/meta/gmailBudget'), snap=>{ budgetData = snap.exists()?snap.val():null; if(isLoggedIn)renderBudget(); }, permErr('cs/meta/gmailBudget'));
+}
+
+// ── 렌더 ──
+function renderAll(){ renderWait(); renderSent(); renderTasks(); renderSugg(); renderReview(); renderAuto(); renderBudget(); renderGenStatus(); renderBans(); renderKnows(); }
+// (2) 낙관적 표시 정리: 실패(saveError) 도착·삭제 시 낙관집합에서 제거 → 카드가 실패/실상태로 되돌아감.
+function reconcileOptimistic(){
+  optimisticSaved.forEach(id=>{ const d=drafts[id]; if(!d || d.saveError) optimisticSaved.delete(id); });
+}
+// 카드가 '저장됨'으로 보여야 하나: 실제 saved || (낙관 승인 && approved && 실패없음)
+function isSavedView(id,d){ return d && (d.status==='saved' || (optimisticSaved.has(id) && d.status==='approved' && !d.saveError)); }
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+const IMG_RE = /https:\/\/pwr-clair\.github\.io\/cs\/assets\/images\/\S+/g;
+function extractImgs(text){ return (String(text||'').match(IMG_RE)||[]); }
+function stripImgs(text){ return String(text||'').replace(IMG_RE,'').replace(/\n{3,}/g,'\n\n').trim(); }
+function imgLabel(url){ try{ return decodeURIComponent(url.split('/').pop().replace(/\.[a-z]+$/i,'')); }catch(e){ return '이미지'; } }
+function thumbsHtml(urls){
+  return '<div class="thumbwrap"><div class="thumblab">첨부 이미지 — 답장엔 링크로 안내</div><div class="thumbs">'+
+    urls.map(u=>'<a class="thumb" href="'+esc(u)+'" target="_blank" rel="noopener"><img src="'+esc(u)+'" alt="" loading="lazy"><span>'+esc(imgLabel(u))+'</span></a>').join('')+
+    '</div></div>';
+}
+// 말투 일치 = 클라라 자기평가(수동 탭, 기본 빈칸). AI confidence 자동채점 제거.
+//   이 값은 학습신호로 승인 시 시트 E열에 기록되며, autoSend의 machine confidence와 무관.
+function toneScoreRow(id){
+  const cur = selfScores[id]!=null ? selfScores[id] : 0; // 0 = 미평가(빈칸)
+  let cells='';
+  for(let i=1;i<=5;i++) cells+='<span class="tcell'+(i<=cur?' f':'')+'" onclick="setTone(\''+id+'\','+i+')" title="말투 일치 '+i+'/5"></span>';
+  const note = cur ? '<span class="tnote">'+cur+'/5</span>' : '<span class="tnote">미평가 — 탭해서 점수</span>';
+  return '<div class="tone"><span class="tlbl">말투 일치 (내 평가)</span><div class="tcells">'+cells+'</div>'+note+'</div>';
+}
+function setTone(id,n){ selfScores[id] = (selfScores[id]===n ? 0 : n); renderWait(); } // 같은 칸 재탭 = 해제
+
+// ── 예약 단위 그룹핑 (같은 bookingId, 없으면 threadId, 둘 다 없으면 msgId 단건) ──
+function groupKey(d){ return (d && d.bookingId && ('b'+d.bookingId)) || (d && d.threadId && ('t'+d.threadId)) || null; }
+function buildGroups(entries){
+  const map={};
+  entries.forEach(([id,d])=>{ const gk=groupKey(d)||('m'+id); (map[gk]||(map[gk]={key:gk,items:[]})).items.push([id,d]); });
+  const arr=Object.keys(map).map(k=>map[k]);
+  arr.forEach(g=>{ g.items.sort((a,b)=>msgTimeMs(a[1])-msgTimeMs(b[1])); g.latest=g.items[g.items.length-1]; }); // 시간순(오래된→최신)
+  return arr;
+}
+const CHAN_LABEL={booking:'Booking',agoda:'Agoda',expedia:'Expedia',manual:'즉석'};
+function platformBadge(d){ const c=d&&d.channel; return c?'<span class="chan">'+esc(CHAN_LABEL[c]||c)+'</span>':''; }
+// 그룹 헤더: 게스트 · 플랫폼 · 방 · 숙박일자 · [대화 N] · 펼침 토글.
+//   opts.always=true면 N==1이어도 토글 노출(학습됨: 접힘=헤더만). opts.collapsedLabel/expandedLabel로 문구.
+function groupHeader(g, head, opts){
+  opts=opts||{};
+  const N=g.items.length, expanded=expandedGroups.has(g.key);
+  const show = opts.always || N>1;
+  const cLabel = opts.collapsedLabel || ('이전 대화 '+(N-1)+' ▾');
+  const eLabel = opts.expandedLabel || '대화 접기 ▴';
+  const toggle = show ? '<button class="thr-toggle" onclick="event.stopPropagation();toggleGroup(\''+g.key+'\')">'+(expanded?eLabel:cLabel)+'</button>' : '';
+  return '<div class="grp-head'+(show?' grp-clickable':'')+'"'+(show?' onclick="toggleGroup(\''+g.key+'\')"':'')+'>'+
+    '<div class="grp-line"><span class="guest">'+esc(head.guest||'게스트')+'</span>'+platformBadge(head)+
+      '<span class="lang">'+esc(String(head.lang||'—').toUpperCase())+'</span>'+
+      '<span class="thr-n">대화 '+N+'</span></div>'+
+    '<div class="stayline"><span class="rm">'+esc(head.room||'미상')+'</span> · '+esc(stayLabel(head))+toggle+'</div>'+
+  '</div>';
+}
+// 시간순 말풍선(좌=게스트 원문, 우=우리 답변[답한 것만]). items = [[id,d],...]
+function bubbleTimeline(items){
+  return '<div class="thread">'+items.map(([id,d])=>{
+    const g='<div class="bub bub-g"><div class="bub-t">'+esc(fmtKST(d.receivedAt||d.createdAt))+'</div>'+esc(d.origMsg||'—')+'</div>';
+    const answered=(d.status==='saved'||d.status==='sent'||d.status==='approved'||isSavedView(id,d));
+    const ans=answered?String(d.finalReply||d.reply||'').replace(IMG_RE,'').trim():'';
+    return g+(ans?'<div class="bub bub-us">'+esc(ans)+'</div>':'');
+  }).join('')+'</div>';
+}
+// 답변 대상(최신 초안)의 답변 영역 — 원문+초안+번역+자기평가+액션 (게스트/숙박 메타는 그룹헤더가 담당).
+function answerBody(id,d){
+  const st=d.status||'pending';
+  // 부킹 알림류(요청 확정/거절/대기·취소요청) — 답장 없음, 확인·조치용 카드 (2026-07-14)
+  if(st==='notice'){
+    return '<div class="ans">'+
+      '<div class="ans-top"><div class="who">조치 알림</div><span class="cat">'+esc(d.category||'요청알림')+'</span>'+
+        '<span class="time">'+esc(fmtKST(d.receivedAt||d.createdAt))+' 도착</span></div>'+
+      '<div class="msg"><div class="who">부킹 알림 원문</div><div class="body">'+esc(d.origMsg||'—')+'</div></div>'+
+      '<div class="readonly-note">이메일 회신 경로 없음 — 필요한 조치는 부킹 익스트라넷에서 하고, 확인 후 치워주세요.</div>'+
+      '<div class="btns"><button class="b skip" onclick="dismissDraft(\''+id+'\')">확인함 · 치우기</button></div>'+
+    '</div>';
+  }
+  const imgs=extractImgs(d.reply);
+  const replyShown=imgs.length?stripImgs(d.reply):String(d.reply||'');
+  const cat=d.category?'<span class="cat">'+esc(d.category)+'</span>':'';
+  // 답불요 추천 배지 (7월: 표시만, 자동처리 없음 — 판단은 클라라. 초안 호출이 대화 맥락 보고 산출)
+  const noReplyBadge=(d.noReplySuggested)?'<span class="cat" style="background:#FAEEDA;color:#854F0B;">💤 답불요 추천</span>':'';
+  // 금칙 셀프체크 플래그(#3, 2026-07-25): 엔진이 룰 기반으로 잡은 위험 문구 — 차단 아님, 수정·판단은 클라라
+  const guardBadge=(d.guardFlags&&d.guardFlags.length)?'<span class="cat" style="background:#FDE2E2;color:#9B1C1C;">⚠️ 문구 주의</span>':'';
+  const guardNote=(st==='pending'&&d.guardFlags&&d.guardFlags.length)
+    ?'<div style="font-size:11px;color:#9B1C1C;background:#FDE2E2;border-radius:6px;padding:5px 8px;margin-top:6px;">⚠️ '+d.guardFlags.map(esc).join(' · ')+' — 초안을 확인·수정 후 승인하세요</div>':'';
+  const noReplyNote=(st==='pending'&&d.noReplySuggested&&d.noReplyNote)
+    ?'<div style="font-size:11px;color:#854F0B;background:#FAEEDA;border-radius:6px;padding:5px 8px;margin-top:6px;">💤 답불요 추천 — '+esc(d.noReplyNote)+' (동의하면 [답불요 · 치우기], 아니면 승인·발송)</div>':'';
+  const editing=editingIds.has(id);
+  const editVal=(edits[id]!=null)?edits[id]:editSourceText(d); // 편집창 = 한국어(비영어) / 영어(영어권)
+  const saveFailed=(learnMode && st==='approved' && d.saveError);
+  const committed=committedEdit[id]; const hasCommit=committed!=null; // 확정 편집본 여부
+
+  let right;
+  if(saveFailed) right='<span class="status error">저장 실패</span>';
+  else if(st==='approved') right='<span class="status approved"><span class="spinner"></span>'+(learnMode?'저장 중…':'발송 대기중')+'</span>';
+  else if(st==='sending') right='<span class="status sending"><span class="spinner"></span>발송 중</span>';
+  else if(st==='error') right='<span class="status error">발송 실패</span>';
+  else right='<span class="time">'+esc(fmtKST(d.receivedAt||d.createdAt))+' 도착</span>';
+
+  let actions;
+  if(st==='pending'){
+    actions='<div class="btns">'+
+      '<button class="b'+(editing?' go':'')+'" onclick="editOrSave(\''+id+'\')">'+(editing?'저장':'수정')+'</button>'+
+      (editing?'':(d.noReplySuggested
+        ? '<button class="b skip" onclick="dismissDraft(\''+id+'\',\'no-reply\')" title="답 없이 치우기 (삭제 아님·데이터 보존)">답불요 · 치우기</button>'
+        : '<button class="b skip" onclick="dismissDraft(\''+id+'\')" title="이미 처리된 지난 문의로 치우기 (삭제 아님·데이터 보존)">지난 문의</button>'+
+          '<button class="b skip" onclick="dismissDraft(\''+id+'\',\'no-reply\')" title="답 없이 치우기 — 추천이 없어도 클라라 판단으로 답불요 처리 (삭제 아님·데이터 보존)">답불요</button>'))+
+      '<button class="b go" onclick="approveDraft(\''+id+'\')">'+(learnMode?'승인':'승인 · 발송')+'</button>'+
+    '</div>';
+  } else if(saveFailed){
+    actions='<div class="err-row"><div class="errmsg">저장 실패: '+esc(d.saveError)+'</div>'+
+      '<button class="b go" onclick="retrySave(\''+id+'\')">재시도</button></div>';
+  } else if(st==='error'){
+    actions='<div class="err-row"><div class="errmsg">'+esc(d.errorMsg||'발송 오류')+'</div>'+
+      '<button class="b skip" onclick="dismissDraft(\''+id+'\',\'manual-sent\')" title="OTA·파트너센트럴 등에서 직접 발송을 마친 건 치우기 (삭제 아님·데이터 보존)">발송함 · 치우기</button>'+
+      '<button class="b go" onclick="retryDraft(\''+id+'\')">재시도</button></div>';
+  } else {
+    actions='<div class="readonly-note">'+(st==='approved'?(learnMode?'승인됨 — 학습 시트에 저장 중(발송 없음)':'승인됨 — GAS가 원 스레드에 발송합니다'):'처리 중…')+'</div>';
+  }
+  const editLangLbl=((editSourceLang(d)==='ko')?'한국어로 편집 — 저장 시 게스트 언어로 자동 번역':'한국어 또는 영어로 편집 — 한국어로 쓰면 발송 시 자동 영번역')+' · {가이드} = 가이드 링크 자동 치환';
+  const editArea=(st==='pending'&&editing)
+    ? '<div class="edit-hint">'+editLangLbl+'</div><textarea class="editbox" oninput="editInput(\''+id+'\',this.value)">'+esc(editVal)+'</textarea>' : '';
+
+  // 확정 편집본이 있으면 그걸(확정 표시), 없으면 AI 초안(게스트 본문+한국어 대역)을 노출.
+  const draftBlock = hasCommit
+    ? '<div class="draft draft-committed"><div class="who">내 편집 · <b>확정</b>('+(/[가-힣]/.test(committed)?'한국어':'영어')+')</div>'+
+        '<div class="reply">'+esc(committed||'—')+'</div><div class="edit-hint">게스트 언어 발송본은 [승인] 저장 시 자동 생성</div></div>'
+    : '<div class="draft"><div class="who">초안 · <b>학습된 말투</b>'+(d.autoApproved?'<span class="auto-badge">자동</span>':'')+'</div>'+
+        '<div class="reply">'+esc(replyShown||'—')+'</div>'+
+        (d.replyKo?'<div class="gloss">'+esc(d.replyKo)+'</div>':'')+
+        (imgs.length?thumbsHtml(imgs):'')+'</div>';
+
+  return '<div class="ans">'+
+    '<div class="ans-top"><div class="who">답할 문의</div>'+cat+noReplyBadge+guardBadge+right+'</div>'+
+    '<div class="msg"><div class="who">GUEST 원문</div><div class="body">'+esc(d.origMsg||'—')+'</div></div>'+
+    noReplyNote+guardNote+
+    draftBlock+
+    editArea+
+    (st==='pending'?toneScoreRow(id):'')+
+    actions+
+  '</div>';
+}
+function toggleGroup(key){ if(expandedGroups.has(key)) expandedGroups.delete(key); else expandedGroups.add(key); renderWait(); renderSent(); }
+// 숙박일자 라벨(Q1). checkin/checkoutDate(YYYY-MM-DD) → "M/D–M/D". 없으면 '숙박일자 미상'.
+function md(iso){ if(!iso) return null; const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m?(Number(m[2])+'/'+Number(m[3])):null; }
+function stayLabel(d){ const ci=md(d&&d.checkinDate), co=md(d&&d.checkoutDate);
+  if(ci&&co) return ci+'–'+co; if(ci) return ci+' 체크인'; if(co) return '~'+co+' 체크아웃'; return '숙박일자 미상'; }
+
+function fmtTime(iso){
+  if(!iso) return '—';
+  try{ const d=new Date(iso); if(isNaN(d)) return '—';
+    return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+  catch(e){ return '—'; }
+}
+// ── 순수 로직 (jsc 테스트 16/0 PASS와 동일 구현) ──
+// 게스트 원 메일 수신시각(ms). receivedAt 우선, 없으면 createdAt 폴백(기존 백로그 대응).
+function msgTimeMs(d){ const iso=(d&&(d.receivedAt||d.createdAt))||null; if(!iso) return 0; const t=Date.parse(iso); return isNaN(t)?0:t; }
+// 오늘 0시(KST) epoch ms — 기기 시간대 무관하게 KST 자정 산출
+function kstDayStartMs(nowMs){ const k=new Date(nowMs+9*3600000); return Date.UTC(k.getUTCFullYear(),k.getUTCMonth(),k.getUTCDate())-9*3600000; }
+// 대기·보냄 정렬 비교자: 수신 시각 최신순(desc). a,b = [id, draft]
+function waitCmpDesc(a,b){ return msgTimeMs(b[1])-msgTimeMs(a[1]); }
+// KST 표시 (기기 시간대 무관)
+function fmtKST(iso){ if(!iso) return '—'; const t=Date.parse(iso); if(isNaN(t)) return '—'; const k=new Date(t+9*3600000);
+  return (k.getUTCMonth()+1)+'/'+k.getUTCDate()+' '+String(k.getUTCHours()).padStart(2,'0')+':'+String(k.getUTCMinutes()).padStart(2,'0'); }
+
+// 답할 대상인가(대기 액션 필요): pending/error & 낙관 저장 아님
+function isActionable_(id,d){ const s=d.status||'pending'; return (s==='pending'||s==='error'||s==='notice') && !isSavedView(id,d); }
+function renderWait(){
+  const list=document.getElementById('waitList');
+  const empty=document.getElementById('emptyWait');
+  const bulkBar=document.getElementById('bulkBar');
+  // 타임라인 대상 = dismissed·sent 제외한 모든 대화 메시지(답한 것 포함해 맥락으로 표시)
+  const convo=Object.entries(drafts||{})
+    .filter(([k,d])=> d && (d.status||'pending')!=='dismissed' && d.status!=='sent'
+      && !(d.origin==='review' && d.status!=='error')); // 후기요청은 대기 미표시(2026-07-20) — 발송 실패만 노출, 성공은 보냄 탭
+  // 대기 카운터 = 조작 필요 '건'(메시지 단위, dismissed 제외)
+  const actionableEntries=convo.filter(([k,d])=>isActionable_(k,d));
+  document.getElementById('nWait').textContent=actionableEntries.length;
+  document.getElementById('tWait').textContent=actionableEntries.length;
+  // 일괄 dismiss 대상 = 오늘 0시(KST) 이전 수신한 pending(메시지 단위)
+  const threshold=kstDayStartMs(Date.now());
+  const staleN=actionableEntries.filter(([k,d])=>(d.status||'pending')==='pending' && msgTimeMs(d)>0 && msgTimeMs(d)<threshold).length;
+  bulkBar.innerHTML = staleN
+    ? '<div class="bulkbar"><div class="t"><b>지난 문의 '+staleN+'건</b> — 오늘 0시(KST) 이전 수신분. 카테고리별 질문 분류로 정리하고 한 번에 치웁니다(답변 학습 아님).</div>'+
+      '<button onclick="bulkDismiss()">모두 지난 처리</button></div>'
+    : '';
+  // 예약 단위 그룹핑 → 답할 초안이 하나라도 있는 그룹만 대기에 표시
+  const groups=buildGroups(convo).filter(g=> g.items.some(([k,d])=>isActionable_(k,d)));
+  const genCards=manualPendingCards(); // 즉석 생성 낙관적 '생성 중' 카드(요청 즉시 자리 확보)
+  if(!groups.length && !genCards){ list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  groups.sort((a,b)=>msgTimeMs(b.latest[1])-msgTimeMs(a.latest[1])); // 최근 대화 위로
+  const groupsHtml=groups.map(g=>{
+    // 답변 대상 = 그룹 내 최신 actionable 초안
+    const acts=g.items.filter(([k,d])=>isActionable_(k,d));
+    const target=acts[acts.length-1]||g.latest;
+    const head=target[1]; // 헤더 정보(게스트·방·숙박·플랫폼)는 대상 기준
+    const expanded=expandedGroups.has(g.key);
+    const prior=g.items.filter(([k,d])=>k!==target[0]); // 대상 제외한 이전 대화
+    const timeline=(expanded && prior.length)?bubbleTimeline(prior):'';
+    return '<div class="card grp">'+groupHeader(g,head)+timeline+answerBody(target[0],target[1])+'</div>';
+  }).join('');
+  list.innerHTML=genCards+groupsHtml; // 생성 중 카드 먼저(맨 위)
+}
+// 즉석 생성 요청(cs/manualQueue pending)을 대기 상단에 '생성 중' 낙관적 카드로. 30초+ 지속 시 지연 경고(=즉시경로 미작동 신호).
+function manualPendingCards(){
+  const now=Date.now();
+  const pend=Object.entries(manualQueue||{})
+    .filter(([k,v])=>v && v.status==='pending')
+    .sort((a,b)=>(Date.parse(b[1].createdAt||0)||0)-(Date.parse(a[1].createdAt||0)||0));
+  if(!pend.length) return '';
+  return pend.map(([k,v])=>{
+    const age=v.createdAt?Math.max(0,Math.round((now-Date.parse(v.createdAt))/1000)):0;
+    const stale=age>=30;
+    const prev=String(v.text||'').replace(/\s+/g,' ');
+    return '<div class="card gen-pending"><div class="ans-top"><span class="chan">즉석</span>'+
+      '<span class="status approved"><span class="spinner"></span>생성 중…'+(stale?' ('+age+'s · 지연)':'')+'</span></div>'+
+      '<div class="msg"><div class="who">붙여넣은 메시지</div><div class="body">'+esc(prev.slice(0,90)+(prev.length>90?'…':''))+'</div></div>'+
+      (stale?'<div class="edit-hint">⚠ 즉시경로 미작동 추정 — 웹앱 /exec URL·재배포 확인 후 GAS에서 <b>publishSaveHookUrl</b> 재실행. 최대 5분 내 폴링으로는 처리됩니다.</div>':'')+
+    '</div>';
+  }).join('');
+}
+
+// 학습모드: 저장분(saved+낙관)을 예약 단위로 '학습됨' 탭에(접힘=최신 저장분, 펼침=전체 말풍선).
+//   실발송 모드: status==='sent'를 '보냄' 탭에(그룹 없이 간단).
+function renderSent(){
+  const list=document.getElementById('sentList'); if(!list) return;
+  const lbl=document.getElementById('tSentLbl'); if(lbl) lbl.textContent=learnMode?'학습됨':'보냄';
+  const t=document.getElementById('tSent');
+  if(!learnMode){
+    const sent=Object.entries(drafts||{}).filter(([k,d])=>d&&d.status==='sent');
+    if(t) t.textContent=sent.length||'—';
+    if(!sent.length){ list.innerHTML='<div class="empty"><div class="big">보낸 초안 없음</div>승인·발송된 답변이 여기 쌓입니다.</div>'; return; }
+    sent.sort(waitCmpDesc); list.innerHTML=sent.map(([k,d])=>sentSimple(k,d)).join(''); return;
+  }
+  const saved=Object.entries(drafts||{}).filter(([k,d])=>d&&isSavedView(k,d));
+  if(t) t.textContent=saved.length||'—';
+  if(!saved.length){ list.innerHTML='<div class="empty"><div class="big">저장된 학습 답변 없음</div>승인·저장된 답변이 여기 쌓입니다.</div>'; return; }
+  // 그룹 맥락 = 저장분이 있는 예약의 비-dismissed 대화 전체
+  const convo=Object.entries(drafts||{}).filter(([k,d])=>d&&(d.status||'pending')!=='dismissed'&&d.status!=='sent');
+  const savedKeys={}; saved.forEach(([k,d])=>{ savedKeys[groupKey(d)||('m'+k)]=true; });
+  const groups=buildGroups(convo).filter(g=>savedKeys[g.key]);
+  groups.sort((a,b)=>msgTimeMs(b.latest[1])-msgTimeMs(a.latest[1]));
+  list.innerHTML=groups.map(g=>{
+    const savedItems=g.items.filter(([k,d])=>isSavedView(k,d));
+    const latest=savedItems[savedItems.length-1]||g.latest;
+    const expanded=expandedGroups.has(g.key);
+    // (3) 기본 접힘=헤더만. 펼침=이전 대화 말풍선 + 최신 저장분 상세(재편집 가능).
+    const prior=g.items.filter(([k,d])=>k!==latest[0]);
+    const body = expanded ? ((prior.length?bubbleTimeline(prior):'')+sentDetail(latest[0],latest[1])) : '';
+    return '<div class="card grp">'+groupHeader(g,latest[1],{always:true,collapsedLabel:'펼치기 ▾',expandedLabel:'접기 ▴'})+body+'</div>';
+  }).join('');
+}
+// (3) 학습됨 저장분 상세: 원문 + 클라라 확정 편집본(=코퍼스 원본, 한국어/영어) + 게스트 언어 발송본 + 자기평가.
+function sentDetail(id,d){
+  const editLang=d.claraFinalLang||((String(d.lang||'').toLowerCase()==='en')?'en':'ko');
+  const claraFinal=String(d.claraFinal||d.finalReplyKo||d.replyKo||d.finalReply||d.reply||'');
+  const guestSend=String(d.finalReply||d.reply||'');
+  const claraShown=(extractImgs(claraFinal).length?stripImgs(claraFinal):claraFinal).trim();
+  const gImgs=extractImgs(guestSend);
+  const guestShown=(gImgs.length?stripImgs(guestSend):guestSend).trim();
+  const edited=!!d.editedByClara;
+  const whoLbl=(edited?'내 답변 · 수정본':'학습된 말투')+' · '+(editLang==='ko'?'한국어(학습 원본)':'영어(학습 원본)');
+  const stamp=d.savedAt?(fmtKST(d.savedAt)+' 저장'):'저장 중…';
+  const cat=d.category?'<span class="cat">'+esc(d.category)+'</span>':'';
+  const score=(d.claraToneScore!=null&&d.claraToneScore>0)?d.claraToneScore:0;
+  const showGuest = editLang!==String(d.lang||'').toLowerCase() && guestShown && guestShown!==claraShown;
+  const editing=editingIds.has(id);
+  const correcting = learnMode && d.status==='saved' && !!d.pendingCorrection; // 정정 저장 진행 중
+  const editVal=(edits[id]!=null)?edits[id]:claraFinal;
+  const editArea = editing
+    ? '<div class="edit-hint">'+(editLang==='ko'?'한국어로 정정 — 저장 시 같은 학습 행 갱신':'영어로 정정')+'</div><textarea class="editbox" oninput="editInput(\''+id+'\',this.value)">'+esc(editVal)+'</textarea>' : '';
+  // (2) 7월엔 재편집 허용, 8월 실발송 전환(learnMode off) 시 버튼 숨김.
+  const editBtn = learnMode
+    ? '<div class="btns"><button class="b'+(editing?' go':'')+'" onclick="editOrSaveCorrection(\''+id+'\')">'+(editing?'정정 저장':'수정')+'</button></div>' : '';
+  return '<div class="ans">'+
+    '<div class="ans-top"><div class="who">저장된 답변</div>'+cat+(edited?'<span class="edited-badge">수정본</span>':'')+
+      (correcting?'<span class="status approved"><span class="spinner"></span>정정 저장 중…</span>':'<span class="time">'+esc(stamp)+'</span>')+'</div>'+
+    '<div class="msg"><div class="who">GUEST 원문</div><div class="body">'+esc(d.origMsg||'—')+'</div></div>'+
+    '<div class="draft"><div class="who">'+esc(whoLbl)+'</div><div class="reply">'+esc(claraShown||'—')+'</div>'+
+      (showGuest?'<div class="gloss gloss-send">'+esc(guestShown)+'</div>':'')+
+      (gImgs.length?thumbsHtml(gImgs):'')+'</div>'+
+    editArea+
+    '<div class="tone"><span class="tlbl">말투 일치 (내 평가)</span><div class="tcells">'+
+      [1,2,3,4,5].map(i=>'<span class="tcell'+(i<=score?' f':'')+'"></span>').join('')+'</div>'+
+      '<span class="tnote">'+(score?score+'/5':'미평가')+'</span></div>'+
+    editBtn+
+  '</div>';
+}
+function sentSimple(id,d){
+  const s=String(d.finalReply||d.reply||'').replace(IMG_RE,'').replace(/\s+/g,' ').trim();
+  return '<div class="card"><div class="meta"><span class="guest">'+esc(d.guest||'게스트')+'</span>'+
+    '<span class="lang">'+esc(String(d.lang||'—').toUpperCase())+'</span>'+
+    (d.editedByClara?'<span class="edited-badge">수정본</span>':'')+
+    '<span class="time">'+esc(fmtTime(d.sentAt)+' 발송')+'</span></div>'+
+    '<div class="msg sent-body"><div class="who">SENT</div><div class="body">'+esc(s.slice(0,120)+(s.length>120?'…':'')||'—')+'</div></div></div>';
+}
+
+// ── (4) 업무 탭 (cs/tasks) ──
+const TASK_ORDER={proposed:0,active:1,done:2};
+// 2026-07-25 지시 ①: 관련일(도착일=relatedDate, 없으면 생성일) 가까운 순. 지난 건·완료 건은 하단 접힘.
+function taskDateKey(t){ return String(t.relatedDate||(t.createdAt||'').slice(0,10)||'9999-12-31'); }
+function taskCmp(a,b){ const ka=taskDateKey(a[1]), kb=taskDateKey(b[1]); if(ka!==kb) return ka<kb?-1:1;
+  const sa=TASK_ORDER[a[1].status]??9, sb=TASK_ORDER[b[1].status]??9; if(sa!==sb) return sa-sb;
+  return String(a[1].room||'').localeCompare(String(b[1].room||'')); }
+function renderTasks(){
+  const list=document.getElementById('taskList'), empty=document.getElementById('emptyTask'); if(!list) return;
+  const entries=Object.entries(tasks||{}).filter(([k,t])=>t && t.status!=='rejected');
+  const actionable=entries.filter(([k,t])=>t.status==='proposed'||t.status==='active').length;
+  const nT=document.getElementById('nTask'); if(nT) nT.textContent=actionable;
+  const tT=document.getElementById('tTask'); if(tT) tT.textContent=actionable;
+  if(!entries.length){ list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  const todayKst=new Date(Date.now()+9*3600000).toISOString().slice(0,10);
+  const isPast=([k,t])=> t.status==='done' || taskDateKey(t)<todayKst;
+  const current=entries.filter(e=>!isPast(e)).sort(taskCmp);
+  const past=entries.filter(isPast).sort(taskCmp).reverse(); // 최근 지난 것부터
+  list.innerHTML=current.map(([k,t])=>taskCard(k,t)).join('')+
+    (past.length?'<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;color:var(--muted,#8a8a80);padding:6px 2px;">지난·완료 '+past.length+'건 펼치기</summary>'+past.map(([k,t])=>taskCard(k,t)).join('')+'</details>':'');
+}
+function taskCard(id,t){
+  const st=t.status||'proposed';
+  const meta=[t.room?('방 '+esc(t.room)):'', t.guest?esc(t.guest):'', t.relatedDate?('도착 '+esc(String(t.relatedDate).slice(5))):'', t.dueHint?esc(t.dueHint):''].filter(Boolean).join(' · ');
+  let badge='', actions='';
+  if(st==='proposed'){
+    badge='<span class="tk-badge tk-prop">후보</span>';
+    actions='<div class="btns"><button class="b skip" onclick="rejectTask(\''+id+'\')">기각</button>'+
+      '<button class="b go" onclick="approveTask(\''+id+'\')">승인</button></div>';
+  } else if(st==='active'){
+    badge='<span class="tk-badge tk-act">진행</span>';
+    actions='<div class="btns"><button class="b go" onclick="toggleTaskDone(\''+id+'\')">완료 체크</button></div>';
+  } else { // done
+    badge='<span class="tk-badge tk-done">완료</span>';
+    actions='<div class="btns"><button class="b" onclick="toggleTaskDone(\''+id+'\')">되돌리기</button></div>';
+  }
+  return '<div class="card tk'+(st==='done'?' tk-is-done':'')+'">'+
+    '<div class="meta">'+badge+(meta?'<span class="tk-meta">'+meta+'</span>':'')+'</div>'+
+    '<div class="tk-text">'+esc(t.text||'—')+'</div>'+
+    actions+
+  '</div>';
+}
+// ── 금칙 문구 관리 (cs/config/bannedPhrases) ──
+function renderBans(){
+  const list=document.getElementById('banList'), cnt=document.getElementById('banCount'); if(!list) return;
+  const entries=Object.entries(bans||{});
+  if(cnt) cnt.textContent=entries.length?entries.length+'건 적용 중':'';
+  list.innerHTML=entries.map(([k,b])=>'<div style="display:flex;align-items:center;gap:8px;font-size:12px;background:var(--card,#fff);border:1px solid #e5e2d8;border-radius:6px;padding:5px 8px;"><span style="flex:1;">🚫 '+esc(b.text||'')+'</span><button class="b skip" style="padding:2px 8px;font-size:11px;" onclick="delBan(\''+k+'\')">삭제</button></div>').join('');
+}
+function addBan(){
+  const box=document.getElementById('banBox'), v=(box&&box.value||'').trim();
+  if(!v){ toast('금지할 표현을 입력하세요'); return; }
+  push(ref(db,'cs/config/bannedPhrases'),{text:v,addedAt:new Date().toISOString()})
+    .then(()=>{ box.value=''; toast('금칙 등록 — 다음 초안부터 적용'); }).catch(e=>toast('실패: 쓰기 권한'));
+}
+function delBan(id){ remove(ref(db,'cs/config/bannedPhrases/'+id)).then(()=>toast('금칙 삭제')).catch(e=>toast('실패: 쓰기 권한')); }
+// ── 정보 교육 관리 (cs/config/knowledgeNotes) ──
+function renderKnows(){
+  const list=document.getElementById('knowList'), cnt=document.getElementById('knowCount'); if(!list) return;
+  const entries=Object.entries(knows||{});
+  if(cnt) cnt.textContent=entries.length?entries.length+'건 적용 중':'';
+  list.innerHTML=entries.map(([k,b])=>'<div style="display:flex;align-items:center;gap:8px;font-size:12px;background:var(--card,#fff);border:1px solid #e5e2d8;border-radius:6px;padding:5px 8px;"><span style="flex:1;">📘 '+esc(b.text||'')+'</span><button class="b skip" style="padding:2px 8px;font-size:11px;" onclick="delKnow(\''+k+'\')">삭제</button></div>').join('');
+}
+function addKnow(){
+  const box=document.getElementById('knowBox'), v=(box&&box.value||'').trim();
+  if(!v){ toast('반영할 정보를 입력하세요'); return; }
+  push(ref(db,'cs/config/knowledgeNotes'),{text:v,addedAt:new Date().toISOString()})
+    .then(()=>{ box.value=''; toast('정보 등록 — 다음 초안부터 반영'); }).catch(e=>toast('실패: 쓰기 권한'));
+}
+function delKnow(id){ remove(ref(db,'cs/config/knowledgeNotes/'+id)).then(()=>toast('정보 삭제')).catch(e=>toast('실패: 쓰기 권한')); }
+
+function approveTask(id){ update(ref(db,'cs/tasks/'+id),{status:'active',activatedAt:new Date().toISOString()}).then(()=>toast('업무 승인')).catch(e=>toast('실패: 쓰기 권한')); }
+function rejectTask(id){ update(ref(db,'cs/tasks/'+id),{status:'rejected',rejectedAt:new Date().toISOString()}).then(()=>toast('업무 기각')).catch(e=>toast('실패: 쓰기 권한')); }
+function toggleTaskDone(id){ const cur=(tasks[id]||{}).status; const next=cur==='done'?'active':'done';
+  update(ref(db,'cs/tasks/'+id),{status:next,doneAt:next==='done'?new Date().toISOString():null}).then(()=>toast(next==='done'?'완료 처리':'진행으로 되돌림')).catch(e=>toast('실패: 쓰기 권한')); }
+
+// ── 제안 탭 (2026-07-14): cs/suggestions — ETA 감지 → 승인 시 GAS 워커가 HK 반영(최대 5분) ──
+// ETA 표시: 앞시간만 am/pm 축약 (19:00-20:00 → 7pm). 전체 범위는 근거 인용에 보존.
+function fmtEtaShort(eta){ const m=String(eta||'').match(/^(\d{1,2}):(\d{2})/); if(!m) return eta||'—';
+  const h24=+m[1], mm=+m[2], ap=h24<12?'am':'pm', h=(h24%12)||12; return h+(mm?':'+String(mm).padStart(2,'0'):'')+ap; }
+function renderSugg(){
+  const listEl=document.getElementById('suggList'); if(!listEl) return;
+  const entries=Object.entries(suggestions||{}).filter(([k,s])=>!!s)
+    .sort((a,b)=>(Date.parse(b[1].createdAt||0)||0)-(Date.parse(a[1].createdAt||0)||0));
+  const pend=entries.filter(([k,s])=>s.status==='pending');
+  const done=entries.filter(([k,s])=>s.status!=='pending').slice(0,8); // 최근 처리분 몇 개만
+  const nEl=document.getElementById('nSugg'); if(nEl) nEl.textContent=pend.length;
+  const tEl=document.getElementById('tSugg'); if(tEl) tEl.textContent=pend.length;
+  const emptyEl=document.getElementById('emptySugg');
+  if(emptyEl) emptyEl.style.display=(pend.length||done.length)?'none':'block';
+  // 메인(대기) 화면 상단 노티스 — 제안 1건당 한 줄씩(묶음 금지, 2026-07-14 클라라 지시). 탭하면 제안 탭으로.
+  const noti=document.getElementById('suggNotice');
+  if(noti){
+    noti.innerHTML=pend.map(([k,s])=>
+      '<div onclick="gotoSuggTab()" style="display:flex;align-items:center;gap:8px;padding:9px 12px;margin-bottom:6px;'+
+      'border:0.5px solid rgba(156,36,72,.35);border-radius:9px;background:rgba(253,238,243,.6);cursor:pointer;">'+
+      '<span style="font-size:12px;font-weight:700;flex-shrink:0;">🕐 ETA '+esc(fmtEtaShort(s.eta))+'</span>'+
+      '<span style="font-size:11px;opacity:.7;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0;flex:1;">'+
+        esc([(s.guest||'게스트'),(s.room?s.room+'호':null),(s.checkinDate?'체크인 '+s.checkinDate:null)].filter(Boolean).join(' · '))+'</span>'+
+      '<span style="font-size:11px;font-weight:600;flex-shrink:0;">승인하기 →</span></div>'
+    ).join('');
+    if(pend.length) noti.lastElementChild && (noti.lastElementChild.style.marginBottom='10px');
+  }
+  const sCard=([id,s])=>{
+    const meta=[(s.room?s.room+'호':null),(s.guest||null),(s.bookingId?('예약 '+s.bookingId):null),(s.checkinDate?('체크인 '+s.checkinDate):null)]
+      .filter(Boolean).join(' · ');
+    let state='';
+    if(s.status==='approved') state='<span class="status approved"><span class="spinner"></span>'+esc(s.applyError||'HK 반영 대기 (최대 5분)')+'</span>';
+    else if(s.status==='applied') state='<span class="status approved">HK 반영됨 ✓'+(s.appliedTo?(' → '+esc(s.appliedTo)):'')+'</span>';
+    else if(s.status==='rejected') state='<span class="status">기각됨'+(s.applyNote?(' · '+esc(s.applyNote)):'')+'</span>';
+    const btns=s.status==='pending'
+      ? '<div class="btns"><button class="b skip" onclick="rejectSugg(\''+id+'\')">기각</button>'+
+        '<button class="b go" onclick="approveSugg(\''+id+'\')">승인 → HK 반영</button></div>' : '';
+    return '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px;">'+
+        '<b style="font-size:13px;">🕐 ETA '+esc(fmtEtaShort(s.eta))+'</b>'+state+'</div>'+
+      '<div style="font-size:11px;opacity:.65;margin-bottom:6px;">'+esc(meta||'예약 매핑 정보 없음 — 반영 시 자동 재매칭')+'</div>'+
+      (s.evidence?'<div style="font-size:12px;border-left:2px solid rgba(127,127,127,.4);padding-left:8px;opacity:.8;margin-bottom:8px;">“'+esc(s.evidence)+'”</div>':'')+
+      btns+'</div>';
+  };
+  listEl.innerHTML=pend.map(sCard).join('')+
+    (done.length?'<div style="font-size:10px;opacity:.5;margin:10px 0 6px;">최근 처리</div>'+done.map(sCard).join(''):'');
+}
+function gotoSuggTab(){ const t=document.querySelectorAll('.tab')[2]; if(t) t.click(); }
+function approveSugg(id){
+  const s=suggestions[id];
+  if(!s || s.status!=='pending'){ toast('이미 처리된 제안입니다'); return; }
+  update(ref(db,'cs/suggestions/'+id),{status:'approved',approvedAt:new Date().toISOString()})
+    .then(()=>toast('승인 — 5분 내 HK에 반영됩니다')).catch(e=>toast('실패: 쓰기 권한'));
+}
+function rejectSugg(id){
+  const s=suggestions[id];
+  if(!s || s.status!=='pending'){ toast('이미 처리된 제안입니다'); return; }
+  update(ref(db,'cs/suggestions/'+id),{status:'rejected',rejectedAt:new Date().toISOString()})
+    .then(()=>toast('제안 기각')).catch(e=>toast('실패: 쓰기 권한'));
+}
+
+// ── 후기 탭 (2026-07-14 B1-6): cs/reviewQueue — 체크아웃 익일 긍정 게스트 자동 선별 → 승인 시 초안 생성 ──
+function renderReview(){
+  const el=document.getElementById('reviewList'); if(!el)return;
+  const entries=Object.entries(reviewQueue||{}).filter(([k,q])=>!!q)
+    .sort((a,b)=>(Date.parse(b[1].createdAt||0)||0)-(Date.parse(a[1].createdAt||0)||0));
+  const prop=entries.filter(([k,q])=>q.status==='proposed');
+  const nEl=document.getElementById('tReview'); if(nEl)nEl.textContent=prop.length;
+  const emptyEl=document.getElementById('emptyReview');
+  if(emptyEl)emptyEl.style.display=entries.length?'none':'block';
+  const card=([k,q])=>{
+    const meta=[(q.room?q.room+'호':null),(q.checkoutDate?('체크아웃 '+q.checkoutDate):null),
+      ('대화 '+(q.msgCount||0)+'건 · 긍정 '+(q.posCount||0))].filter(Boolean).join(' · ');
+    let state='';
+    if(q.draftError) state='<span class="status error">'+esc(q.draftError)+'</span>';
+    else if(q.status==='approved'&&!q.drafted) state='<span class="status approved"><span class="spinner"></span>초안 생성 대기(5분 내)</span>';
+    else if(q.drafted) state='<span class="status approved">초안 생성됨 → 대기 탭에서 검토</span>';
+    else if(q.status==='skipped') state='<span class="status">건너뜀</span>';
+    const btns=q.status==='proposed'
+      ?'<div class="btns"><button class="b skip" onclick="skipReview(\''+k+'\')">건너뜀</button>'+
+       '<button class="b go" onclick="approveReview(\''+k+'\')">승인 · 후기 요청 발송</button></div>':'';
+    return '<div class="card">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px;">'+
+        '<b style="font-size:13px;">⭐ '+esc(q.guest||'게스트')+'</b>'+state+'</div>'+
+      '<div style="font-size:11px;opacity:.65;margin-bottom:8px;">'+esc(meta)+'</div>'+btns+'</div>';
+  };
+  el.innerHTML=entries.map(card).join('');
+}
+function approveReview(k){
+  const q=reviewQueue[k];
+  if(!q||q.status!=='proposed'){ toast('이미 처리된 후보입니다'); return; }
+  update(ref(db,'cs/reviewQueue/'+k),{status:'approved',approvedAt:new Date().toISOString()})
+    .then(()=>toast(learnMode?'승인 — 8월 실발송 전환 후 자동 발송됩니다':'승인 — 5분 내 후기 요청이 발송됩니다')).catch(e=>toast('실패: 쓰기 권한'));
+}
+function skipReview(k){
+  const q=reviewQueue[k];
+  if(!q||q.status!=='proposed'){ toast('이미 처리된 후보입니다'); return; }
+  update(ref(db,'cs/reviewQueue/'+k),{status:'skipped',skippedAt:new Date().toISOString()})
+    .then(()=>toast('건너뜀')).catch(e=>toast('실패: 쓰기 권한'));
+}
+
+// ── 즉석 답변 생성기 (cs/manualQueue → GAS Claude 1회 → cs/drafts 대기) ──
+function generateInstant(){
+  const box=document.getElementById('genBox'); const text=(box&&box.value||'').trim();
+  if(!text){ toast('메시지를 붙여넣으세요'); return; }
+  const reqId='mq_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+  const btn=document.getElementById('genBtn'); if(btn) btn.disabled=true;
+  set(ref(db,'cs/manualQueue/'+reqId),{text:text,status:'pending',createdAt:new Date().toISOString()})
+    .then(()=>{ box.value=''; triggerImmediateSave(reqId); toast('생성 중… 곧 대기에 표시됩니다'); if(btn) btn.disabled=false; })
+    .catch(e=>{ toast('요청 실패: 쓰기 권한 확인'); if(btn) btn.disabled=false; });
+}
+function renderGenStatus(){
+  const el=document.getElementById('genStatus'); if(!el) return;
+  const now=Date.now();
+  const vals=Object.keys(manualQueue||{}).map(k=>manualQueue[k]).filter(Boolean);
+  const pend=vals.filter(v=>v.status==='pending');
+  // 에러 배너: 24h 자동만료 + ✕ 닫기(닫은 시각 이전 에러는 재표시 안 함) — 3일 고정 배너의 고장 착시 방지
+  const errDismissedAt=Number(localStorage.getItem('csGenErrDismiss')||0);
+  const errs=vals.filter(v=>v.status==='error')
+    .filter(v=>{ const t=v.createdAt?Date.parse(v.createdAt):0; return t>errDismissedAt && (now-t)<86400000; });
+  const stalePend=pend.some(v=>v.createdAt && (now-Date.parse(v.createdAt))>=30000);
+  if(!saveHookUrl){ // 즉시경로 URL 미등록 → 5분 폴링만
+    el.textContent='⚠ 웹앱 URL 미등록 — GAS에서 publishSaveHookUrl 실행 필요(지금은 최대 5분 지연)';
+  } else if(stalePend){ // URL 있는데도 30s+ 지연 → 즉시경로 미작동(옛 URL/재배포 문제)
+    el.textContent='⚠ 즉시경로 지연 — 웹앱 /exec URL 불일치 의심. 재배포 후 publishSaveHookUrl 재실행 권장';
+  } else if(pend.length){ el.textContent='생성 중 '+pend.length+'건… 대기 탭에 곧 표시';
+  } else if(errs.length){
+    el.innerHTML='⚠ 최근 생성 실패: '+esc(errs[errs.length-1].error||'오류')+
+      ' <button onclick="dismissGenErr()" style="border:none;background:none;cursor:pointer;color:inherit;font-size:12px;padding:0 2px" title="닫기">✕</button>';
+  } else el.textContent='게스트 메시지를 붙여넣으면 바로 초안이 대기에 올라옵니다';
+}
+function dismissGenErr(){ localStorage.setItem('csGenErrDismiss',String(Date.now())); renderGenStatus(); }
+
+// ── 승인/수정/발송 (쓰기 지점: cs/drafts/{id} 만) ──
+function approveDraft(id){
+  const d=drafts[id];
+  if(!d || d.status!=='pending'){ toast('이미 처리된 초안입니다'); return; } // 이중 조작 방지
+  // 학습모드=발송 없음(되돌릴 수 있음)이라 컨펌 불필요 / 실발송 모드만 확인 다이얼로그.
+  if(!learnMode && !confirm('게스트에게 발송할까요?')) return;
+  // A안+2단계: 확정 답변만 사용(편집창 열린 채면 현재값 자동확정 → [저장] 안 눌러도 편집 유실 없음).
+  //   AI 초안이 편집본을 덮는 경로 제거: committedEdit/현재 편집값이 있으면 그것, 없으면(편집 안 함) AI 초안.
+  const aiBase=editSourceText(d);
+  const final = (editingIds.has(id)&&edits[id]!=null) ? edits[id]
+    : (committedEdit[id]!=null) ? committedEdit[id]
+    : aiBase;
+  const edited=final.trim()!==aiBase.trim();
+  const score=(selfScores[id]!=null&&selfScores[id]>0)?selfScores[id]:null; // 말투 자기평가(미평가=null)
+  // 편집 언어는 실제 확정 텍스트로 판정(2026-07-20): 영어권 게스트도 한국어로 수정 가능 — 한글 있으면 ko로
+  // 마킹돼 GAS resolveGuestFinal_ 가 발송 시 게스트 언어로 자동 번역(영어권=영번역). 기존 비영어권 경로와 동일.
+  const finalLang=/[가-힣]/.test(final)?'ko':'en';
+  update(ref(db,'cs/drafts/'+id),{status:'approved',claraFinal:final,claraFinalLang:finalLang,editedByClara:edited,claraToneScore:score,saveError:null,approvedAt:new Date().toISOString()})
+    .then(()=>{ editingIds.delete(id); delete edits[id]; delete committedEdit[id]; delete selfScores[id];
+      if(learnMode){ optimisticSaved.add(id); triggerImmediateSave(id); renderWait(); renderSent(); } // (2) 즉시 '저장됨' 표시 + 백그라운드 저장
+      toast(learnMode?(edited?'수정본 저장됨(학습)':'저장됨(학습)'):(edited?'수정본 승인 — 발송 대기':'승인 — 발송 대기')); })
+    .catch(e=>toast('승인 저장 실패: 쓰기 권한 확인'));
+}
+// 즉시저장 트리거 — GAS 웹앱에 fire-and-forget POST(no-cors). 성공/실패는 Firebase(status=saved/saveError)로 확인.
+// 미배포(saveHookUrl 빈값)면 조용히 스킵 → 5분 폴링이 저장(폴백).
+function triggerImmediateSave(id){
+  if(!saveHookUrl) return;
+  try{ fetch(saveHookUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({id:id})}).catch(()=>{}); }
+  catch(e){ /* 네트워크 실패 → 5분 폴링 폴백 */ }
+}
+// 저장 실패 카드 재시도 — saveError 클리어 후 즉시저장 재호출.
+function retrySave(id){
+  update(ref(db,'cs/drafts/'+id),{saveError:null})
+    .then(()=>{ toast('저장 재시도'); triggerImmediateSave(id); })
+    .catch(e=>toast('재시도 실패: 쓰기 권한 확인'));
+}
+function retryDraft(id){
+  update(ref(db,'cs/drafts/'+id),{status:'approved',errorMsg:null,approvedAt:new Date().toISOString()})
+    .then(()=>toast('재시도 — 발송 대기')).catch(e=>toast('재시도 실패: 권한 확인'));
+}
+// 치우기(원탭) — status:dismissed. 삭제 아님(데이터 보존). 발송 워커·학습 루프는 status!=='approved'/'sent'이라 자연 제외.
+// reason: 'no-reply'(답불요 — 클라라 판단) / 기본 'handled'(이미 처리된 지난 문의).
+// dismissReason 저장 → 추천 없이 답불요 처리된 건 = 답불요 감지 누락 신호(추후 감지 개선 근거).
+function dismissDraft(id,reason){
+  const d=drafts[id];
+  const st=d?(d.status||'pending'):'';
+  if(!d || (st!=='pending' && st!=='notice' && st!=='error')){ toast('대기·발송 실패 상태 초안만 치울 수 있습니다'); return; } // 발송 진행 건 보호(알림·발송 실패 카드는 치우기 허용)
+  const manualSent=(reason==='manual-sent'); const noReply=(reason==='no-reply');
+  update(ref(db,'cs/drafts/'+id),{status:'dismissed',dismissReason:manualSent?'manual-sent':(noReply?'no-reply':'handled'),dismissedAt:new Date().toISOString()})
+    .then(()=>{ editingIds.delete(id); delete edits[id]; toast(manualSent?'발송함으로 치움':(noReply?'답불요로 치움':'지난 문의로 치움')); })
+    .catch(e=>toast('치우기 실패: 쓰기 권한 확인'));
+}
+// (D) 질문 분류 자산화: 대상 draft들을 category별로 그룹핑 → {category, count, representatives[]}.
+//   신규 AI 호출 없음(이미 계산된 d.category 재사용). 대표 질문은 정규화 중복 제거 후 최대 2개.
+function normQ(s){ return String(s==null?'':s).toLowerCase().replace(/\s+/g,' ').replace(/[\s.!?…~]+$/,'').trim(); }
+function buildTaxonomy(list){
+  const byCat={};
+  list.forEach(d=>{
+    const q=String((d&&d.origMsg)||'').trim(); if(!q) return;
+    const cat=(((d&&d.category)||'기타').trim())||'기타';
+    if(!byCat[cat]) byCat[cat]={category:cat,count:0,seen:{},representatives:[]};
+    const g=byCat[cat]; g.count++;
+    const key=normQ(q);
+    if(key && !g.seen[key]){ g.seen[key]=1; if(g.representatives.length<2) g.representatives.push(q.slice(0,120)); }
+  });
+  return Object.keys(byCat).map(c=>({category:byCat[c].category,count:byCat[c].count,representatives:byCat[c].representatives}))
+    .sort((a,b)=>b.count-a.count);
+}
+// 일괄 '모두 지난 처리' = 질문분류 자산화(cs/questionTaxonomy) + 대기목록 정리(dismissed). 코퍼스 시트 미접촉.
+function bulkDismiss(){
+  const threshold=kstDayStartMs(Date.now());
+  const ids=Object.keys(drafts||{}).filter(id=>{const d=drafts[id];
+    return d && (d.status||'pending')==='pending' && msgTimeMs(d)>0 && msgTimeMs(d)<threshold;});
+  if(!ids.length){ toast('해당하는 지난 문의 없음'); return; }
+  if(!confirm('오늘 0시(KST) 이전 대기 문의 '+ids.length+'건을 질문 분류로 정리하고 "지난 문의"로 치울까요?\n삭제 아님 · 데이터 보존 · 발송/저장되지 않습니다.')) return;
+  const now=new Date().toISOString();
+  const categories=buildTaxonomy(ids.map(id=>drafts[id])); // 코퍼스 시트 아님 — cs/questionTaxonomy로만
+  const patch={}; ids.forEach(id=>{ patch[id+'/status']='dismissed'; patch[id+'/dismissedAt']=now; });
+  Promise.all([
+    set(ref(db,'cs/questionTaxonomy'),{generatedAt:now, total:ids.length, categories:categories}),
+    update(ref(db,'cs/drafts'),patch) // 다중 경로 1회 쓰기
+  ]).then(()=>toast(ids.length+'건 분류·정리 완료 ('+categories.length+'개 분류)'))
+    .catch(e=>toast('정리 실패: 쓰기 권한 확인'));
+}
+// 편집 기준 언어(A안): 영어 게스트=영어(reply) / 그 외=한국어(replyKo). 클라라는 한/영만 만짐.
+function editSourceText(d){ return (String((d&&d.lang)||'').toLowerCase()==='en') ? String((d&&d.reply)||'') : String((d&&d.replyKo)||(d&&d.reply)||''); }
+function editSourceLang(d){ return (String((d&&d.lang)||'').toLowerCase()==='en') ? 'en' : 'ko'; }
+// (1) 2단계: [수정]=편집창 열기 / [저장]=현재 편집값을 committedEdit에 확정(편집창 닫힘). 승인은 committedEdit만 사용.
+function editOrSave(id){
+  if(editingIds.has(id)){ // [저장]
+    committedEdit[id]=(edits[id]!=null)?edits[id]:(committedEdit[id]!=null?committedEdit[id]:editSourceText(drafts[id]));
+    editingIds.delete(id); delete edits[id];
+    toast('편집 확정 — [승인]을 누르면 이 답변으로 학습');
+  } else { // [수정]
+    editingIds.add(id);
+    if(edits[id]==null) edits[id]=(committedEdit[id]!=null)?committedEdit[id]:editSourceText(drafts[id]);
+  }
+  renderWait();
+}
+function editInput(id,val){ edits[id]=val; } // 재렌더 안 함 → 포커스 유지
+// (2) 학습됨 재편집: [수정]=열기 / [저장]=정정 커밋(같은 코퍼스 행 갱신 요청).
+function editOrSaveCorrection(id){
+  if(editingIds.has(id)) saveCorrection(id);
+  else { editingIds.add(id); if(edits[id]==null) edits[id]=String((drafts[id]||{}).claraFinal||editSourceText(drafts[id])); renderSent(); }
+}
+function saveCorrection(id){
+  const d=drafts[id]; if(!d) return;
+  const final=(edits[id]!=null)?edits[id]:String(d.claraFinal||editSourceText(d));
+  update(ref(db,'cs/drafts/'+id),{claraFinal:final,claraFinalLang:editSourceLang(d),editedByClara:true,pendingCorrection:true,saveError:null})
+    .then(()=>{ editingIds.delete(id); delete edits[id]; triggerImmediateSave(id); toast('정정 저장 중… (같은 학습 행 갱신)'); renderSent(); })
+    .catch(e=>toast('정정 실패: 쓰기 권한 확인'));
+}
+
+function renderAuto(){
+  const stag=document.querySelector('.stage-tag'); if(stag) stag.textContent=learnMode?'학습모드':'M2b·2';
+  const sw=document.getElementById('autoSw');
+  if(learnMode){ // 7월 학습모드: 자동발송 잠금(8월 복귀). 녹색 링/배지 끄고 스위치 비활성.
+    document.body.classList.remove('auto-on');
+    sw.classList.remove('on'); sw.classList.add('locked'); sw.setAttribute('aria-checked','false');
+    document.getElementById('swKnob').textContent='🔒';
+    document.getElementById('swLab').textContent='잠금';
+    document.getElementById('autoTxt').innerHTML='<b>학습 모드</b> — 승인 시 발송 없이 학습 저장 (자동발송 8월 복귀)';
+    return;
+  }
+  sw.classList.remove('locked');
+  document.body.classList.toggle('auto-on',auto);
+  sw.classList.toggle('on',auto);
+  sw.setAttribute('aria-checked',auto?'true':'false');
+  document.getElementById('swKnob').textContent=auto?'⚡':'☀';
+  document.getElementById('swLab').textContent=auto?'자동':'수동';
+  document.getElementById('autoTxt').innerHTML=auto
+    ? '자동응대 <b>자동발송 ON</b> — confidence 0.8+ 초안 자동 발송'
+    : '자동응대 <b>수동 승인 모드</b> — 전건 승인';
+}
+// 유일한 쓰기: cs/config/autoSend (학습모드 중엔 잠금)
+function toggleAuto(){
+  if(learnMode){ toast('학습 모드 중 — 자동발송은 8월 복귀'); return; }
+  const next=!auto;
+  set(ref(db,'cs/config/autoSend'), next)
+    .then(()=> toast(next?'자동발송 ON — 이후 confidence 0.8+ 초안 자동 발송':'수동 승인 모드 — 전건 승인'))
+    .catch(e=> toast('설정 저장 실패: 쓰기 권한 확인'));
+}
+
+function renderBudget(){
+  const g=document.getElementById('gmailGauge');
+  const fill=document.getElementById('gmailFill');
+  const val=document.getElementById('gmailVal');
+  const fv=document.getElementById('fetchVal');
+  if(fv) fv.textContent='FETCH '+((budgetData && budgetData.fetchUsed!=null)?budgetData.fetchUsed:'—');
+  // 엔진 하트비트(07-15 승인): mirrorBudget_ 가 얹는 hbAt. 죽으면 데이터가 안 와서 stale 판정은 1분 타이머가 담당.
+  const hv=document.getElementById('hbVal');
+  if(hv){
+    if(budgetData && budgetData.hbAt){
+      const t=new Date(budgetData.hbAt);
+      const hh=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+      const stale=(Date.now()-t.getTime())>10*60*1000;
+      hv.textContent='엔진 '+hh; hv.style.color=stale?'#c0392b':'';
+      hv.title='엔진(GAS) 마지막 신호 '+hh+(stale?' — 10분+ 무신호, 트리거 확인 필요':'');
+    } else hv.textContent='엔진 —';
+  }
+  const budget = (budgetData && budgetData.budget!=null) ? Number(budgetData.budget) : 150;
+  if(!budgetData || budgetData.used==null){
+    fill.style.width='0%'; val.textContent='— /'+budget; g.classList.remove('warn'); return;
+  }
+  const used=Number(budgetData.used);
+  const pct = budget>0 ? Math.min(100,Math.round(used/budget*100)) : 0;
+  fill.style.width=pct+'%';
+  val.textContent=used+'/'+budget;
+  g.classList.toggle('warn', pct>=80);
+}
+
+// ── 시계 · 토스트 · 탭 ──
+function tick(){ const d=new Date(); const el=document.getElementById('clk'); if(el) el.textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  // 즉석 생성 pending이 있으면 15초마다 재렌더 → 경과초·지연경고가 Firebase 이벤트 없이도 갱신
+  if(isLoggedIn && Object.keys(manualQueue||{}).some(k=>manualQueue[k]&&manualQueue[k].status==='pending')){ renderGenStatus(); renderWait(); }
+  if(isLoggedIn) renderBudget(); // 엔진 하트비트 stale 판정(10분+) — 엔진이 죽으면 Firebase 이벤트가 안 와서 타이머로 재평가
+}
+tick(); setInterval(tick,15000);
+function showTab(i,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.pane').forEach((p,j)=>p.classList.toggle('show',i===j));
+}
+let toastTimer;
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2600); }
+
+// onclick 핸들러 노출 (module 스코프)
+window.doLogin=doLogin; window.logout=logout; window.toggleAuto=toggleAuto; window.showTab=showTab;
+window.approveDraft=approveDraft; window.retryDraft=retryDraft; window.editInput=editInput;
+window.editOrSave=editOrSave; window.editOrSaveCorrection=editOrSaveCorrection;
+window.dismissDraft=dismissDraft; window.bulkDismiss=bulkDismiss; window.setTone=setTone; window.retrySave=retrySave;
+window.approveTask=approveTask; window.rejectTask=rejectTask; window.toggleTaskDone=toggleTaskDone; window.toggleGroup=toggleGroup; window.generateInstant=generateInstant; window.dismissGenErr=dismissGenErr;
+window.approveSugg=approveSugg; window.rejectSugg=rejectSugg; window.gotoSuggTab=gotoSuggTab;
+window.approveReview=approveReview; window.skipReview=skipReview;
+window.addBan=addBan; window.delBan=delBan; window.addKnow=addKnow; window.delKnow=delKnow;
+</script>
+</body>
+</html>
