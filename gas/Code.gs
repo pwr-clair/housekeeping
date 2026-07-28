@@ -11,6 +11,9 @@ const FB = 'https://paradise-walk-residence-default-rtdb.asia-southeast1.firebas
 const FB_AUTH = PropertiesService.getScriptProperties().getProperty('FB_AUTH');
 const SENDER = 'paradisewalkresidence@gmail.com';
 const ADMIN_EMAIL = 'joi.hurricane@gmail.com';
+// 버전 스탬프 — 복붙 반영 시 에디터에 어떤 레포 버전이 돌고 있는지 실측하기 위한 표식.
+// 레포에서 gas/Code.gs를 수정하는 세션은 이 값을 그 커밋 날짜·차수로 갱신할 것. diagS5 리포트에 표기됨.
+const CODE_VER = '2026-07-28a (빈제목 발송 허용 + 진단 자동메일 제거)';
 const APPROVE_TOKEN = PropertiesService.getScriptProperties().getProperty('APPROVE_TOKEN');
 function roomNums(){
   var rooms = fbGet('app/rooms') || {};
@@ -303,7 +306,6 @@ function autoSendWin_(auto,stage,min){
   return min>=m&&min<m+10;
 }
 function masterTick(){
-  diagS5Once_();   // 방문고지(s5) 미발송 진단(2026-07-27, 1일 1회 관리자 메일) — 원인 확정 후 제거 예정
   const min=nowMinKST();
   syncAmounts();   // 매 틱(5분)마다 금액 동기화
   promoteVacantArrivals_();   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
@@ -857,21 +859,10 @@ function syncAmounts(){
 }
 
 // ============================================================
-// 방문고지(s5) 자동발송 진단 (2026-07-27 임시 — 원인 확정 후 제거)
-// 읽기 전용: 게스트 발송 없음, 관리자에게 리포트 메일 1통만.
-// masterTick 첫 줄에서 diagS5Once_()가 하루 1회 자동 실행 → 복붙·저장만 하면
-// 다음 5분 틱에 [PW] 방문고지(s5) 진단 메일 도착. (에디터에서 diagS5 직접 실행도 가능)
+// 방문고지(s5) 진단 (수동 전용 — 2026-07-28부터 자동메일 없음)
+// 에디터에서 diagS5 직접 실행 → 관리자 메일로 게이트별 상태 리포트(버전 스탬프 포함).
+// 읽기 전용: 게스트 발송 없음. "방문고지가 왜 안 나가지?" 할 때 첫 수단으로 쓸 것.
 // ============================================================
-function diagS5Once_(){
-  try{
-    const p=PropertiesService.getScriptProperties();
-    if(p.getProperty('DIAG_S5')===todayKST())return;
-    p.setProperty('DIAG_S5',todayKST());
-    diagS5();
-  }catch(e){
-    try{GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 방문고지(s5) 진단 실패',String(e&&e.stack||e));}catch(_){}
-  }
-}
 function diagS5(){
   const today=todayKST(), min=nowMinKST();
   const cfg=fbGet('app/mailConfig')||{};
@@ -886,6 +877,7 @@ function diagS5(){
     if(cb&&cb.bookingId)bidToRoom[String(cb.bookingId)]=num;
   }
   const L=[];
+  L.push('코드 버전: '+CODE_VER);
   L.push('실행 시각(KST): '+today+' '+nowHM()+' (min='+min+')');
   L.push('stages 전체: '+JSON.stringify(cfg.stages||null));
   L.push('sources 전체: '+JSON.stringify(cfg.sources||null));
