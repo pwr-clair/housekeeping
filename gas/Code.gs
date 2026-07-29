@@ -291,17 +291,24 @@ function sendS5Visit(tplKey){
 // ============================================================
 // 자동발송 시간·템플릿 설정(2026-07-25 클라라): app/mailConfig/auto/{stage} = {time:'HH:MM', template:'커스텀키'}
 // 미설정이면 기존 하드코딩 시각·단계 기본 템플릿 그대로 = 완전 하위호환. on/off는 기존 mailConfig/stages 토글.
-// 발송창 = 설정 시각부터 10분(5분 틱이 최소 1번 걸림). 중복은 mailLogs(예약+단계) 가드가 막는다.
+// 발송창 = 설정 시각부터 2시간 + "오늘 이미 돌았나" 도장(app/autoSend/lastRun/{stage}).
+// 2026-07-29: 10분 창은 5분 트리거가 몇 분만 밀려도 통째로 건너뛰어 그날 발송이 통으로 날아갔다
+// (방문고지 미발송 실사고). 도장 방식이면 밀려도 다음 틱이 잡고, 하루 1회는 도장이 보장한다.
+// 중복은 mailLogs(예약+단계) 가드가 이중으로 막는다.
 const AUTO_SEND_DEF={s2_reminder:420,s5_checkoutConfirm:665,s6_review:750,s4_checkout:1260};
 function autoSendWin_(auto,stage,min){
   const c=auto&&auto[stage];let m=AUTO_SEND_DEF[stage];
   if(c&&c.time&&/^\d{1,2}:\d{2}$/.test(String(c.time))){const p=String(c.time).split(':');m=(+p[0])*60+(+p[1]);}
-  return min>=m&&min<m+10;
+  if(min<m||min>=m+120)return false;          // 설정 시각~+2시간. 상한은 한밤중 뒷북 발송 방지
+  if(fbGet('app/autoSend/lastRun/'+stage)===todayKST())return false;   // 오늘 이미 돌았음
+  fbSet('app/autoSend/lastRun/'+stage,todayKST());
+  return true;
 }
 function masterTick(){
   const min=nowMinKST();
-  syncAmounts();   // 매 틱(5분)마다 금액 동기화
-  promoteVacantArrivals_();   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
+  // 아래 2개는 발송과 무관한 부수작업 — 여기서 던지면 그 틱의 자동발송이 통째로 죽는다(2026-07-29)
+  try{ syncAmounts(); }catch(e){}              // 매 틱(5분)마다 금액 동기화
+  try{ promoteVacantArrivals_(); }catch(e){}   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
   const auto=fbGet('app/mailConfig/auto')||{};
   const tplOf=s=>(auto[s]&&auto[s].template)||null;
   if(autoSendWin_(auto,'s2_reminder',min)) sendByDate('s2_reminder','checkinDate',kstDate(1),tplOf('s2_reminder'));   // 기본 07:00 (KST)
