@@ -2974,6 +2974,45 @@ function countryFromPhone(raw){
   return null;
 }
 
+// ── 이름 기반 국가 추정 (2026-07-30 클라라 제안: 번호+이름 결합 판별) ──
+// OTA 로마자 이름의 '확실한 패턴'만 매칭: 일본 성씨, 몽골 어근, 병음(중국)/웨이드식(대만) 표기 구분, 광둥식(홍콩),
+// 베트남·인도 성씨, 슬라브 어미. 한국과 겹치는 성(KANG·YANG·SONG·HAN·LEE 등)은 오판정을 피하려 의도적으로 제외 —
+// 애매하면 null을 돌려주고 번호 판별에 맡긴다. 성/이름 순서가 OTA마다 뒤집혀 오므로 전체 토큰을 다 본다.
+const NAME_CC={jp:['일본','Japan'],cn:['중국','China'],tw:['대만','Taiwan'],zh:['중화권','CN/TW'],hk:['홍콩','Hong Kong'],
+  vn:['베트남','Vietnam'],mn:['몽골','Mongolia'],ind:['인도','India'],th:['태국','Thailand'],pl:['폴란드','Poland'],ru:['러시아/CIS','Russia/CIS']};
+const NAME_SETS=Object.fromEntries(Object.entries({
+  jp:'SATO SUZUKI TAKAHASHI TANAKA WATANABE ITO YAMAMOTO NAKAMURA KOBAYASHI KATO YOSHIDA YAMADA SASAKI YAMAGUCHI SAITO MATSUMOTO INOUE KIMURA HAYASHI SHIMIZU YAMAZAKI MORI ABE IKEDA HASHIMOTO YAMASHITA ISHIKAWA NAKAJIMA MAEDA FUJITA OGAWA GOTO OKADA HASEGAWA MURAKAMI KONDO ISHII SAKAMOTO ENDO AOKI FUJII NISHIMURA FUKUDA MIURA FUJIWARA OKAMOTO MATSUDA NAKAGAWA NAKANO HARADA TAMURA TAKEUCHI KANEKO WADA NAKAYAMA ISHIDA UEDA MORITA SHIBATA SAKAI KUDO YOKOYAMA MIYAZAKI MIYAMOTO UCHIDA TAKAGI ANDO TANIGUCHI MARUYAMA IMAI TAKADA FUJIMOTO TAKEDA MURATA UENO SUGIYAMA MASUDA SUGAWARA HIRANO KOJIMA OTSUKA CHIBA KUBO MATSUI IWASAKI SAKURAI KINOSHITA NOGUCHI MATSUO NOMURA KIKUCHI SANO ONISHI SUGIMOTO ARAI HAMADA ICHIKAWA UMAKOSHI TSUKIYAMA HONDA KUBOTA SAWADA TSUJI SEKI YOSHIMURA IIDA YOSHIKAWA KAWAGUCHI HIRATA KAWASAKI',
+  vn:'NGUYEN TRAN PHAM HOANG HUYNH PHAN VU VO DANG BUI NGO DUONG TRUONG DINH DOAN TRINH LUU LUONG THI',
+  ind:'SINGH KUMAR SHARMA PATEL GUPTA REDDY RAO NAIR IYER MEHTA VERMA MISHRA JAIN AGARWAL CHOPRA KAPOOR RAIKAR DAS MUKHERJEE BANERJEE CHATTERJEE PILLAI KRISHNAN',
+  hk:'CHAN WONG CHEUNG LEUNG LAU CHOW TSANG YIP FUNG KWOK MOK',
+  tw:'HSU HSIEH HSIAO TSAI TSENG CHIU YEH KUO CHUANG CHOU TENG',
+  cn:'ZHANG ZHAO ZHOU ZHENG ZHU ZHUANG XU XIE XIAO XUE QIN QIAN QIU JIANG DENG GUO CAI YE',
+  zh:'CHEN LIN WANG HUANG WU LIU LI CHANG'
+}).map(([k,v])=>[k,new Set(v.split(' '))]));
+function countryFromName(raw){
+  if(!raw)return null;
+  const pick=k=>NAME_CC[k][currentLang==='ko'?0:1];
+  if(/[가-힣]/.test(raw))return currentLang==='ko'?'한국':'Korea';
+  if(/[ぁ-んァ-ヶ]/.test(raw))return pick('jp');                       // 가나 문자
+  const nm=String(raw).toUpperCase();
+  if(/(ENKH|MUNKH|TSETSEG|BAATAR|SAIKHAN|CHIMEG|ERDENE|DELGER|JARGAL|OTGON|GANTULGA|BATBOLD|BATSAIKHAN|KHULAN|ZOLBOO)/.test(nm.replace(/[^A-Z]/g,'')))return pick('mn');
+  const toks=nm.split(/[^A-Z]+/).filter(Boolean);
+  for(const k of ['jp','vn','ind','hk','tw','cn','zh'])                // 확실한 표기(일본·베트남·인도·광둥·웨이드·병음) 우선, 공용 성씨는 중화권으로
+    if(toks.some(t=>NAME_SETS[k].has(t)))return pick(k);
+  for(const t of toks){
+    if(t.length>=6&&/(OWSKI|EWSKI|CZYK|WICZ)$/.test(t))return pick('pl');
+    if(t.length>=6&&/(OVA|EVA|OV|EV)$/.test(t))return pick('ru');
+    if(t.length>=9&&/(PORN|CHAI|SAK|KUL|PHONG|THORN)$/.test(t))return pick('th');
+  }
+  return null;
+}
+// 번호+이름 결합 판별: 실번호는 사실 기반이라 우선. 익스피디아 중계번호(수동입력 아님)는 게스트 국가와 무관 → 이름으로만.
+function guessCountry(bk){
+  if(!bk)return null;
+  const relay=srcKey(bk.source||'')==='expedia'&&!bk.phoneManual;
+  return (!relay&&countryFromPhone(bk.guestPhone))||countryFromName(bk.guest)||null;
+}
+
 function findRoomBookingsByBid(){
   // bookingId → {num, where:'current'|index, bk} 매핑
   const map={};
@@ -3108,7 +3147,7 @@ function renderAssignCalendar(){
         ?books.filter(b=>b.checkinDate<bk.checkoutDate&&bk.checkinDate<b.checkoutDate).map(b=>b.guest+' ('+b.checkinDate+'~'+b.checkoutDate+')').join(' / ')
         :bk.guest+' ('+bk.checkinDate+'~'+bk.checkoutDate+')';
       const _amt=amountOf(bk,num);
-      const _cty=countryFromPhone(bk.guestPhone)||'';
+      const _cty=guessCountry(bk)||'';   // 번호+이름 결합 (2026-07-30 클라라)
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;'+(confHit?'background:#FDECEC;':'')+'">'
         +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
         +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+'</div></td>';
