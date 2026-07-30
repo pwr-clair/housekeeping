@@ -2942,6 +2942,35 @@ const cleanPhone=(raw)=>{
   return p;
 };
 
+// 전화번호 국가번호 → 국가명 (2026-07-30 클라라: 배정탭 금액 옆 병기 — 번호 기반 추정이라 부정확할 수 있음. SIRVOY 웹훅·알림메일엔 국가 필드 없음)
+const PHONE_CC={
+  '1':['미국/캐나다','US/CA'],'7':['러시아/카자흐','RU/KZ'],'20':['이집트','Egypt'],'27':['남아공','S.Africa'],
+  '30':['그리스','Greece'],'31':['네덜란드','Netherlands'],'32':['벨기에','Belgium'],'33':['프랑스','France'],'34':['스페인','Spain'],
+  '36':['헝가리','Hungary'],'39':['이탈리아','Italy'],'40':['루마니아','Romania'],'41':['스위스','Switzerland'],'43':['오스트리아','Austria'],
+  '44':['영국','UK'],'45':['덴마크','Denmark'],'46':['스웨덴','Sweden'],'47':['노르웨이','Norway'],'48':['폴란드','Poland'],'49':['독일','Germany'],
+  '52':['멕시코','Mexico'],'54':['아르헨티나','Argentina'],'55':['브라질','Brazil'],'56':['칠레','Chile'],
+  '60':['말레이시아','Malaysia'],'61':['호주','Australia'],'62':['인도네시아','Indonesia'],'63':['필리핀','Philippines'],'64':['뉴질랜드','NZ'],
+  '65':['싱가포르','Singapore'],'66':['태국','Thailand'],'81':['일본','Japan'],'82':['한국','Korea'],'84':['베트남','Vietnam'],'86':['중국','China'],
+  '90':['튀르키예','Türkiye'],'91':['인도','India'],'92':['파키스탄','Pakistan'],'94':['스리랑카','Sri Lanka'],'95':['미얀마','Myanmar'],'98':['이란','Iran'],
+  '351':['포르투갈','Portugal'],'353':['아일랜드','Ireland'],'358':['핀란드','Finland'],'359':['불가리아','Bulgaria'],
+  '370':['리투아니아','Lithuania'],'371':['라트비아','Latvia'],'372':['에스토니아','Estonia'],'380':['우크라이나','Ukraine'],
+  '420':['체코','Czechia'],'421':['슬로바키아','Slovakia'],
+  '852':['홍콩','Hong Kong'],'853':['마카오','Macau'],'855':['캄보디아','Cambodia'],'856':['라오스','Laos'],'880':['방글라데시','Bangladesh'],'886':['대만','Taiwan'],
+  '960':['몰디브','Maldives'],'961':['레바논','Lebanon'],'962':['요르단','Jordan'],'965':['쿠웨이트','Kuwait'],'966':['사우디','Saudi'],'968':['오만','Oman'],
+  '971':['UAE','UAE'],'972':['이스라엘','Israel'],'974':['카타르','Qatar'],'975':['부탄','Bhutan'],'976':['몽골','Mongolia'],'977':['네팔','Nepal'],
+  '992':['타지키스탄','Tajikistan'],'993':['투르크메니스탄','Turkmenistan'],'994':['아제르바이잔','Azerbaijan'],'995':['조지아','Georgia'],'996':['키르기스스탄','Kyrgyzstan'],'998':['우즈베키스탄','Uzbekistan']
+};
+function countryFromPhone(raw){
+  const p=cleanPhone(raw);
+  if(!p||!p.startsWith('+'))return null;
+  const d=p.slice(1);
+  for(const len of [3,2,1]){                          // 국가번호는 최장 일치 우선 (852 홍콩 vs 8x)
+    const e=PHONE_CC[d.slice(0,len)];
+    if(e)return currentLang==='ko'?e[0]:e[1];
+  }
+  return null;
+}
+
 function findRoomBookingsByBid(){
   // bookingId → {num, where:'current'|index, bk} 매핑
   const map={};
@@ -3076,8 +3105,9 @@ function renderAssignCalendar(){
         ?books.filter(b=>b.checkinDate<bk.checkoutDate&&bk.checkinDate<b.checkoutDate).map(b=>b.guest+' ('+b.checkinDate+'~'+b.checkoutDate+')').join(' / ')
         :bk.guest+' ('+bk.checkinDate+'~'+bk.checkoutDate+')';
       const _amt=amountOf(bk,num);
+      const _cty=countryFromPhone(bk.guestPhone)||'';
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;'+(confHit?'background:#FDECEC;':'')+'">'
-        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
+        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
         +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+'</div></td>';
       i+=span;
     }
@@ -3160,8 +3190,8 @@ function endGridDrag(g){
 }
 function showBarAmount(bar){
   if(bar._amtShowing)return;bar._amtShowing=true;
-  const amt=bar.dataset.amt,old=bar.innerHTML;
-  bar.innerHTML='<span style="width:100%;text-align:center;font-size:10px;">'+(amt?'₩'+Number(amt).toLocaleString('ko-KR'):(currentLang==='ko'?'금액없음':'no amount'))+'</span>';
+  const amt=bar.dataset.amt,cty=bar.dataset.cty,old=bar.innerHTML;
+  bar.innerHTML='<span style="width:100%;text-align:center;font-size:10px;">'+(amt?'₩'+Number(amt).toLocaleString('ko-KR'):(currentLang==='ko'?'금액없음':'no amount'))+(cty?' · '+cty:'')+'</span>';
   setTimeout(()=>{bar.innerHTML=old;bar._amtShowing=false;},2500);
 }
 async function moveGridBooking(srcNum,bid,tgtNum){
