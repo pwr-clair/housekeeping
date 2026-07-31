@@ -2173,10 +2173,11 @@ window.moveCurrentBookingToRoom=moveCurrentBookingToRoom;
 // ── 업무일지 ──
 function renderHistory(){
   const el=document.getElementById('hist-list');if(!el)return;
-  const all=Object.values(workLogs).sort((a,b)=>b.id.localeCompare(a.id));
+  const dOf=log=>log.date||log.id.slice(0,10);
+  // 날짜 우선 정렬: 날짜 수정으로 옮긴 일지가 제 날짜 그룹 위치에 서도록 (같은 날짜 안에선 최신 작성이 위)
+  const all=Object.values(workLogs).sort((a,b)=>(dOf(b)+'|'+b.id).localeCompare(dOf(a)+'|'+a.id));
   // 표시는 최근 1개월(30일)만 — 데이터는 삭제하지 않고 '지난 기록 보기'로 꺼내본다 (2026-07-26 클라라)
   const histCut=ymdOffset(-30);
-  const dOf=log=>log.date||log.id.slice(0,10);
   const list=window._histShowAll?all:all.filter(l=>dOf(l)>=histCut);
   const hiddenCnt=all.filter(l=>dOf(l)<histCut).length;
   const archBtnSt='width:100%;padding:8px;border:0.5px dashed var(--border2);border-radius:var(--radius-sm);background:none;color:var(--text3);font-size:11px;cursor:pointer;margin-top:4px;';
@@ -2201,7 +2202,7 @@ function renderHistory(){
               <span style="font-size:11px;font-weight:700;color:#042C53;">${log.who||''}</span>
               <span style="font-size:10px;color:var(--text3);">${log.time||''}</span>
             </div>
-            ${log.who===currentUser?`<button onclick="deleteWorkLog('${log.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;"><i class="ti ti-trash"></i></button>`:''}
+            ${log.who===currentUser?`<span style="display:flex;gap:2px;"><button onclick="editWorkLogDate('${log.id}')" title="날짜 수정" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;"><i class="ti ti-calendar-cog"></i></button><button onclick="deleteWorkLog('${log.id}')" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:12px;padding:2px 4px;"><i class="ti ti-trash"></i></button></span>`:''}
           </div>
           <div style="font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;">${log.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
         </div>`).join('')}
@@ -2233,7 +2234,16 @@ async function deleteWorkLog(id){
   if(!confirm(currentLang==='ko'?'삭제할까요?':'Delete this entry?'))return;
   await set(ref(db,`app/workLogs/${id}`),null);
 }
-window.openWorkLogModal=openWorkLogModal;window.saveWorkLog=saveWorkLog;window.deleteWorkLog=deleteWorkLog;
+// 일지 날짜 수정 (2026-07-31 클라라: 잘못된 날짜에 쓴 일지를 원래 날짜로 옮기는 용도) — 작성자 본인만 (삭제와 동일 게이팅)
+async function editWorkLogDate(id){
+  const log=workLogs[id];if(!log)return;
+  const raw=prompt(currentLang==='ko'?'옮길 날짜를 입력하세요 (YYYY-MM-DD)':'Enter new date (YYYY-MM-DD)',log.date||todayStr());
+  if(raw==null)return;
+  const v=raw.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){alert(currentLang==='ko'?'YYYY-MM-DD 형식으로 입력해주세요 (예: 2026-07-16)':'Use YYYY-MM-DD format');return;}
+  await update(ref(db,`app/workLogs/${id}`),{date:v});
+}
+window.openWorkLogModal=openWorkLogModal;window.saveWorkLog=saveWorkLog;window.deleteWorkLog=deleteWorkLog;window.editWorkLogDate=editWorkLogDate;
 
 function openCounterModal(type){
   const today=todayStr();
