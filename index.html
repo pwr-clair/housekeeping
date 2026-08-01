@@ -444,10 +444,16 @@ input,select,button,textarea{font-family:inherit;}
       <div id="cpv-warn" style="display:none;background:#FEF3C7;color:#92400E;border:0.5px solid #F0D98A;border-radius:var(--radius-sm);padding:8px 10px;font-size:11px;font-weight:600;margin-bottom:10px;">⚠️ 이미 발송됨 — 발송 시 재발송됩니다</div>
       <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">제목</div>
       <input type="text" id="cpv-subject" style="width:100%;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:10px;">
-      <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">한국어 본문</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+        <div style="font-size:10px;font-weight:600;color:var(--text2);">한국어 본문</div>
+        <button id="cpv-clr-ko" onclick="toggleClearBody('ko')" title="한국어 본문 비우기" style="background:none;border:none;padding:0 2px;margin:0;cursor:pointer;color:var(--text3);font-size:13px;line-height:1;display:flex;align-items:center;"><i class="ti ti-trash"></i></button>
+      </div>
       <textarea id="cpv-bodyko" style="width:100%;height:240px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
       <div id="cpv-bodyen-wrap" style="display:none;">
-        <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">영문 본문</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <div style="font-size:10px;font-weight:600;color:var(--text2);">영문 본문</div>
+          <button id="cpv-clr-en" onclick="toggleClearBody('en')" title="영문 본문 비우기" style="background:none;border:none;padding:0 2px;margin:0;cursor:pointer;color:var(--text3);font-size:13px;line-height:1;display:flex;align-items:center;"><i class="ti ti-trash"></i></button>
+        </div>
         <textarea id="cpv-bodyen" style="width:100%;height:200px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;">
@@ -3584,6 +3590,28 @@ async function dismissCancelled(key){
 }
 window.dismissCancelled=dismissCancelled;
 
+// 발송창 본문 비우기(2026-08-01 클라라) — 한/영 중 한쪽만 보내고 싶을 때 그 시트 내용을 통째로 삭제.
+//   이 창(발송본) 한정이라 템플릿 원본은 그대로. 지운 직후 같은 버튼이 '되돌리기'로 바뀌어 오탭 복구 가능(창을 다시 열면 초기화).
+const cpvCleared={ko:null,en:null};
+function paintCpvClearBtn(lang){
+  const btn=document.getElementById('cpv-clr-'+lang);if(!btn)return;
+  const undo=cpvCleared[lang]!==null;
+  btn.innerHTML='<i class="ti ti-'+(undo?'arrow-back-up':'trash')+'"></i>';
+  btn.style.color=undo?'#042C53':'var(--text3)';
+  btn.title=undo?'되돌리기':((lang==='ko'?'한국어':'영문')+' 본문 비우기');
+}
+function resetCpvClear(){cpvCleared.ko=null;cpvCleared.en=null;paintCpvClearBtn('ko');paintCpvClearBtn('en');}
+function toggleClearBody(lang){
+  const ta=document.getElementById('cpv-body'+lang);if(!ta)return;
+  if(cpvCleared[lang]!==null){ta.value=cpvCleared[lang];cpvCleared[lang]=null;}
+  else{
+    if(!ta.value){return;}                       // 이미 비어 있으면 아무 동작 없음(빈 값 되돌리기 방지)
+    cpvCleared[lang]=ta.value;ta.value='';
+  }
+  paintCpvClearBtn(lang);
+}
+window.toggleClearBody=toggleClearBody;
+
 // 입실안내: '입실' 클릭 → 미리보기·편집 모달 → 편집본 저장 후 발송
 let checkinPreviewRoom=null,checkinPreviewAlreadySent=false;
 async function openCheckinPreview(num,confirmFirst){
@@ -3604,6 +3632,7 @@ async function openCheckinPreview(num,confirmFirst){
   const enWrap=document.getElementById('cpv-bodyen-wrap');
   if(data.bodyEn){document.getElementById('cpv-bodyen').value=data.bodyEn;enWrap.style.display='block';}
   else{document.getElementById('cpv-bodyen').value='';enWrap.style.display='none';}
+  resetCpvClear();
   document.getElementById('cpv-send-btn').onclick=sendCheckinPreview;
   document.getElementById('checkin-preview-modal').classList.add('open');
 }
@@ -3616,6 +3645,7 @@ async function sendCheckinPreview(){
   const bodyKo=document.getElementById('cpv-bodyko').value;
   const enWrap=document.getElementById('cpv-bodyen-wrap');
   const bodyEn=(enWrap.style.display==='none')?'':document.getElementById('cpv-bodyen').value;
+  if(!bodyKo.trim()&&!bodyEn.trim()){alert('본문이 비어 있어요. 한국어·영문 중 최소 하나는 남겨주세요.');return;}
   const today=todayStr();
   try{
     await set(ref(db,'app/sendOverrides/'+num+'_'+today),{subject,bodyKo,bodyEn});
@@ -3648,6 +3678,7 @@ async function openStagePreview(bid,room,stage,label){
   const enWrap=document.getElementById('cpv-bodyen-wrap');
   if(data.bodyEn){document.getElementById('cpv-bodyen').value=data.bodyEn;enWrap.style.display='block';}
   else{document.getElementById('cpv-bodyen').value='';enWrap.style.display='none';}
+  resetCpvClear();
   document.getElementById('cpv-send-btn').onclick=sendStagePreview;
   document.getElementById('checkin-preview-modal').classList.add('open');
 }
@@ -3660,6 +3691,7 @@ async function sendStagePreview(){
   const bodyKo=document.getElementById('cpv-bodyko').value;
   const enWrap=document.getElementById('cpv-bodyen-wrap');
   const bodyEn=(enWrap.style.display==='none')?'':document.getElementById('cpv-bodyen').value;
+  if(!bodyKo.trim()&&!bodyEn.trim()){alert('본문이 비어 있어요. 한국어·영문 중 최소 하나는 남겨주세요.');return;}
   try{
     await set(ref(db,'app/sendOverrides/stage_'+(bid||room||'x')+'_'+stage),{subject,bodyKo,bodyEn});
   }catch(e){alert('편집 내용 저장 실패: '+e);return;}
