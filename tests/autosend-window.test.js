@@ -42,11 +42,21 @@ assert.strictEqual(win(721), false, '12:01 — 상한 초과');
 db = {};
 assert.strictEqual(vm.runInContext('autoSendWin_', ctx)({}, 's5_checkoutConfirm', 665), true, '기본 11:05');
 
-// ⑥ syncAmounts가 던져도 그 틱의 자동발송이 살아있다
-db = { app: { mailConfig: { auto: {} }, rooms: {}, pendingBookings: {}, config: { sendMode: 'manual' } } };
+// ⑥ syncAmounts가 던져도 발송은 살아있다 + 빈 제목 템플릿(본문만)도 자동발송된다 (2026-08-02 실사고)
+//    — 제목 필수 가드가 방문고지(무제목 운영)를 조용히 skip해 매일 0건이 되던 구조 검증
+db = { app: {
+  mailConfig: { auto: {}, stages: { s5_checkoutConfirm: true }, sources: { booking: true } },
+  mailTemplates: { s5_checkoutConfirm: { subject: '', bodyKo: '방문고지 본문' } },
+  rooms: {}, config: { sendMode: 'manual' },
+  pendingBookings: { sv_1: { bookingId: '1', guest: 'Kim', guestEmail: 'g@x.com', source: 'booking.com', checkinDate: '2026-07-27', checkoutDate: '2026-07-29' } },
+} };
+let mails = [];
+ctx.GmailApp.sendEmail = (...a) => { mails.push(a); };
 vm.runInContext(`syncAmounts=()=>{throw new Error('Gmail 일시 오류')};nowMinKST=()=>665;`, ctx);
-vm.runInContext('masterTick()', ctx);   // 던지면 여기서 테스트가 깨진다
-assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), '2026-07-29', '부수작업 예외에도 발송 로직 도달');
+vm.runInContext('masterTick()', ctx);   // syncAmounts가 던지면 여기서 테스트가 깨진다
+assert.strictEqual(mails.length, 1, '빈 제목 템플릿도 1통 발송돼야 함');
+assert.strictEqual(mails[0][1], '', '제목은 빈 그대로 (OTA 채팅 헤더 방지)');
+assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), '2026-07-29', '발송 성공 뒤 도장');
 
 // ⑦ 발송이 죽으면 도장을 찍지 않는다 → 다음 틱이 재시도 (2026-08-01: 도장만 남고 발송이 날아가던 구조)
 db = {};
@@ -57,10 +67,29 @@ assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), null, '실패
 vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 676, boom);
 assert.strictEqual(calls, 2, '다음 틱이 재시도해야 함');
 
-// ⑧ 성공하면 도장이 찍히고 같은 날 재실행은 막힌다
-vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 681, () => { calls++; });
+// ⑧ 1건 이상 발송하면 도장이 찍히고 같은 날 재실행은 막힌다
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 681, () => { calls++; return 1; });
 assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), '2026-07-29', '성공 뒤 도장');
-vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 686, () => { calls++; });
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 686, () => { calls++; return 1; });
 assert.strictEqual(calls, 3, '도장 뒤엔 재실행 안 함');
 
-console.log('OK — 8항목 통과');
+// ⑨ 0건 발송이면 도장을 안 찍는다 → 다음 틱이 창 안에서 재시도 (2026-08-02: 조용한 skip이 도장으로 그날 발송을 지우던 구조)
+db = {};
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 671, () => { calls++; return 0; });
+assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), null, '0건이면 도장 없어야 함');
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 676, () => { calls++; return 0; });
+assert.strictEqual(calls, 5, '0건 뒤에도 다음 틱이 재시도해야 함');
+
+// ⑩ 본문이 아예 없는 템플릿은 발송 skip → 0건 = 도장도 없음 (checkAutoSend가 사유를 짚어준다)
+db = { app: {
+  mailConfig: { auto: {}, stages: { s5_checkoutConfirm: true }, sources: { booking: true } },
+  mailTemplates: { s5_checkoutConfirm: { subject: '제목만 있음' } },
+  rooms: {}, config: { sendMode: 'manual' },
+  pendingBookings: { sv_1: { bookingId: '1', guest: 'Kim', guestEmail: 'g@x.com', source: 'booking.com', checkinDate: '2026-07-27', checkoutDate: '2026-07-29' } },
+} };
+mails = [];
+vm.runInContext('masterTick()', ctx);
+assert.strictEqual(mails.length, 0, '본문 없는 템플릿은 발송 안 함');
+assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), null, 'skip으로 0건이면 도장 없어야 함');
+
+console.log('OK — 10항목 통과');

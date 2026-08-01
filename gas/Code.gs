@@ -222,13 +222,17 @@ function sendStageMail(stage,bk,room,force,tplKey){
   // 템플릿 매칭(2026-07-25 클라라): 자동발송이 mailConfig/auto/{stage}.template로 다른 템플릿을 지정할 수 있다.
   // 지정 템플릿이 삭제·부재면 단계 기본 템플릿으로 폴백. dedupe(logKey)는 템플릿 무관하게 단계 기준 유지.
   const tpl=fbGet('app/mailTemplates/'+(tplKey||stage))||(tplKey?fbGet('app/mailTemplates/'+stage):null);
-  if(!tpl||!tpl.subject)return false;
+  // 빈 제목 허용(2026-08-02 실사고): 방문고지처럼 OTA 채팅에 제목 헤더가 안 뜨게 제목을 비워 운영하는
+  // 템플릿을 "제목 필수" 가드가 조용히 skip → 자동발송이 0건인데 오류도 없이 매일 통째로 빠졌다.
+  // 발송 조건은 본문(bodyKo/bodyEn/body) 존재뿐이다. 제목 필수 가드를 되살리지 말 것.
+  const hasTx=t=>!!(t&&String(t).trim());
+  if(!tpl||!(hasTx(tpl.bodyKo)||hasTx(tpl.bodyEn)||hasTx(tpl.body)))return false;
   // room: 문자열(단일) 또는 배열(멀티룸 몰아보내기 — 같은 게스트 방 여러 개를 1통에)
   const roomList=Array.isArray(room)?room.map(String):(room?[String(room)]:[]);
   const rData={};roomList.forEach(n=>{rData[n]=fbGet('app/rooms/'+n)||{};});
   const fill=s=>fillTpl_(s,bk,roomList,rData);
   try{
-    var __subject = fill(tpl.subject);
+    var __subject = fill(tpl.subject||'');
     var __ko = (tpl.bodyKo && String(tpl.bodyKo).trim()) ? fill(tpl.bodyKo) : '';
     var __en = (tpl.bodyEn && String(tpl.bodyEn).trim()) ? fill(tpl.bodyEn) : '';
     if(__ko || __en){
@@ -304,10 +308,12 @@ function autoSendWin_(auto,stage,min){      // 발송창 판정만 — 도장은
 }
 // 2026-08-01: 도장을 발송 '전'에 찍던 구조 — 발송이 던지거나 6분 실행한도로 죽으면
 // 도장만 남아 그날 발송이 통째로 날아갔다(다음 틱이 "오늘 이미 돌았음"으로 판단). 이제 성공 뒤에만 찍는다.
-// 실패하면 도장이 없으니 다음 틱(5분)이 창 안에서 재시도, 중복은 mailLogs(예약+단계)가 막는다.
+// 2026-08-02: 0건 발송이면 도장을 안 찍는다 — 조용한 skip(템플릿 문제·일시 오류 등)에 도장이 찍히면
+// 그날 발송이 소리 없이 소실된다(방문고지 실사고 재발 원인). 창(2h) 안에서 다음 틱이 재시도하고,
+// 진짜 대상 없는 날은 재시도해도 발송 0건이라 무해하다. 중복은 mailLogs(예약+단계)가 막는다.
 function runAuto_(auto,stage,min,fn){
   if(!autoSendWin_(auto,stage,min))return;
-  try{ fn(); fbSet('app/autoSend/lastRun/'+stage,todayKST()); }
+  try{ if(fn()>0) fbSet('app/autoSend/lastRun/'+stage,todayKST()); }
   catch(err){ GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 자동발송 실패 '+stage+' — 다음 틱 재시도',String(err)); }
 }
 function masterTick(){
@@ -332,6 +338,10 @@ function masterTick(){
     }
   }
   // mode==='manual' → 아무것도 안 함 (수동 발송만)
+
+  // 부수작업은 맨 뒤 — syncAmounts가 6분 실행한도를 먹어도 위 발송은 이미 끝나 있다.
+  // (f357185가 "맨 뒤로 이동"한다며 호출을 지우기만 해 금액 동기화가 죽어 있었다 — 2026-08-02 복원)
+  try{ syncAmounts(); }catch(e){}
   }
 
 // ============================================================
@@ -877,13 +887,20 @@ function checkAutoSend(){
   try{ L.push('트리거: '+ScriptApp.getProjectTriggers().map(function(t){return t.getHandlerFunction();}).join(', ')); }
   catch(e){ L.push('트리거: 조회실패 '+e); }
   const lastRun=fbGet('app/autoSend/lastRun');
-  L.push('코드버전: '+(lastRun?'07-29 이후(도장 방식) '+JSON.stringify(lastRun)
-                              :'★ 구버전 — 07-29 수정본이 이 GAS에 안 들어가 있음(10분 창 그대로)'));
+  L.push('도장(lastRun): '+JSON.stringify(lastRun||{})+'  (08-02부터 0건 발송인 날은 도장이 없는 게 정상)');
   const cfg=fbGet('app/mailConfig')||{}, stages=cfg.stages||{}, sources=cfg.sources||{}, auto=cfg.auto||{};
   L.push('방문고지 토글: '+(stages.s5_checkoutConfirm===true?'ON':'★ OFF — 자동발송 자체가 막힘'));
   L.push('방문고지 설정: '+JSON.stringify(auto.s5_checkoutConfirm||{})+'  (미설정이면 11:05)');
   L.push('채널 토글: '+JSON.stringify(sources));
   L.push('단계 토글: '+JSON.stringify(stages));
+  // 템플릿 진단(2026-08-02 실사고 사각지대): 본문 없는 템플릿은 발송이 전부 조용히 skip된다
+  const a5=auto.s5_checkoutConfirm||{};
+  const t5=fbGet('app/mailTemplates/'+(a5.template||'s5_checkoutConfirm'))||(a5.template?fbGet('app/mailTemplates/s5_checkoutConfirm'):null);
+  const hasTx5=t=>!!(t&&String(t).trim());
+  const s5TplOk=!!(t5&&(hasTx5(t5.bodyKo)||hasTx5(t5.bodyEn)||hasTx5(t5.body)));
+  L.push('방문고지 템플릿('+(a5.template||'기본')+'): '+(t5
+    ?('제목 '+(hasTx5(t5.subject)?'있음':'없음(빈 제목으로 발송 — 정상)')+' / 본문 '+(s5TplOk?'있음':'★ 없음 — 발송 전부 skip'))
+    :'★ 템플릿 자체가 없음 — 발송 전부 skip'));
   const pend=fbGet('app/pendingBookings')||{}, rooms=fbGet('app/rooms')||{}, bidToRoom={};
   Object.keys(rooms).forEach(function(n){
     const cb=rooms[n]&&rooms[n].currentBooking; if(cb&&cb.bookingId)bidToRoom[String(cb.bookingId)]=n;
@@ -905,6 +922,7 @@ function checkAutoSend(){
       else if(room&&rooms[room]&&rooms[room].status==='checkout_done')why='- 퇴실완료 방이라 제외';
       else if(stages.s5_checkoutConfirm!==true)why='★ 미발송 — 방문고지 토글 OFF';
       else if(sources[normSource(bk.source)]!==true)why='★ 미발송 — 채널 OFF('+normSource(bk.source)+')';
+      else if(!s5TplOk)why='★ 미발송 — 템플릿 본문 없음(위 템플릿 진단 줄 참고)';
       else why='★ 미발송 — 발송창을 못 잡음(트리거·시각 확인)';
       L.push('  '+(room||bk.assignedRoom||'미배정')+'  '+(bk.guest||'')+'  '+why);
     });
