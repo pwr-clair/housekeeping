@@ -844,18 +844,23 @@ function parseSirvoyAmount_(bookingId){
 
 function syncAmounts(){
   var pend = fbGet('app/pendingBookings') || {};
-  var done = 0, tried = 0, notfound = 0;
+  var done = 0, tried = 0, notfound = 0, today = todayKST();
   for(var key in pend){
     var bk = pend[key];
     if(!bk || bk.cancelled) continue;
     if(bk.amount !== undefined && bk.amount !== null && bk.amount !== '') continue;
+    // 2026-08-01: 직판 예약은 SIRVOY 알림메일이 아예 없어 영원히 "못 찾음"인데,
+    // 이걸 5분마다 재검색하느라 Gmail 호출이 틱 실행시간을 먹고 뒤의 자동발송이 실행 한도에 잘렸다.
+    // 한 예약당 하루 1회로 제한(오늘 늦게 도착한 메일은 내일 잡힌다).
+    if(bk.amtMissAt === today) continue;
     tried++;
-    if(tried > 60) break;   // 한 틱 최대 60건
+    if(tried > 20) break;   // 한 틱 최대 20건
     var won = parseSirvoyAmount_(bk.bookingId || key);
     if(won !== null){
       fbUpdate('app/pendingBookings/' + key, { amount: won });
       done++;
     } else {
+      fbUpdate('app/pendingBookings/' + key, { amtMissAt: today });
       notfound++;
     }
   }
@@ -889,7 +894,10 @@ function checkAutoSend(){
     Object.keys(pend).forEach(function(k){
       const bk=pend[k]; if(!bk||bk.cancelled||bk.checkoutDate!==d)return;
       cnt++;
-      const room=bk.bookingId?bidToRoom[String(bk.bookingId)]:null;
+      // 방 매핑: currentBooking이 이미 다음 예약으로 넘어간 방은 bidToRoom이 못 잡는다 → assignedRoom로 보완
+      // (이게 없으면 정상 스킵된 퇴실완료 방이 '원인불명 미발송'으로 잘못 찍힌다)
+      let room=bk.bookingId?bidToRoom[String(bk.bookingId)]:null;
+      if(!room&&bk.assignedRoom&&bk.assignedRoom!=='manual'&&rooms[bk.assignedRoom])room=String(bk.assignedRoom);
       const log=bk.bookingId?fbGet('app/mailLogs/'+String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_s5_checkoutConfirm'):null;
       let why;
       if(log)why='O 발송됨 '+(log.time||'');
