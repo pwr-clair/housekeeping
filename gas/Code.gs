@@ -296,25 +296,29 @@ function sendS5Visit(tplKey){
 // (방문고지 미발송 실사고). 도장 방식이면 밀려도 다음 틱이 잡고, 하루 1회는 도장이 보장한다.
 // 중복은 mailLogs(예약+단계) 가드가 이중으로 막는다.
 const AUTO_SEND_DEF={s2_reminder:420,s5_checkoutConfirm:665,s6_review:750,s4_checkout:1260};
-function autoSendWin_(auto,stage,min){
+function autoSendWin_(auto,stage,min){      // 발송창 판정만 — 도장은 runAuto_가 발송 성공 뒤에 찍는다
   const c=auto&&auto[stage];let m=AUTO_SEND_DEF[stage];
   if(c&&c.time&&/^\d{1,2}:\d{2}$/.test(String(c.time))){const p=String(c.time).split(':');m=(+p[0])*60+(+p[1]);}
   if(min<m||min>=m+120)return false;          // 설정 시각~+2시간. 상한은 한밤중 뒷북 발송 방지
-  if(fbGet('app/autoSend/lastRun/'+stage)===todayKST())return false;   // 오늘 이미 돌았음
-  fbSet('app/autoSend/lastRun/'+stage,todayKST());
-  return true;
+  return fbGet('app/autoSend/lastRun/'+stage)!==todayKST();   // 오늘 이미 돌았으면 skip
+}
+// 2026-08-01: 도장을 발송 '전'에 찍던 구조 — 발송이 던지거나 6분 실행한도로 죽으면
+// 도장만 남아 그날 발송이 통째로 날아갔다(다음 틱이 "오늘 이미 돌았음"으로 판단). 이제 성공 뒤에만 찍는다.
+// 실패하면 도장이 없으니 다음 틱(5분)이 창 안에서 재시도, 중복은 mailLogs(예약+단계)가 막는다.
+function runAuto_(auto,stage,min,fn){
+  if(!autoSendWin_(auto,stage,min))return;
+  try{ fn(); fbSet('app/autoSend/lastRun/'+stage,todayKST()); }
+  catch(err){ GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 자동발송 실패 '+stage+' — 다음 틱 재시도',String(err)); }
 }
 function masterTick(){
   const min=nowMinKST();
-  // 아래 2개는 발송과 무관한 부수작업 — 여기서 던지면 그 틱의 자동발송이 통째로 죽는다(2026-07-29)
-  try{ syncAmounts(); }catch(e){}              // 매 틱(5분)마다 금액 동기화
   try{ promoteVacantArrivals_(); }catch(e){}   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
   const auto=fbGet('app/mailConfig/auto')||{};
   const tplOf=s=>(auto[s]&&auto[s].template)||null;
-  if(autoSendWin_(auto,'s2_reminder',min)) sendByDate('s2_reminder','checkinDate',kstDate(1),tplOf('s2_reminder'));   // 기본 07:00 (KST)
-  if(autoSendWin_(auto,'s5_checkoutConfirm',min)) sendS5Visit(tplOf('s5_checkoutConfirm'));                            // 기본 11:05
-  if(autoSendWin_(auto,'s6_review',min)) sendByDate('s6_review','checkoutDate',kstDate(-1),tplOf('s6_review'));        // 기본 12:30
-  if(autoSendWin_(auto,'s4_checkout',min)) sendByDate('s4_checkout','checkoutDate',kstDate(1),tplOf('s4_checkout'));   // 기본 21:00
+  runAuto_(auto,'s2_reminder',min,()=>sendByDate('s2_reminder','checkinDate',kstDate(1),tplOf('s2_reminder')));   // 기본 07:00 (KST)
+  runAuto_(auto,'s5_checkoutConfirm',min,()=>sendS5Visit(tplOf('s5_checkoutConfirm')));                            // 기본 11:05
+  runAuto_(auto,'s6_review',min,()=>sendByDate('s6_review','checkoutDate',kstDate(-1),tplOf('s6_review')));        // 기본 12:30
+  runAuto_(auto,'s4_checkout',min,()=>sendByDate('s4_checkout','checkoutDate',kstDate(1),tplOf('s4_checkout')));   // 기본 21:00
 
   // ★ 입실안내(s3) — 시각 기반: 매 틱마다 발송창에 든 방을 발송 (승인흐름 제거)
   const mode=fbGet('app/config/sendMode')||'manual';
@@ -856,4 +860,49 @@ function syncAmounts(){
     }
   }
   return '시도 ' + tried + '건, 채움 ' + done + '건, 메일못찾음 ' + notfound + '건';
+}
+
+// ============================================================
+// 자동발송 진단 — 에디터에서 checkAutoSend 실행 후 실행로그만 보면 된다 (발송은 안 한다)
+// "방문고지가 왜 안 나갔나"를 한 화면에서 판정: 코드버전·트리거·토글·설정시각·대상별 사유
+// ============================================================
+function checkAutoSend(){
+  const today=todayKST(), L=[];
+  L.push('■ 지금(KST) '+today+' '+nowHM());
+  try{ L.push('트리거: '+ScriptApp.getProjectTriggers().map(function(t){return t.getHandlerFunction();}).join(', ')); }
+  catch(e){ L.push('트리거: 조회실패 '+e); }
+  const lastRun=fbGet('app/autoSend/lastRun');
+  L.push('코드버전: '+(lastRun?'07-29 이후(도장 방식) '+JSON.stringify(lastRun)
+                              :'★ 구버전 — 07-29 수정본이 이 GAS에 안 들어가 있음(10분 창 그대로)'));
+  const cfg=fbGet('app/mailConfig')||{}, stages=cfg.stages||{}, sources=cfg.sources||{}, auto=cfg.auto||{};
+  L.push('방문고지 토글: '+(stages.s5_checkoutConfirm===true?'ON':'★ OFF — 자동발송 자체가 막힘'));
+  L.push('방문고지 설정: '+JSON.stringify(auto.s5_checkoutConfirm||{})+'  (미설정이면 11:05)');
+  L.push('채널 토글: '+JSON.stringify(sources));
+  L.push('단계 토글: '+JSON.stringify(stages));
+  const pend=fbGet('app/pendingBookings')||{}, rooms=fbGet('app/rooms')||{}, bidToRoom={};
+  Object.keys(rooms).forEach(function(n){
+    const cb=rooms[n]&&rooms[n].currentBooking; if(cb&&cb.bookingId)bidToRoom[String(cb.bookingId)]=n;
+  });
+  [0,-1].forEach(function(off){
+    const d=kstDate(off); let cnt=0;
+    L.push('■ '+d+' 체크아웃 = 방문고지 대상');
+    Object.keys(pend).forEach(function(k){
+      const bk=pend[k]; if(!bk||bk.cancelled||bk.checkoutDate!==d)return;
+      cnt++;
+      const room=bk.bookingId?bidToRoom[String(bk.bookingId)]:null;
+      const log=bk.bookingId?fbGet('app/mailLogs/'+String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_s5_checkoutConfirm'):null;
+      let why;
+      if(log)why='O 발송됨 '+(log.time||'');
+      else if(!bk.guestEmail)why='- 이메일 없음';
+      else if(room&&rooms[room]&&rooms[room].status==='checkout_done')why='- 퇴실완료 방이라 제외';
+      else if(stages.s5_checkoutConfirm!==true)why='★ 미발송 — 방문고지 토글 OFF';
+      else if(sources[normSource(bk.source)]!==true)why='★ 미발송 — 채널 OFF('+normSource(bk.source)+')';
+      else why='★ 미발송 — 발송창을 못 잡음(트리거·시각 확인)';
+      L.push('  '+(room||bk.assignedRoom||'미배정')+'  '+(bk.guest||'')+'  '+why);
+    });
+    if(!cnt)L.push('  (대상 없음)');
+  });
+  const out=L.join('\n');
+  Logger.log(out);
+  return out;
 }

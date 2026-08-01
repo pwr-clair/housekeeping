@@ -26,9 +26,9 @@ const win = (min) => vm.runInContext('autoSendWin_', ctx)(auto, 's5_checkoutConf
 db = {};
 assert.strictEqual(win(671), true, '10:11 첫 틱 — 밀려도 발송해야 함');
 
-// ② 같은 날 다음 틱은 도장 때문에 안 돈다 (중복 발송 방지)
+// ② 오늘 도장이 찍혀 있으면 다음 틱은 안 돈다 (중복 발송 방지)
+setD('app/autoSend/lastRun/s5_checkoutConfirm', '2026-07-29');
 assert.strictEqual(win(676), false, '같은 날 재실행 금지');
-assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), '2026-07-29');
 
 // ③ 설정 시각 전에는 안 돈다
 db = {};
@@ -48,4 +48,19 @@ vm.runInContext(`syncAmounts=()=>{throw new Error('Gmail 일시 오류')};nowMin
 vm.runInContext('masterTick()', ctx);   // 던지면 여기서 테스트가 깨진다
 assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), '2026-07-29', '부수작업 예외에도 발송 로직 도달');
 
-console.log('OK — 6항목 통과');
+// ⑦ 발송이 죽으면 도장을 찍지 않는다 → 다음 틱이 재시도 (2026-08-01: 도장만 남고 발송이 날아가던 구조)
+db = {};
+let calls = 0;
+const boom = () => { calls++; throw new Error('Firebase 일시 오류'); };
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 671, boom);
+assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), null, '실패했으면 도장 없어야 함');
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 676, boom);
+assert.strictEqual(calls, 2, '다음 틱이 재시도해야 함');
+
+// ⑧ 성공하면 도장이 찍히고 같은 날 재실행은 막힌다
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 681, () => { calls++; });
+assert.strictEqual(get('app/autoSend/lastRun/s5_checkoutConfirm'), '2026-07-29', '성공 뒤 도장');
+vm.runInContext('runAuto_', ctx)(auto, 's5_checkoutConfirm', 686, () => { calls++; });
+assert.strictEqual(calls, 3, '도장 뒤엔 재실행 안 함');
+
+console.log('OK — 8항목 통과');
