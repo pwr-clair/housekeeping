@@ -1,0 +1,229 @@
+From 6332923486369c0b66d803223192bc780559a21b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 4 Aug 2026 09:45:13 +0000
+Subject: [PATCH] =?UTF-8?q?feat(cs):=20=EC=9D=B4=EB=AF=B8=20=ED=9B=84?=
+ =?UTF-8?q?=EA=B8=B0=20=EC=93=B4=20=EA=B2=8C=EC=8A=A4=ED=8A=B8=20=EC=9E=AC?=
+ =?UTF-8?q?=EC=A0=9C=EC=95=88=20=EC=B0=A8=EB=8B=A8(=ED=81=B4=EB=9D=BC?=
+ =?UTF-8?q?=EB=9D=BC=20=EC=A7=80=EC=8B=9C=202026-08-04)=20=E2=80=94=20?=
+ =?UTF-8?q?=EB=B6=80=ED=82=B9=20=ED=9B=84=EA=B8=B0=20=EC=95=8C=EB=A6=BC?=
+ =?UTF-8?q?=EB=A9=94=EC=9D=BC=20=EA=B8=B0=EB=B0=98=20=EC=9E=91=EC=84=B1=20?=
+ =?UTF-8?q?=EA=B0=90=EC=A7=80?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+배경: 후기 요청을 CS로 일원화했는데 게스트가 이미 후기를 남긴 경우에도
+후기 탭이 요청을 제안함(중복 요청 리스크).
+
+수리: 새 파일 gas/ReviewDedup.gs (Code.gs 무수정 — GAS 전역 스코프 공유로
+기존 fbGet/fbUpdate/gmSearch_ 헬퍼 재사용, 자체 1시간 트리거로 동작).
+- reviewedScanTick: 부킹 후기 알림메일 검색(newer_than:14d) → 게스트 이름
+  토큰 매칭 → cs/guestScore/{bid}.reviewedAt 도장 → proposed 후보 자동
+  skipped(skippedReason: already_reviewed) 스윕.
+- 이름 매칭: 토큰 전원 일치(순서 무관 'LEE, BUMRAE'='Bumrae Lee', 발음기호
+  무시 Gugić=Gugic, 부분 문자열 불인정 Lee≠Leeds). 확신 없으면 막지 않는
+  안전 기본값 — 익명 후기·표기 불일치는 후보 유지.
+- setupReviewedScanTrigger(1회 실행, 트리거 등록) / diagReviewAlerts(실메일
+  제목·매칭 검증, 쿼리는 스크립트 속성 CS_REVIEW_ALERT_QUERY로 교체 가능).
+
+검증: tests/review-policy.test.js 35 PASS(신규 15건 포함), 구문 검사 통과.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019KRRG9spgS6r26QsTBDW5T
+---
+ gas/ReviewDedup.gs          | 118 ++++++++++++++++++++++++++++++++++++
+ tests/review-policy.test.js |  39 +++++++++++-
+ 2 files changed, 155 insertions(+), 2 deletions(-)
+ create mode 100644 gas/ReviewDedup.gs
+
+diff --git a/gas/ReviewDedup.gs b/gas/ReviewDedup.gs
+new file mode 100644
+index 0000000..63e5bbe
+--- /dev/null
++++ b/gas/ReviewDedup.gs
+@@ -0,0 +1,118 @@
++// ============================================================
++// 후기 작성 감지 (2026-08-04 클라라 지시) — 이미 후기를 쓴 게스트에게 요청 재제안 금지
++// ============================================================
++// 배경: 후기 요청을 HK에서 CS로 일원화(HK s6 자동발송 off)했는데, 게스트가 이미
++// 후기를 남긴 경우에도 후기 탭이 요청을 제안함 → 중복 요청 리스크.
++// 원리: OTA(부킹)는 게스트가 후기를 남기면 파트너 계정(이 GAS 실행 계정)으로
++// 알림메일을 보낸다. 그 메일에서 게스트 이름을 매칭해 cs/guestScore/{bid}.reviewedAt
++// 도장 → 후기 탭의 proposed 후보를 자동 건너뜀(skipped/already_reviewed) 처리.
++//
++// ★ 별도 파일 설계: Code.gs는 수정하지 않는다 (GAS는 프로젝트 내 전 파일이 전역
++//   스코프를 공유하므로 fbGet/fbUpdate/gmSearch_ 등 Code.gs 헬퍼를 그대로 사용).
++//   선별(reviewQueueWorker_)은 그대로 두고, 이 파일의 스윕이 매시간 뒷정리한다
++//   — 알림이 선별보다 늦게 와도, 먼저 와도 결과는 동일(제안 최대 1시간 노출 후 자동 건너뜀).
++//
++// 설치(1회): ①GAS 에디터에 새 파일 ReviewDedup.gs로 이 내용 붙여넣기
++//   ②setupReviewedScanTrigger 실행(1시간 트리거 자동 등록) ③diagReviewAlerts 실행해
++//   실제 알림메일이 검색되는지 확인. 배포 불필요(트리거 함수는 배포와 무관).
++// 이름 매칭: 토큰 단위 전원 일치. 순서 무관("LEE, BUMRAE"="Bumrae Lee"),
++//   발음기호 무시(Gugić=Gugic), 부분 문자열 불인정(Lee≠Leeds), 1자 토큰(이니셜) 제외.
++//   확신 없으면 막지 않는 안전 기본값 — 익명 후기·표기 불일치는 후보 유지.
++
++var REVIEW_ALERT_QUERY = '{subject:review subject:리뷰 subject:후기} from:booking.com newer_than:14d';
++
++// 순수(테스트용): 이름 → 정규화 토큰. 소문자·발음기호 제거·비문자 분리·2자 미만(이니셜) 제거·정렬.
++function normNameTokens_(name) {
++  var s = String(name == null ? '' : name).toLowerCase();
++  try { s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} // é→e, ć→c
++  return s.replace(/[^a-z가-힣]+/g, ' ').split(' ')
++    .filter(function (t) { return t.length >= 2; }).sort();
++}
++// 순수(테스트용): 알림메일 텍스트에 게스트 이름의 '전 토큰'이 단어 단위로 등장하는가.
++function reviewAlertMatches_(mailText, guestName) {
++  var toks = normNameTokens_(guestName);
++  if (!toks.length) return false;
++  var hay = ' ' + normNameTokens_(mailText).join(' ') + ' ';
++  for (var i = 0; i < toks.length; i++) if (hay.indexOf(' ' + toks[i] + ' ') < 0) return false;
++  return true;
++}
++// 순수(테스트용): 후기 탭 자동 건너뜀 판정 — 제안 상태 + 후기 작성 도장.
++function reviewedAutoSkip_(q, s) {
++  return !!(q && q.status === 'proposed' && s && s.reviewedAt);
++}
++
++// 매시간 트리거: ①알림메일 스캔 → guestScore에 reviewedAt 도장 ②proposed 후보 스윕 → 자동 건너뜀
++function reviewedScanTick() {
++  if (typeof _gmailStop !== 'undefined' && _gmailStop) return;
++  var p = PropertiesService.getScriptProperties();
++  var now = new Date().toISOString();
++  var scores = fbGet('cs/guestScore') || {};
++
++  // ① 알림메일 스캔 (처리한 스레드는 CS_REVIEWED_SEEN에 기록 — 14일 검색창 밖으로 빠지면 자연 소멸)
++  var q = p.getProperty('CS_REVIEW_ALERT_QUERY') || REVIEW_ALERT_QUERY; // 실제 알림 제목이 다르면 속성으로 교체(diagReviewAlerts로 확인)
++  var threads = gmSearch_(q, 0, 30);
++  if (threads.length) {
++    var seen = {}; try { seen = JSON.parse(p.getProperty('CS_REVIEWED_SEEN') || '{}'); } catch (e) {}
++    var newSeen = {};
++    for (var t = 0; t < threads.length; t++) {
++      var tid = threads[t].getId();
++      newSeen[tid] = 1;
++      if (seen[tid]) continue;
++      var msgs = gmGetMessages_(threads[t]);
++      if (!msgs.length) { delete newSeen[tid]; continue; } // 예산 게이트로 못 읽은 스레드는 다음 시간에 재시도
++      var text = '';
++      for (var m = 0; m < msgs.length; m++) text += msgs[m].getSubject() + '\n' + msgs[m].getPlainBody() + '\n';
++      var hit = 0;
++      for (var key in scores) {
++        var s = scores[key];
++        if (!s || s.reviewedAt || !s.guest) continue;
++        if (!reviewAlertMatches_(text, s.guest)) continue;
++        s.reviewedAt = now; // 아래 스윕이 같은 run에서 보도록 메모리에도 반영
++        fbUpdate('cs/guestScore/' + key, { reviewedAt: now, reviewedThread: tid });
++        Logger.log('후기 작성 감지: ' + (s.guest || '?') + ' (' + key + ')');
++        hit++;
++      }
++      if (!hit) Logger.log('후기 알림 매칭 없음(익명 후기 또는 이름 표기 차이): ' + msgs[0].getSubject());
++    }
++    p.setProperty('CS_REVIEWED_SEEN', JSON.stringify(newSeen));
++  }
++
++  // ② 스윕: 이미 후기 쓴 게스트의 proposed 후보 → 자동 건너뜀 (선별이 알림보다 먼저 돌았어도 여기서 정리)
++  var queue = fbGet('cs/reviewQueue') || {};
++  for (var k in queue) {
++    if (!reviewedAutoSkip_(queue[k], scores[k])) continue;
++    fbUpdate('cs/reviewQueue/' + k, { status: 'skipped', skippedReason: 'already_reviewed', skippedAt: now });
++    Logger.log('후기 후보 자동 건너뜀(이미 작성): ' + ((scores[k] && scores[k].guest) || k));
++  }
++}
++
++// 설치(1회 실행): reviewedScanTick 1시간 트리거 등록 — 재실행해도 중복 등록 안 됨.
++function setupReviewedScanTrigger() {
++  var ts = ScriptApp.getProjectTriggers();
++  for (var i = 0; i < ts.length; i++) {
++    if (ts[i].getHandlerFunction() === 'reviewedScanTick') ScriptApp.deleteTrigger(ts[i]);
++  }
++  ScriptApp.newTrigger('reviewedScanTick').timeBased().everyHours(1).create();
++  Logger.log('등록 완료: reviewedScanTick 1시간 트리거');
++}
++
++// 진단(수동 실행): 후기 알림메일이 실제로 어떤 제목·발신자로 오는지 + 이름 매칭 결과 확인.
++function diagReviewAlerts() {
++  var p = PropertiesService.getScriptProperties();
++  var q = p.getProperty('CS_REVIEW_ALERT_QUERY') || REVIEW_ALERT_QUERY;
++  Logger.log('검색 쿼리: ' + q);
++  var threads = GmailApp.search(q, 0, 30);
++  Logger.log('매치 스레드: ' + threads.length + '건');
++  var scores = fbGet('cs/guestScore') || {};
++  for (var t = 0; t < threads.length; t++) {
++    var msg = threads[t].getMessages()[0];
++    Logger.log(Utilities.formatDate(msg.getDate(), 'Asia/Seoul', 'MM-dd HH:mm') + ' | ' + msg.getFrom() + ' | ' + msg.getSubject());
++    var text = msg.getSubject() + '\n' + msg.getPlainBody(), any = false;
++    for (var key in scores) {
++      var s = scores[key];
++      if (s && s.guest && reviewAlertMatches_(text, s.guest)) { Logger.log('   ↳ 매칭: ' + s.guest + ' (' + key + ')' + (s.reviewedAt ? ' [이미 도장]' : '')); any = true; }
++    }
++    if (!any) Logger.log('   ↳ 매칭 없음');
++  }
++  Logger.log('판독: 스레드 0건=쿼리가 실제 알림메일과 안 맞음 → 받은편지함에서 후기 알림 제목 확인 후 스크립트 속성 CS_REVIEW_ALERT_QUERY 교체 / 매칭 없음=guestScore 이름 표기와 대조. 재스캔은 CS_REVIEWED_SEEN 속성 삭제.');
++}
+diff --git a/tests/review-policy.test.js b/tests/review-policy.test.js
+index 7dbcb76..cc4f341 100644
+--- a/tests/review-policy.test.js
++++ b/tests/review-policy.test.js
+@@ -1,8 +1,10 @@
+-// 순수 로직 검증 (jsc) — 2026-07-29 후기 정책 개편
++// 순수 로직 검증 (jsc) — 2026-07-29 후기 정책 개편 + 2026-08-04 후기 작성 감지
+ //   ① reviewEligible_: 체크아웃 1일+·7일 내 + 불만 0 + 긍정 2 이상
+ //   ② reviewTemplateFor_: 한국어 대화=한국어, 그 외 전부 영어
+ //   ③ 고정 문구가 발송단 이모지 제거(stripEmoji_)를 통과해도 무변형(⭐·→ 사전 제거 확인)
+-// gas/Code.gs와 동일 구현 복제.
++//   ④ normNameTokens_/reviewAlertMatches_/reviewedAutoSkip_: 후기 알림메일 ↔ 게스트 이름 매칭
++//      (순서 무관·발음기호 무시) + 이미 작성 건 자동 건너뜀 판정
++// ①②③은 gas/Code.gs, ④는 gas/ReviewDedup.gs와 동일 구현 복제.
+ 
+ function reviewEligible_(s, yesterday, windowStart) {
+   if (!s || !s.checkoutDate) return false;
+@@ -10,6 +12,22 @@ function reviewEligible_(s, yesterday, windowStart) {
+   if ((s.negCount || 0) > 0) return false;
+   return (s.posCount || 0) >= 2;
+ }
++function normNameTokens_(name) {
++  var s = String(name == null ? '' : name).toLowerCase();
++  try { s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {} // é→e, ć→c
++  return s.replace(/[^a-z가-힣]+/g, ' ').split(' ')
++    .filter(function (t) { return t.length >= 2; }).sort();
++}
++function reviewAlertMatches_(mailText, guestName) {
++  var toks = normNameTokens_(guestName);
++  if (!toks.length) return false;
++  var hay = ' ' + normNameTokens_(mailText).join(' ') + ' ';
++  for (var i = 0; i < toks.length; i++) if (hay.indexOf(' ' + toks[i] + ' ') < 0) return false;
++  return true;
++}
++function reviewedAutoSkip_(q, s) {
++  return !!(q && q.status === 'proposed' && s && s.reviewedAt);
++}
+ var REVIEW_MSG_EN =
+   'Dear guest,\n\n' +
+   'Thank you so much for staying at Paradise Walk Residence. We hope you had a relaxing trip back home!\n\n' +
+@@ -63,6 +81,23 @@ ok('8일 전 체크아웃 → 제외(뒷북 방지 7일 창)', reviewEligible_({
+ ok('체크아웃일 미상 → 제외', reviewEligible_({posCount:9,negCount:0},Y,W)===false);
+ ok('posCount 없음 → 제외', reviewEligible_({checkoutDate:'2026-07-28'},Y,W)===false);
+ 
++print('[4] 후기 작성 감지 — 이름 매칭(순서 무관·발음기호 무시·전 토큰 요구)');
++eq('토큰화: "LEE, BUMRAE" → [bumrae,lee]', normNameTokens_('LEE, BUMRAE'), ['bumrae','lee']);
++eq('토큰화: "Bumrae Lee" 동일', normNameTokens_('Bumrae Lee'), ['bumrae','lee']);
++eq('발음기호: "Gugić, Stipe" → [gugic,stipe]', normNameTokens_('Gugić, Stipe'), ['gugic','stipe']);
++eq('이니셜(1자) 제거: "Stipe G." → [stipe]', normNameTokens_('Stipe G.'), ['stipe']);
++ok('성/이름 순서 바뀐 표기 매칭', reviewAlertMatches_('Bumrae Lee left you a review', 'LEE, BUMRAE')===true);
++ok('발음기호 차이 매칭 (Gugic vs Gugić)', reviewAlertMatches_('Guest Stipe Gugic has left a 10 review', 'Gugić, Stipe')===true);
++ok('본문 어딘가에 이름 등장해도 매칭(단어 단위)', reviewAlertMatches_('New review\nGuest: CHO, AHYE\nScore 10', 'Ahye Cho')===true);
++ok('일부 토큰만 일치 → 불일치(다른 게스트 보호)', reviewAlertMatches_('Katherine Smith left a review', 'Ross, Katherine')===false);
++ok('부분 문자열은 단어로 안 침 (Lee vs Leeds)', reviewAlertMatches_('Greetings from Leeds hotel review', 'Lee, Bumrae')===false);
++ok('익명 후기(이름 없음) → 불일치(안전 기본값: 막지 않음)', reviewAlertMatches_('You have a new anonymous review', 'LEE, BUMRAE')===false);
++ok('빈 이름 → 불일치', reviewAlertMatches_('any review text', '')===false);
++ok('자동 건너뜀: proposed+reviewedAt → true', reviewedAutoSkip_({status:'proposed'},{reviewedAt:'2026-08-03T01:00:00Z'})===true);
++ok('자동 건너뜀 아님: 후기 작성 안 함', reviewedAutoSkip_({status:'proposed'},{})===false);
++ok('자동 건너뜀 아님: 이미 승인된 후보는 안 건드림', reviewedAutoSkip_({status:'approved'},{reviewedAt:'2026-08-03T01:00:00Z'})===false);
++ok('자동 건너뜀 아님: score 없음', reviewedAutoSkip_({status:'proposed'},undefined)===false);
++
+ print('[2] 언어 선택 — 한국어만 한국어, 나머지 전부 영어');
+ eq('ko → 한국어 문구', reviewTemplateFor_('ko').lang, 'ko');
+ eq('en → 영어', reviewTemplateFor_('en').lang, 'en');
+-- 
+2.43.0
+
