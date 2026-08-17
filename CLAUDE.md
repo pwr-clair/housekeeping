@@ -88,6 +88,7 @@ RTDB는 **이미 `auth != null`로 잠겨 있다.** 비로그인 접근은 전�
 - 스케줄 트리거: 5분 주기 `masterTick`(s2/s3/s4/s5/s6 발송 타이밍 + `syncAmounts` 금액 동기화 포함), 일일 `t1100 / t1159 / t1200`, 매시간 `autoCheckinTick`.
   - 자동발송 시각·템플릿은 운영자가 발송탭에서 조정: `app/mailConfig/auto/{stage}` = `{time:'HH:MM', template:'custom_*'}` (2026-07-25). 미설정이면 코드 기본 시각(s2 07:00 / s5 11:05 / s6 12:30 / s4 21:00)·단계 기본 템플릿. on/off는 기존 `app/mailConfig/stages`. s3(입실)은 체크인 시각 연동이라 이 설정 대상 아님.
   - `autoCheckinTick`: **21:00 이후**(코드상 `if(min<1260)return;` — 하한만 있고 상한 가드는 없음) **+ "오늘 체크인" 날짜 조건**이 맞는 객실 중, 입실안내 발송완료된 `clean_done` 객실을 `checkin`으로 전환. (자정 이후엔 날짜 조건이 자연히 안 맞아 결과적으로 안 돈다 — 상한 가드가 있는 게 아니다.)
+- **도어락 연동 (2026-08-17)**: 솔리티 도어락 → 스마트싱스 → GAS `doorCheckinTick_`(masterTick 내 호출)가 출입(잠금해제) 이력을 조회해, 오늘 체크인 + `clean_done` 방에 기준시각(게스트 ETA=checkinTime, 없으면 15:00) 이후 출입이 확인되면 `checkin` 전환. 매핑=`app/doorlocks/{방번호}=deviceId`, 인증=OAuth(스크립트 속성 `ST_*`, 리프레시 자동 갱신 — PAT는 24시간 만료라 사용 불가). 설정 절차는 GAS `stSetupHelp()` 로그 참조. 미설정 시 자동 스킵.
 - **GAS 수정 후에는 반드시 "배포 관리 → 새 버전 → 배포"를 해야 반영된다.** `doGet/doPost`는 *배포된 버전*이 돌기 때문에, 코드만 고치고 배포 안 하면 "고쳤는데 왜 그대로지?"로 시간을 날린다. 단, **트리거 함수와 Firebase 템플릿 변경은 배포와 무관**하게 즉시 반영된다.
 - **GAS 정본 버전관리 (2026-07-14 시작): HK GAS 소스 = 이 레포 `gas/Code.gs`.** 수정은 레포에서 하고, 클라라에게는 raw URL 한 줄로 전달: `https://raw.githubusercontent.com/pwr-clair/housekeeping/main/gas/Code.gs`
 - **클라라 복붙 반영물 전달 규칙 (2026-07-14 클라라 지시)**: 복붙 반영해야 하는 코드·텍스트는 ①채팅에 바로 복붙 가능하게 주거나 ②정확한 원클릭 URL만 줄 것. "레포 가서 파일 열고 복사해서…" 식 다단계 안내 금지. 배포 절차는 클라라가 숙지 — "배포까지 하세요" 한 줄이면 충분.

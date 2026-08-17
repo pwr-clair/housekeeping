@@ -332,6 +332,8 @@ function masterTick(){
     }
   }
   // mode==='manual' → 아무것도 안 함 (수동 발송만)
+
+  try{ doorCheckinTick_(); }catch(e){}   // 도어락 출입 기반 자동 체크인 (§하단 스마트싱스 모듈 — 미설정 시 즉시 스킵)
   }
 
 // ============================================================
@@ -461,6 +463,8 @@ function sendApprovalEmail(){
 // ============================================================
 function doGet(e){
   const p=e.parameter||{};
+  // 스마트싱스 OAuth 콜백 (도어락 연동 승인 후 리다이렉트 — APPROVE_TOKEN과 무관한 별도 경로)
+  if(p.state==='stauth'&&p.code)return ContentService.createTextOutput(stAuthCallback_(p.code));
   if(p.token!==APPROVE_TOKEN)return ContentService.createTextOutput('Paradise Walk GAS 작동 중');
   if(p.action==='approve'){
     return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
@@ -913,4 +917,151 @@ function checkAutoSend(){
   const out=L.join('\n');
   Logger.log(out);
   return out;
+}
+
+// ============================================================
+// 솔리티 도어락(스마트싱스) 연동 — 출입 기반 자동 체크인 (2026-08-17)
+// 흐름: 솔리티 도어락 → 스마트싱스(제휴사 기기 연동) → masterTick(5분)마다 이 모듈이
+//       스마트싱스 출입(잠금해제) 이력을 조회 → '오늘 체크인 + clean_done'인 방에
+//       기준시각(게스트 ETA=checkinTime, 없으면 15:00) 이후 출입이 확인되면 checkin 전환.
+// 인증: 스마트싱스 PAT는 24시간 만료(2025-01 정책)라 OAuth 서비스 연동으로 구현.
+//       토큰·클라이언트 키는 전부 스크립트 속성(ST_*)에 저장 — 코드·레포에 비밀 없음.
+// 설정: stSetupHelp() 실행 → 로그의 절차대로. 매핑(app/doorlocks)·토큰 없으면 자동 스킵(무해).
+// ============================================================
+const ST_API='https://api.smartthings.com';
+function stP_(){return PropertiesService.getScriptProperties();}
+function stHasAuth_(){var p=stP_();return !!(p.getProperty('ST_REFRESH_TOKEN')&&p.getProperty('ST_CLIENT_ID'));}
+
+function stSetupHelp(){
+  Logger.log([
+    '■ 솔리티 도어락 연동 설정 절차 (1회)',
+    '0. 전제: 도어락에 브릿지/와이파이 모듈 장착 + 스마트싱스 앱에서 [기기 추가→제휴사 기기→Smart Solity] 연동 완료',
+    '1. https://account.smartthings.com/tokens 에서 토큰 발급 — 권한: Devices(읽기), Locations(읽기), Apps(전체) 체크',
+    '   (24시간짜리 1회용 — 아래 2번에서 앱 생성에만 쓰고 버림)',
+    '2. stCreateApp 함수 안 PAT 자리에 토큰 붙여넣고 실행 → 로그에 나온 URL을 브라우저에서 열어 삼성 로그인·허용',
+    '   → "연동 완료" 화면이 뜨면 성공 (이후 토큰 갱신은 자동)',
+    '3. stListLocks 실행 → 로그의 deviceId 확인 → stSetLocks의 MAP에 {방번호:deviceId} 채워 실행',
+    '4. stTestDoor 실행으로 동작 확인 (전환은 안 하고 판정만 로그로 보여줌)',
+    '※ 이 파일을 새로 붙여넣었으면 [배포 관리→기존 배포 수정→새 버전]으로 재배포 필수 (URL 바뀌면 안 됨)'
+  ].join('\n'));
+}
+
+// ─── 1회 설정: OAuth 앱 생성 ───
+function stCreateApp(){
+  var PAT='PASTE_PAT_HERE';   // ← account.smartthings.com/tokens 에서 발급한 토큰 붙여넣기 (실행 후 지워도 됨)
+  if(PAT.indexOf('PASTE')===0){Logger.log('PAT 자리에 토큰을 붙여넣고 다시 실행하세요. 절차는 stSetupHelp 실행.');return;}
+  var redir=ScriptApp.getService().getUrl();
+  if(!redir){Logger.log('웹앱 배포 URL이 없습니다 — 먼저 배포하세요.');return;}
+  var payload={appName:'pwr-hk-door-'+Utilities.getUuid().slice(0,8),displayName:'PWR HK Door',
+    description:'Paradise Walk HK door checkin sync',appType:'API_ONLY',
+    classifications:['CONNECTED_SERVICE'],singleInstance:true,
+    oauth:{clientName:'PWR HK Door',scope:['r:devices:*','r:locations:*'],redirectUris:[redir]}};
+  var res=UrlFetchApp.fetch(ST_API+'/apps',{method:'post',contentType:'application/json',
+    headers:{Authorization:'Bearer '+PAT},payload:JSON.stringify(payload),muteHttpExceptions:true});
+  var body={};try{body=JSON.parse(res.getContentText()||'{}');}catch(e){}
+  if(res.getResponseCode()>=300||!body.oauthClientId){
+    Logger.log('❌ 앱 생성 실패 '+res.getResponseCode()+' — 아래 응답 전문을 복사해 세션에 붙여주면 고칠 수 있음:\n'+res.getContentText());return;
+  }
+  stP_().setProperty('ST_CLIENT_ID',body.oauthClientId);
+  stP_().setProperty('ST_CLIENT_SECRET',body.oauthClientSecret);
+  Logger.log('✅ 앱 생성 완료. 아래 URL을 브라우저에서 열어 삼성 로그인 후 [허용]:\n'+stAuthUrl_());
+}
+function stAuthUrl_(){
+  return ST_API+'/oauth/authorize?client_id='+encodeURIComponent(stP_().getProperty('ST_CLIENT_ID'))
+    +'&response_type=code&redirect_uri='+encodeURIComponent(ScriptApp.getService().getUrl())
+    +'&scope='+encodeURIComponent('r:devices:* r:locations:*')+'&state=stauth';
+}
+function stAuthCallback_(code){  // doGet(state=stauth)에서 호출
+  try{
+    stTokenRequest_({grant_type:'authorization_code',code:code,redirect_uri:ScriptApp.getService().getUrl()});
+    try{
+      var locs=stApi_('/v1/locations');
+      if(locs.items&&locs.items.length)stP_().setProperty('ST_LOCATION_ID',locs.items[0].locationId);
+    }catch(e){}
+    return '✅ 스마트싱스 연동 완료! 다음 단계: GAS 에디터에서 stListLocks 실행 → 방·도어락 매핑(stSetLocks)';
+  }catch(err){return '❌ 연동 실패: '+err;}
+}
+
+// ─── 토큰 관리 (자동 갱신) ───
+function stTokenRequest_(params){
+  var p=stP_();
+  var res=UrlFetchApp.fetch(ST_API+'/oauth/token',{method:'post',
+    headers:{Authorization:'Basic '+Utilities.base64Encode(p.getProperty('ST_CLIENT_ID')+':'+p.getProperty('ST_CLIENT_SECRET'))},
+    payload:params,muteHttpExceptions:true});
+  var body={};try{body=JSON.parse(res.getContentText()||'{}');}catch(e){}
+  if(res.getResponseCode()>=300||!body.access_token)throw new Error('ST 토큰 실패 '+res.getResponseCode()+': '+res.getContentText().slice(0,300));
+  p.setProperty('ST_ACCESS_TOKEN',body.access_token);
+  if(body.refresh_token)p.setProperty('ST_REFRESH_TOKEN',body.refresh_token);  // 리프레시 토큰은 회전식 — 매번 새 값 저장 필수
+  return body.access_token;
+}
+function stRefresh_(){return stTokenRequest_({grant_type:'refresh_token',refresh_token:stP_().getProperty('ST_REFRESH_TOKEN')});}
+function stApi_(path){
+  var tok=stP_().getProperty('ST_ACCESS_TOKEN')||stRefresh_();
+  var call=function(t){return UrlFetchApp.fetch(ST_API+path,{headers:{Authorization:'Bearer '+t},muteHttpExceptions:true});};
+  var res=call(tok);
+  if(res.getResponseCode()===401)res=call(stRefresh_());
+  if(res.getResponseCode()>=300)throw new Error('ST API '+path+' → '+res.getResponseCode()+' '+res.getContentText().slice(0,300));
+  return JSON.parse(res.getContentText());
+}
+
+// ─── 1회 설정: 도어락 목록·매핑 ───
+function stListLocks(){
+  var res=stApi_('/v1/devices'),found=0;
+  (res.items||[]).forEach(function(d){
+    var caps=[];(d.components||[]).forEach(function(c){(c.capabilities||[]).forEach(function(cp){caps.push(cp.id);});});
+    if(caps.indexOf('lock')<0)return;
+    found++;Logger.log('🔐 '+(d.label||d.name)+' → deviceId: '+d.deviceId);
+  });
+  Logger.log(found?'→ stSetLocks의 MAP에 {방번호:deviceId}로 채워 실행하면 매핑이 저장됩니다.'
+    :'lock 기기가 없습니다 — 스마트싱스 앱에서 솔리티(제휴사 기기) 연동이 됐는지 확인하세요.');
+}
+function stSetLocks(){
+  var MAP={
+    // '201':'디바이스ID', '202':'디바이스ID',  ← stListLocks 로그의 deviceId로 채우고 실행
+  };
+  if(!Object.keys(MAP).length){Logger.log('MAP에 방번호:deviceId를 채운 뒤 실행하세요 (stListLocks 로그 참고).');return;}
+  fbSet('app/doorlocks',MAP);
+  Logger.log('✅ 매핑 저장 완료: '+JSON.stringify(MAP));
+}
+function stTestDoor(){Logger.log(doorCheckinTick_(true));}   // 전환 없이 판정만 로그
+
+// ─── 본체: 출입 이력 → checkin 전환 ───
+function stUnlockEvents_(deviceIds){
+  var loc=stP_().getProperty('ST_LOCATION_ID');
+  var qs='limit=200&oldestFirst=false'+(loc?'&locationId='+encodeURIComponent(loc):'');
+  deviceIds.filter(function(id,i){return deviceIds.indexOf(id)===i;})
+    .forEach(function(id){qs+='&deviceId='+encodeURIComponent(id);});
+  var res=stApi_('/v1/history/devices?'+qs);
+  return (res.items||[]).filter(function(ev){return ev.attribute==='lock'&&String(ev.value)==='unlocked';});
+}
+function doorCheckinTick_(dry){
+  var locks=fbGet('app/doorlocks');
+  if(!locks||!Object.keys(locks).length)return '스킵: 도어락 매핑 없음(app/doorlocks)';
+  if(!stHasAuth_())return '스킵: 스마트싱스 미연동';
+  var rooms=fbGet('app/rooms')||{},today=todayKST(),now=nowHM(),targets=[];
+  for(var num in rooms){
+    var r=rooms[num];if(!r||r.blocked)continue;
+    if(r.status!=='clean_done')continue;             // 입실대기(청소완료) 방만 — 그 외 상태는 건드리지 않음
+    var cb=todayCheckinOf_(r,today);if(!cb)continue;
+    if(!locks[num])continue;
+    var th=etaStart(cb.checkinTime||'')||'15:00';    // 기준시각: 게스트 ETA, 없으면 15:00
+    if(now<th)continue;
+    targets.push({num:num,dev:locks[num],th:th,guest:cb.guest||''});
+  }
+  if(!targets.length)return '대상 방 없음';
+  var evts=stUnlockEvents_(targets.map(function(t){return t.dev;}));
+  var out=[];
+  targets.forEach(function(t){
+    var hit=evts.some(function(ev){
+      if(ev.deviceId!==t.dev)return false;
+      var d=Utilities.formatDate(new Date(ev.epoch),'Asia/Seoul','yyyy-MM-dd');
+      var hm=Utilities.formatDate(new Date(ev.epoch),'Asia/Seoul','HH:mm');
+      return d===today&&hm>=t.th;
+    });
+    if(hit){
+      if(!dry)fbUpdate('app/rooms/'+t.num,{status:'checkin'});
+      out.push(t.num+'호 '+t.guest+' → checkin 전환'+(dry?'(테스트, 실제 전환 안 함)':''));
+    }else out.push(t.num+'호: '+t.th+' 이후 출입 없음');
+  });
+  return out.join(' / ');
 }
