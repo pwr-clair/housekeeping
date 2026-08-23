@@ -75,6 +75,19 @@ function syncAllEtaToRooms(){  // 15분 트리거 — 빈칸 채움만(force 없
   return count;
 }
 
+// pendingBookings에 이메일이 없을 때 방 예약(같은 bookingId)의 이메일로 보강 (2026-08-23) —
+// 수기 입력 이메일이 방 데이터에만 있던 직거래 예약도 발송되게 하는 안전망.
+function roomEmailFor_(bk,room){
+  if(!room||!bk||!bk.bookingId)return '';
+  var r=fbGet('app/rooms/'+room);if(!r)return '';
+  var cands=[r.currentBooking].concat(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{}));
+  for(var i=0;i<cands.length;i++){
+    var b=cands[i];
+    if(b&&String(b.bookingId||'')===String(bk.bookingId)&&b.guestEmail)return b.guestEmail;
+  }
+  return '';
+}
+
 function sendMail(to, subject, body){
   var opts = { from: SENDER };
   var bcc = fbGet('app/config/bccEmail');
@@ -530,9 +543,12 @@ function doGet(e){
     });
   }
   if(p.action==='sendRoomEdited'&&p.room){
+    // [패치 2026-08-23] 중복요청 가드: 락으로 동시 요청 직렬화 + '이미 발송됨' 판정을 편집본 확인보다 먼저.
+    //   (기존엔 겹친 요청이 둘 다 발송돼 같은 메일 2통 + 뒤늦은 요청은 "편집 내용이 없어요"로 오인 표시)
+    const lock=LockService.getScriptLock();
+    if(!lock.tryLock(30000))return ContentService.createTextOutput('다른 발송이 처리 중이에요 — 잠시 후 발송 기록을 확인해주세요');
+    try{
     const num=String(p.room),today=todayKST();
-    const ov=fbGet('app/sendOverrides/'+num+'_'+today);
-    if(!ov||(!ov.bodyKo&&!ov.bodyEn))return ContentService.createTextOutput(num+'호: 편집 내용이 없어요');
     const r=fbGet('app/rooms/'+num);
     if(!r)return ContentService.createTextOutput(num+'호: 객실 정보 없음');
     let cb=(r.currentBooking&&r.currentBooking.checkinDate===today)?r.currentBooking:null;
@@ -548,7 +564,7 @@ function doGet(e){
     let markNums=[num];
     if(p.force==='1'){fbDelete('app/mailLogs/'+logKey);fbDelete('app/sentChecks/'+num+'_'+today);}
     else{
-      if(fbGet('app/sentChecks/'+num+'_'+today))return ContentService.createTextOutput(num+'호: 이미 발송됨 (재발송 버튼 사용)');
+      if(fbGet('app/sentChecks/'+num+'_'+today))return ContentService.createTextOutput(num+'호: 이미 발송 완료된 건이에요 (재발송은 경고창 확인 후)');
       // 멀티룸(2026-07-15 클라라): 타방 기발송 차단 + 발송 성공 시 그룹 전 방 마크
       // (미리보기가 그룹 몰아보기 본문을 생성하므로 편집본도 전 방 안내를 담고 있음)
       const g=sameGuestRooms_(cb.guestEmail,today,fbGet('app/rooms')||{});
@@ -557,6 +573,8 @@ function doGet(e){
       if(sentOther)return ContentService.createTextOutput(num+'호: 같은 게스트에게 '+sentOther+'호(함께)로 이미 발송됨 (재발송 버튼 사용)');
       if(g.length>1)markNums=g;
     }
+    const ov=fbGet('app/sendOverrides/'+num+'_'+today);
+    if(!ov||(!ov.bodyKo&&!ov.bodyEn))return ContentService.createTextOutput(num+'호: 편집 내용이 없어요 — 발송창을 다시 열어주세요');
     try{
       // 제목: 편집창에서 일부러 비우면 빈 제목 그대로 발송. 기본 제목은 편집값이 아예 없을 때만.
       const subject=(ov.subject==null)?('Check-in Info / 체크인 안내 — Room '+num):String(ov.subject);
@@ -570,6 +588,7 @@ function doGet(e){
       GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 편집발송 실패: '+cb.guest,String(err));
       return ContentService.createTextOutput(num+'호: 발송 실패');
     }
+    }finally{lock.releaseLock();}
   }
   if(p.action==='previewStage'&&p.stage){
     // [패치 2026-07-14] custom_* 단계 허용 — 발송탭 [안내] 커스텀 템플릿 미리보기
@@ -587,6 +606,7 @@ function doGet(e){
         guest:cb.guest,guestEmail:cb.guestEmail,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate};
     }
     if(!bk)return jsonOut({ok:false,msg:'예약을 찾지 못했어요'});
+    if(!bk.guestEmail){const _re=roomEmailFor_(bk,room);if(_re)bk.guestEmail=_re;}   // 방 데이터 이메일 폴백 (2026-08-23)
     if(!bk.guestEmail)return jsonOut({ok:false,msg:'손님 이메일이 없어요'});
     const nights=(bk.checkinDate&&bk.checkoutDate)?Math.round((new Date(bk.checkoutDate)-new Date(bk.checkinDate))/86400000):null;
     if(p.stage==='s4_checkout'&&nights===1)return jsonOut({ok:false,msg:'1박 예약은 퇴실안내가 입실안내에 포함돼요'});
@@ -609,12 +629,13 @@ function doGet(e){
   }
   if(p.action==='sendStageEdited'&&p.stage){
     // [패치 2026-07-14] custom_* 단계 허용 — 발송탭 [안내] 커스텀 템플릿 발송(편집본)
+    // [패치 2026-08-23] 중복요청 가드(sendRoomEdited와 동일): 락 + '이미 발송됨' 판정을 편집본 확인보다 먼저.
     const ALLOW=['s2_reminder','s4_checkout','s5_checkoutConfirm','s6_review'];
     const isCustom=String(p.stage).indexOf('custom_')===0;
     if(!isCustom&&ALLOW.indexOf(p.stage)<0)return ContentService.createTextOutput('지원하지 않는 단계예요');
-    const ovKey='stage_'+(p.bid||p.room||'x')+'_'+p.stage;
-    const ov=fbGet('app/sendOverrides/'+ovKey);
-    if(!ov||(!ov.bodyKo&&!ov.bodyEn))return ContentService.createTextOutput('편집 내용이 없어요');
+    const lock=LockService.getScriptLock();
+    if(!lock.tryLock(30000))return ContentService.createTextOutput('다른 발송이 처리 중이에요 — 잠시 후 발송 기록을 확인해주세요');
+    try{
     let bk=null,room=p.room||null;
     if(p.bid){
       const pb=fbGet('app/pendingBookings/sv_'+p.bid)||fbGet('app/pendingBookings/'+p.bid);
@@ -626,10 +647,14 @@ function doGet(e){
         guest:cb.guest,guestEmail:cb.guestEmail,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate};
     }
     if(!bk)return ContentService.createTextOutput('예약을 찾지 못했어요');
+    if(!bk.guestEmail){const _re=roomEmailFor_(bk,room);if(_re)bk.guestEmail=_re;}   // 방 데이터 이메일 폴백 (2026-08-23)
     if(!bk.guestEmail)return ContentService.createTextOutput('손님 이메일이 없어요');
     const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_'+p.stage;
     if(p.force==='1'){fbDelete('app/mailLogs/'+logKey);}
-    else if(fbGet('app/mailLogs/'+logKey))return ContentService.createTextOutput('이미 발송됨 (재발송 버튼 사용)');
+    else if(fbGet('app/mailLogs/'+logKey))return ContentService.createTextOutput('이미 발송 완료된 건이에요 (재발송은 경고창 확인 후)');
+    const ovKey='stage_'+(p.bid||p.room||'x')+'_'+p.stage;
+    const ov=fbGet('app/sendOverrides/'+ovKey);
+    if(!ov||(!ov.bodyKo&&!ov.bodyEn))return ContentService.createTextOutput('편집 내용이 없어요 — 발송창을 다시 열어주세요');
     try{
       const NAME={s2_reminder:'체크인 리마인더',s4_checkout:'퇴실 안내',s5_checkoutConfirm:'방문 고지',s6_review:'후기'};
       let label=NAME[p.stage];
@@ -645,6 +670,7 @@ function doGet(e){
       GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 편집발송 실패('+p.stage+'): '+bk.guest,String(err));
       return ContentService.createTextOutput('발송 실패');
     }
+    }finally{lock.releaseLock();}
   }
   if(p.action==='waMirror'){
     // KR/EN 메신저 발송 시 같은 안내문을 OTA 채널(게스트 릴레이 이메일)로도 미러 발송 (2026-07-24 클라라).
