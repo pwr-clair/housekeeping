@@ -1984,6 +1984,20 @@ async function saveBooking(){
     }
     await update(ref(db,`app/rooms/${currentRoomNum}`),{nextBookings:arr});
   }
+  // 이메일·전화 수정을 발송 원본(pendingBookings)에도 동기화 (2026-08-23 클라라):
+  // GAS 발송(previewStage 등)은 bookingId 있는 예약이면 pendingBookings를 우선 읽으므로,
+  // 방 데이터에만 고친 이메일은 "손님 이메일이 없어요"로 발송이 막힌다 (직거래 웹훅 예약이 특히).
+  // 빈 값은 동기화하지 않음(웹훅 알리아스 보호). 전화는 phoneManual로 재푸시 덮어쓰기 방지(기존 규약).
+  try{
+    const _svk=svKeyOf(bkData,currentRoomNum);
+    if(_svk){
+      const _rec=(pendingBookings||{})[_svk]||{};
+      const _sync={};
+      if(guestEmail&&guestEmail!==(_rec.guestEmail||''))_sync.guestEmail=guestEmail;
+      if(guestPhone&&guestPhone!==(_rec.guestPhone||'')){_sync.guestPhone=guestPhone;_sync.phoneManual=true;}
+      if(Object.keys(_sync).length)await update(ref(db,'app/pendingBookings/'+_svk),_sync);
+    }
+  }catch(e){}
   closeModal('booking-modal');
   setTimeout(()=>openRoomModal(currentRoomNum),200);
 }
