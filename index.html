@@ -800,6 +800,7 @@ const COLOR_MAP = {
 };
 
 let assignees=['최은주'], rooms={}, cleanTasks={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
+let dateBlocks={};   // 방·날짜 단위 차단 (app/dateBlocks/{방}/{YYYY-MM-DD}=true) — 배정 캘린더 빈 칸 탭으로 토글 (2026-08-24 클라라)
 let members=[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}];
 let currentUser=null;
 let currentRoomNum=null, currentStatus=null, originalStatus=null, currentBookingType=null, currentNextBookingIdx=0;
@@ -1086,6 +1087,7 @@ function startListeners(){
     setConnected(true);
   });
   onValue(ref(db,'app/cleanTasks'),snap=>{cleanTasks=snap.exists()?snap.val():{};if(isLoggedIn)renderCleaning();});
+  onValue(ref(db,'app/dateBlocks'),snap=>{dateBlocks=snap.exists()?snap.val():{};if(isLoggedIn)renderAssignCalendar();});
   onValue(ref(db,'app/bookingHistory'),snap=>{bookingHistory=snap.exists()?snap.val():{};if(isLoggedIn)renderHistory();});
   onValue(ref(db,'app/changeLogs'),snap=>{
     changeLogs=snap.exists()?snap.val():{};
@@ -3102,6 +3104,17 @@ async function ackBookingChange(sbid,sig){
 }
 window.ackBookingChange=ackBookingChange;
 
+async function toggleDateBlock(num,ymdStr,isBlocked){
+  if(isBlocked){
+    if(!confirm(num+'호 '+ymdStr+' 차단을 해제할까요?'))return;
+    await set(ref(db,'app/dateBlocks/'+num+'/'+ymdStr),null);
+  }else{
+    if(!confirm(num+'호 '+ymdStr+' Block 할까요?'))return;
+    await set(ref(db,'app/dateBlocks/'+num+'/'+ymdStr),true);
+  }
+}
+window.toggleDateBlock=toggleDateBlock;
+
 function renderAssignCalendar(){
   const el=document.getElementById('assign-calendar');
   if(!el)return;
@@ -3151,10 +3164,13 @@ function renderAssignCalendar(){
       if(!bk){
         // 정비중 방: 운영예정일 전(또는 미설정)이면 회색 막힌 칸
         const _isBlockedDay = r.blocked && (!r.operatingFrom || d.ymd < r.operatingFrom);
+        const _dayBlocked = !!(dateBlocks[num]&&dateBlocks[num][d.ymd]);   // 날짜 단위 차단 (탭 토글)
         if(_isBlockedDay){
           html+='<td style="border:0.5px solid var(--border);padding:0;height:30px;background:repeating-linear-gradient(45deg,#EDEBE9,#EDEBE9 4px,#F5F4F2 4px,#F5F4F2 8px);" title="정비중'+(r.operatingFrom?(' · '+r.operatingFrom+' 운영예정'):'')+'"></td>';
+        } else if(_dayBlocked){
+          html+='<td data-gcell="1" data-room="'+num+'" data-ymd="'+d.ymd+'" data-blocked="1" style="border:0.5px solid var(--border);padding:0;height:30px;cursor:pointer;background:repeating-linear-gradient(45deg,#F2DFC8,#F2DFC8 4px,#FAF0E0 4px,#FAF0E0 8px);" title="차단됨 · 탭하면 해제"></td>';
         } else {
-          html+='<td style="border:0.5px solid var(--border);padding:0;height:30px;background:'+(d.ymd===today?'#FFFBF2':'#fff')+';"></td>';
+          html+='<td data-gcell="1" data-room="'+num+'" data-ymd="'+d.ymd+'" style="border:0.5px solid var(--border);padding:0;height:30px;cursor:pointer;background:'+(d.ymd===today?'#FFFBF2':'#fff')+';"></td>';
         }
         i++;continue;
       }
@@ -3204,6 +3220,12 @@ let _gd=null,_gdHl=null;
 window._gridDragging=false;
 function initGridDrag(el){
   if(el._dragInit)return;el._dragInit=true;
+  // 빈 칸 탭 = 날짜 차단 토글 (2026-08-24 클라라) — 관리자 배정탭 캘린더에만 핸들러가 붙는다(예약탭 미러는 무반응)
+  el.addEventListener('click',e=>{
+    if(window._gridDragging)return;
+    const cell=e.target.closest('[data-gcell]');if(!cell)return;
+    toggleDateBlock(cell.dataset.room,cell.dataset.ymd,cell.dataset.blocked==='1');
+  });
   el.addEventListener('contextmenu',e=>{if(e.target.closest('[data-gbar]'))e.preventDefault();});
   el.addEventListener('pointerdown',e=>{
     const bar=e.target.closest('[data-gbar]');if(!bar)return;
@@ -3564,6 +3586,10 @@ async function assignPending(key){
   if(!num){alert('객실을 선택해주세요');return;}
   const b=pendingBookings[key];
   if(!b)return;
+  // 차단된 날짜와 겹치는 배정은 경고 후 진행 (2026-08-24 클라라)
+  const _blk=dateBlocks[num]||{};
+  const _blkHit=Object.keys(_blk).filter(dd=>_blk[dd]&&b.checkinDate&&b.checkoutDate&&dd>=b.checkinDate&&dd<b.checkoutDate).sort();
+  if(_blkHit.length&&!confirm('⚠️ '+num+'호는 '+_blkHit.join(', ')+' 이 차단되어 있어요.\n그래도 배정할까요? (배정해도 차단 표시는 남습니다)'))return;
   const r=rooms[num]||{};
   // ETA가 15시 이전이면 체크인시간에 자동 입력 → 얼리체크인으로 분류되어 자동발송에서 제외됨
   let ciTime='';
