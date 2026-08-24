@@ -351,12 +351,20 @@ function masterTick(){
 
 // ============================================================
 // 입실안내 — 발송 시각 도달 판정
-// checkinTime 있으면 그 시각 ±15분, 없으면 14:30~15:00 기본창
+// 기본 14:30부터. 얼리체크인(2026-08-23 클라라): ETA(checkinTime)가 이르면
+// '입실 1시간 전'부터 발송 허용 — 단 정오(12:00) 이전으로는 안 내려감(오전 발송 금지),
+// 기본창(14:30)보다 늦춰지지도 않음. 청소완료·당일입실 조건은 findCheckinDue가 이미 강제.
 // ============================================================
 function checkinDueNow(cb){
   var nowMin = parseInt(Utilities.formatDate(new Date(),'Asia/Seoul','HH'),10)*60
              + parseInt(Utilities.formatDate(new Date(),'Asia/Seoul','mm'),10);
-  return nowMin >= 870;   // 14:30 이후면 발송 (checkinTime 무관, 참고용일 뿐)
+  var due = 870;   // 기본 14:30
+  var ci = etaStart((cb&&cb.checkinTime)||'');
+  if(ci){
+    var m = parseInt(ci.slice(0,2),10)*60 + parseInt(ci.slice(3,5),10);
+    due = Math.min(870, Math.max(720, m-60));
+  }
+  return nowMin >= due;
 }
 
 // 방의 오늘 체크인 예약 탐색: currentBooking 우선, 없으면 nextBookings까지 (수동 sendRoom과 동일 —
