@@ -362,7 +362,8 @@ function checkinDueNow(cb){
   var ci = etaStart((cb&&cb.checkinTime)||'');
   if(ci){
     var m = parseInt(ci.slice(0,2),10)*60 + parseInt(ci.slice(3,5),10);
-    due = Math.min(870, Math.max(720, m-60));
+    // 새벽대(00:00~05:59) ETA = 자정 넘긴 심야 도착 — 얼리 아님, 기본창 유지 (2026-08-23 클라라)
+    if(m >= 360) due = Math.min(870, Math.max(720, m-60));
   }
   return nowMin >= due;
 }
