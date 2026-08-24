@@ -1462,8 +1462,12 @@ function renderRooms(){
           // 1순위: 원본 직결 — 오늘 체크인 & 이 방 배정 & 미취소 (rooms 슬롯이 비어도 잡히도록)
           const _pbBk=Object.values(pendingBookings||{}).find(b=>b&&!b.cancelled&&b.guest&&b.checkinDate===_td&&String(b.assignedRoom)===String(num));
           // 2순위 폴백: 기존 rooms 슬롯 (assignedRoom이 낡은 레거시 예약 대비)
-          const _bk=_pbBk||[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
-          const _amt=_bk?amountOf(_bk,num):null;
+          const _roomBk=[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===_td);
+          const _bk=_pbBk||_roomBk;
+          // 원본에 금액이 없으면 방 예약의 수기 금액(amountManual)으로 폴백 —
+          // 직거래는 원본 amount가 영영 안 채워져 수기 금액이 메인 카드에 안 뜨던 문제 (2026-08-24 클라라)
+          let _amt=_bk?amountOf(_bk,num):null;
+          if(_amt==null&&_roomBk&&_roomBk!==_bk)_amt=amountOf(_roomBk,num);
           if(_amt!=null){
             amountLine=`<div style="width:100%;box-sizing:border-box;display:flex;justify-content:space-between;align-items:center;margin-top:5px;padding-top:3px;border-top:0.5px solid rgba(0,0,0,.08);"><span style="font-size:10px;font-weight:600;color:var(--text2);">${currentLang==='ko'?'오늘':'Today'}</span><span style="font-size:12px;font-weight:700;color:var(--text);">₩${Number(_amt).toLocaleString('ko-KR')}</span></div>`;
           }
