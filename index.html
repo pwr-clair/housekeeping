@@ -526,7 +526,7 @@ input,select,button,textarea{font-family:inherit;}
       <div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:4px;">영문 본문</div>
       <textarea id="tpl-bodyen" style="width:100%;height:200px;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:inherit;resize:vertical;background:var(--bg2);color:var(--text);line-height:1.6;box-sizing:border-box;margin-bottom:10px;"></textarea>
       <div style="display:flex;gap:8px;margin-top:4px;">
-        <button onclick="saveTemplate()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
+        <button id="tpl-save-btn" onclick="saveTemplate()" style="flex:1;background:#042C53;color:#fff;border:none;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
         <button id="tpl-del-btn" onclick="deleteCustomTemplate()" style="display:none;flex:1;background:#fff;color:#A32D2D;border:0.5px solid #F09595;border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">삭제</button>
         <button onclick="closeModal('template-manager-modal')" style="flex:1;background:var(--bg2);color:var(--text2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">닫기</button>
       </div>
@@ -3835,8 +3835,21 @@ window.sendStagePreview=sendStagePreview;
 //   커스텀 안내 템플릿 = app/mailTemplates/custom_{ts} {name,subject,bodyKo,bodyEn} — 발송탭 [안내]에서 선택 발송
 async function openTemplateManager(){
   document.getElementById('template-manager-modal').classList.add('open');
-  await refreshTplSelect();
-  loadTemplateForStage();
+  tplEditorLock(true);
+  try{ await refreshTplSelect(); }finally{ await loadTemplateForStage(); }
+}
+// 템플릿 편집 잠금(2026-08-27 클라라 신고 — "고쳐서 저장했는데 옛날 내용 그대로"):
+// 모달은 즉시 열리는데 본문은 Firebase 읽기(await)가 끝나야 채워진다. 그 사이 칸에는 직전에 보던
+// 템플릿 내용이 남아 있어, 로딩 중에 붙여넣기·수정하면 뒤늦게 도착한 응답이 그걸 덮어썼다.
+// (그 상태로 저장 → 옛 내용이 그대로 다시 저장됨.) 불러오는 동안 입력·저장을 막아 원천 차단한다.
+const TPL_FIELDS=['tpl-name','tpl-subject','tpl-bodyko','tpl-bodyen'];
+function tplEditorLock(on){
+  TPL_FIELDS.forEach(id=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.disabled=on; el.style.opacity=on?'.5':'';
+  });
+  const btn=document.getElementById('tpl-save-btn');
+  if(btn){btn.disabled=on;btn.style.opacity=on?'.5':'';btn.textContent=on?'불러오는 중…':'저장';}
 }
 window.openTemplateManager=openTemplateManager;
 
@@ -3852,6 +3865,7 @@ async function refreshTplSelect(keepValue){
   if(keepValue) sel.value=keepValue;
 }
 
+let tplLoadSeq=0, tplLoadedStage=null;
 async function loadTemplateForStage(){
   const stage=document.getElementById('tpl-stage').value;
   const subjWrap=document.getElementById('tpl-subject-wrap');
@@ -3860,23 +3874,28 @@ async function loadTemplateForStage(){
   const isCustom=stage.indexOf('custom_')===0, isNew=stage==='__new__';
   nameWrap.style.display=(isCustom||isNew)?'':'none';
   delBtn.style.display=isCustom?'':'none';
+  // 직전 템플릿 내용이 남아 '불러온 것'처럼 보이지 않게 즉시 비운다
+  TPL_FIELDS.forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  tplLoadedStage=null;
+  const seq=++tplLoadSeq;                       // 단계를 연달아 바꿔도 마지막 응답만 반영
+  const stale=()=>seq!==tplLoadSeq;
   if(isNew){
     subjWrap.style.display='';
-    document.getElementById('tpl-name').value='';
-    document.getElementById('tpl-subject').value='';
-    document.getElementById('tpl-bodyko').value='';
-    document.getElementById('tpl-bodyen').value='';
+    tplLoadedStage=stage; tplEditorLock(false);
     return;
   }
+  tplEditorLock(true);
   if(stage==='__wa__'){
     subjWrap.style.display='none';
     let w={};
     try{
       const snap=await get(ref(db,'app/waMessages'));
       w=snap.exists()?(snap.val()||{}):{};
-    }catch(e){alert('왓츠앱 안내 불러오기 실패: '+e);return;}
+    }catch(e){if(!stale())alert('왓츠앱 안내 불러오기 실패: '+e);return;}
+    if(stale())return;
     document.getElementById('tpl-bodyko').value=w.ko||'';
     document.getElementById('tpl-bodyen').value=w.en||'';
+    tplLoadedStage=stage; tplEditorLock(false);
     return;
   }
   subjWrap.style.display='';
@@ -3884,16 +3903,20 @@ async function loadTemplateForStage(){
   try{
     const snap=await get(ref(db,'app/mailTemplates/'+stage));
     v=snap.exists()?(snap.val()||{}):{};
-  }catch(e){alert('템플릿 불러오기 실패: '+e);return;}
+  }catch(e){if(!stale())alert('템플릿 불러오기 실패: '+e);return;}
+  if(stale())return;
   document.getElementById('tpl-name').value=isCustom?(v.name||''):'';
   document.getElementById('tpl-subject').value=v.subject||'';
   document.getElementById('tpl-bodyko').value=v.bodyKo||'';
   document.getElementById('tpl-bodyen').value=v.bodyEn||'';
+  tplLoadedStage=stage; tplEditorLock(false);
 }
 window.loadTemplateForStage=loadTemplateForStage;
 
 async function saveTemplate(){
   const stage=document.getElementById('tpl-stage').value;
+  // 불러오기가 끝나기 전 저장 = 빈 값/옛 값 덮어쓰기. 잠금이 뚫린 경우를 위한 2차 방어.
+  if(tplLoadedStage!==stage){alert('아직 불러오는 중이에요. 잠시 후 다시 저장해주세요.');return;}
   const subject=document.getElementById('tpl-subject').value;
   const bodyKo=document.getElementById('tpl-bodyko').value;
   const bodyEn=document.getElementById('tpl-bodyen').value;
@@ -3904,7 +3927,7 @@ async function saveTemplate(){
     try{
       await set(ref(db,'app/mailTemplates/'+key),{name,subject,bodyKo,bodyEn});
       alert('새 안내 템플릿이 만들어졌어요. 발송탭 [안내]에서 선택할 수 있습니다.');
-      await refreshTplSelect(key); loadTemplateForStage();
+      await refreshTplSelect(key); await loadTemplateForStage();
     }catch(e){alert('저장 실패: '+e);}
     return;
   }
@@ -3912,6 +3935,7 @@ async function saveTemplate(){
   if(stage==='__wa__'){
     try{
       await update(ref(db,'app/waMessages'),{ko:bodyKo,en:bodyEn});
+      await loadTemplateForStage();             // 서버에 실제 저장된 값을 다시 읽어 화면에 반영
       alert('저장되었습니다.');
     }catch(e){alert('저장 실패: '+e);}
     return;
@@ -3924,8 +3948,9 @@ async function saveTemplate(){
   }
   try{
     await update(ref(db,'app/mailTemplates/'+stage),payload);
-    alert('저장되었습니다.');
     if(payload.name)await refreshTplSelect(stage);
+    await loadTemplateForStage();               // 서버에 실제 저장된 값을 다시 읽어 화면에 반영
+    alert('저장되었습니다.');
   }catch(e){alert('저장 실패: '+e);}
 }
 window.saveTemplate=saveTemplate;
@@ -3938,7 +3963,7 @@ async function deleteCustomTemplate(){
   try{
     await remove(ref(db,'app/mailTemplates/'+stage));
     alert('삭제되었습니다.');
-    await refreshTplSelect(); sel.value='s2_reminder'; loadTemplateForStage();
+    await refreshTplSelect(); sel.value='s2_reminder'; await loadTemplateForStage();
   }catch(e){alert('삭제 실패: '+e);}
 }
 window.deleteCustomTemplate=deleteCustomTemplate;
