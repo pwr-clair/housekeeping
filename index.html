@@ -815,6 +815,28 @@ const GAS_TOKEN='joi0917hurricane';  // ← Code.gs의 APPROVE_TOKEN과 동일�
 let canSendMail=false;
 let pendingBookings={}, sendMode='approve', mailLogs={}, changeAcks={};
 let waMessages={};
+// 메신저(KR/EN) 기본 본문 — app/waMessages에 저장된 값이 있으면 그쪽이 우선. 없을 때만 이 값이 쓰인다.
+// 발송탭 [템플릿 편집 → 왓츠앱/메신저 안내]에서 수정한 내용은 Firebase(app/waMessages)에 저장된다.
+const WA_FALLBACK={
+  ko:'[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845',
+  en:`[Incheon Airport T1 Residence]
+──────────────────────────
+▶ Airport ↔ Residence Free Shuttle Bus Info.
+https://pwr-guide.online/
+──────────────────────────
+
+Hello! This is Incheon Airport Residence — you're checking in today!
+
+It's been quite hot and humid lately, so if you could share your estimated time of arrival, we'd be happy to turn on the air conditioning in advance so the room is nice and cool when you get here. (We have your ETA noted as 2 PM — if there's any change, please let us know in advance!)
+
+Please note that all important information (room number, access code, etc.) will be sent to you here between 2:30 and 3:00 PM today.
+
+──────────────────────────
+▶ Detailed information about our residence.
+(Please take a look before you arrive!)
+https://pwr-guide.online/
+──────────────────────────`
+};
 let mailConfigStages={};
 // 자동발송 시간·템플릿 설정(2026-07-25 클라라): app/mailConfig/auto/{stage}={time,template}. 미설정=GAS 기본 시각.
 let mailConfigAuto={}, mailTplNames={};
@@ -2432,9 +2454,7 @@ window.copyChatNum=copyChatNum;
 const waMirrorKey=(bid,num)=>safeBid(bid||('room_'+num+'_'+todayStr()))+'_waMirror';
 let waMirrorCtx=null;
 function openWaMirror(lang,bid,num){
-  const fallback=lang==='ko'
-    ? '[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
-    : '[Incheon Airport T1 Residence] Hello, we\'ve sent your check-in details via your booking platform\'s message. Please check it. Contact: 010-8227-2845';
+  const fallback=WA_FALLBACK[lang]||WA_FALLBACK.en;
   const alreadySent=!!mailLogs[waMirrorKey(bid,num)];
   waMirrorCtx={lang,bid:bid||'',num:num||'',alreadySent};
   document.getElementById('wam-title').textContent='OTA 채팅(이메일) 안내 발송'+(num?' — '+num+'호':'');
@@ -3448,9 +3468,7 @@ function renderSendTab(){
   // ── 단계 동그라미 ──
   const GREEN='#2F6B45';
   const waMsg=(guest,lang)=>{
-    const fallback=lang==='ko'
-      ? '[Incheon Airport T1 Residence] 안녕하세요, 예약하신 플랫폼의 메시지로 체크인 안내를 보내드렸습니다. 확인 부탁드립니다. 문의: 010-8227-2845'
-      : '[Incheon Airport T1 Residence] Hello, we\'ve sent your check-in details via your booking platform\'s message. Please check it. Contact: 010-8227-2845';
+    const fallback=WA_FALLBACK[lang]||WA_FALLBACK.en;
     const txt=(waMessages&&waMessages[lang])?waMessages[lang]:fallback;
     return encodeURIComponent(txt);
   };
