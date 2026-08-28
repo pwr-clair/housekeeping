@@ -347,11 +347,56 @@ function masterTick(){
   // mode==='manual' → 아무것도 안 함 (수동 발송만)
 
   try{ doorCheckinTick_(); }catch(e){}   // 도어락 출입 기반 자동 체크인 (§하단 스마트싱스 모듈 — 미설정 시 즉시 스킵)
+  try{ latePrepTick_(); }catch(e){}      // 늦은 객실준비 안내 (15:10+, 미발송 방 게스트에게 1회)
   // 금액 동기화 — 반드시 틱 '맨 뒤' (f357185: Gmail 검색이 발송 실행시간을 잠식하지 않게).
   // ⚠ 이 호출은 한동안 GAS 에디터에만 있고 레포엔 없었다 → 2026-08-24 전문 붙여넣기 때 유실되어
   //   금액 수집이 하루 멈췄던 사고(2026-08-25 클라라 신고). 레포 정본에 명시적으로 복원함. 지우지 말 것.
   try{ syncAmounts(); }catch(e){}
   }
+
+// ============================================================
+// 늦은 객실준비 안내 (2026-08-25 클라라) — 15:10에도 입실안내(s3)가 못 나간
+// 오늘 체크인 방의 게스트에게 준비 지연 안내를 자동 발송. 게스트(이메일)당 하루 1회.
+// 템플릿 = 커스텀 안내 템플릿 중 이름에 '늦은' 포함(템플릿 관리에서 생성·수정). 없으면 스킵.
+// {room}은 준비 안 된 방이라 {doorPw}는 치환하지 않는다(템플릿에 넣지 말 것).
+// ============================================================
+function latePrepTick_(){
+  var min=nowMinKST();
+  if(min<910||min>=1080)return;   // 15:10~18:00 창
+  var rooms=fbGet('app/rooms')||{}, sent=fbGet('app/sentChecks')||{}, today=todayKST();
+  var groups={};
+  for(var num in rooms){
+    var r=rooms[num]; if(!r||r.blocked)continue;
+    var cb=todayCheckinOf_(r,today); if(!cb||!cb.guestEmail)continue;
+    if(sent[num+'_'+today])continue;   // 입실안내 이미 발송된 방 = 대상 아님
+    var key=String(cb.guestEmail).toLowerCase();
+    (groups[key]=groups[key]||{guest:cb.guest,email:cb.guestEmail,nums:[]}).nums.push(num);
+  }
+  var keys=Object.keys(groups); if(!keys.length)return;
+  var tpls=fbGet('app/mailTemplates')||{}, tpl=null;
+  for(var k in tpls){
+    if(k.indexOf('custom_')===0&&tpls[k]&&String(tpls[k].name||'').indexOf('늦은')>=0){tpl=tpls[k];break;}
+  }
+  if(!tpl){Logger.log('latePrepTick_: 이름에 "늦은"이 든 커스텀 템플릿 없음 — 스킵');return;}
+  keys.forEach(function(kk){
+    var g=groups[kk];
+    var logKey='late_prep_'+kk.replace(/[.#$\[\]\/]/g,'_')+'_'+today;
+    if(fbGet('app/mailLogs/'+logKey))return;   // 게스트당 하루 1회
+    var roomLabel=g.nums.sort().join(', ');
+    var fill=function(s){return String(s||'')
+      .replace(/{guest}/g,g.guest||'Guest').replace(/{room}/g,roomLabel)
+      .replace(/{floor}/g,g.nums.map(floorOf).join(', ')).replace(/{checkinDate}/g,today);};
+    var subject=fill(tpl.subject)||('Room Preparation Delay / 객실 준비 지연 안내 — Paradise Walk Residence');
+    try{
+      if(tpl.bodyKo&&String(tpl.bodyKo).trim())sendMail(g.email,subject,fill(tpl.bodyKo));
+      if(tpl.bodyEn&&String(tpl.bodyEn).trim())sendMail(g.email,subject,fill(tpl.bodyEn));
+      fbSet('app/mailLogs/'+logKey,{stage:'late_prep',time:today+' '+nowHM(),email:g.email,guest:g.guest,room:roomLabel});
+      Logger.log('latePrepTick_: '+roomLabel+'호 '+g.guest+' 지연 안내 발송');
+    }catch(e){
+      GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 지연안내 발송 실패: '+g.guest,String(e));
+    }
+  });
+}
 
 // ============================================================
 // 입실안내 — 발송 시각 도달 판정
