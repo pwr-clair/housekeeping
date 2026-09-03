@@ -1503,19 +1503,27 @@ function renderRooms(){
   document.getElementById('cnt-checkout-today').textContent=todayCheckouts.size;
   // 청소완료
   document.getElementById('cnt-done').textContent=roomNums().filter(n=>rooms[n]&&!rooms[n].blocked&&rooms[n].status==='clean_done').length;
-  // 오늘 입실
+  // 오늘 입실 — 정비중이라도 운영예정일이 오늘 이전이면 포함 (operatingOn)
   document.getElementById('cnt-checkin-today').textContent=roomNums().filter(n=>{
-    const r=rooms[n];if(!r||r.blocked)return false;
+    const r=rooms[n];if(!r||!operatingOn(r,today))return false;
     const hasToday=(r.currentBooking&&r.currentBooking.checkinDate===today)||getNextBookings(r).some(bk=>bk.checkinDate===today);
     return hasToday;
   }).length;
   // 입실중
   document.getElementById('cnt-checkin').textContent=roomNums().filter(n=>rooms[n]&&!rooms[n].blocked&&rooms[n].status==='checkin').length;
-  // 내일 입실
+  // 내일 입실 — 정비중이라도 운영예정일이 내일 이전이면 포함 (1230처럼 운영 시작일=체크인일인 방 누락 방지, 2026-09-04 클라라)
   document.getElementById('cnt-early').textContent=roomNums().filter(n=>{
-    const r=rooms[n];if(!r||r.blocked)return false;
+    const r=rooms[n];if(!r||!operatingOn(r,tmrStr))return false;
     return (r.currentBooking&&r.currentBooking.checkinDate===tmrStr)||getNextBookings(r).some(bk=>bk.checkinDate===tmrStr);
   }).length;
+}
+
+// 이 방이 해당 날짜에 운영되나 — 정비중이어도 운영예정일(operatingFrom)이 그 날짜 이하면 운영으로 본다
+// (배정 캘린더의 빗금 판정 _isBlockedDay와 같은 규칙의 역)
+function operatingOn(r,ymdStr){
+  if(!r)return false;
+  if(!r.blocked)return true;
+  return !!(r.operatingFrom&&ymdStr>=r.operatingFrom);
 }
 
 // ── 객실 모달 ──
@@ -2279,19 +2287,21 @@ function openCounterModal(type){
   let list=[];
 
   roomNums().forEach(num=>{
-    const r=rooms[num];if(!r||r.blocked)return;
+    const r=rooms[num];if(!r)return;
+    // 정비중 방도 운영예정일이 도달한 날짜의 예약은 목록에 포함 (카운트 로직과 동일 규칙)
+    const opToday=operatingOn(r,today), opTmr=operatingOn(r,tmrStr);
     const cur=r.currentBooking;
     const nextArr=getNextBookings(r);
     const allBk=[cur,...nextArr].filter(b=>b&&b.guest);
 
     if(type==='checkout'){
-      allBk.forEach(b=>{if(b.checkoutDate===today)list.push({...b,room:num,note:b.notes||''});});
+      if(opToday)allBk.forEach(b=>{if(b.checkoutDate===today)list.push({...b,room:num,note:b.notes||''});});
     } else if(type==='checkin_today'){
-      allBk.forEach(b=>{if(b.checkinDate===today)list.push({...b,room:num,note:b.notes||''});});
+      if(opToday)allBk.forEach(b=>{if(b.checkinDate===today)list.push({...b,room:num,note:b.notes||''});});
     } else if(type==='checkin'){
-      if(r.status==='checkin'&&cur&&cur.guest)list.push({...cur,room:num,note:cur.notes||''});
+      if(!r.blocked&&r.status==='checkin'&&cur&&cur.guest)list.push({...cur,room:num,note:cur.notes||''});
     } else if(type==='tomorrow'){
-      allBk.forEach(b=>{if(b.checkinDate===tmrStr)list.push({...b,room:num,note:b.notes||''});});
+      if(opTmr)allBk.forEach(b=>{if(b.checkinDate===tmrStr)list.push({...b,room:num,note:b.notes||''});});
     }
   });
 
