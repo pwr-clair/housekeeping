@@ -355,6 +355,73 @@ function masterTick(){
   }
 
 // ============================================================
+// 원탭 자동 업데이트 (2026-09-04) — 레포 최신 Code.gs를 GAS가 스스로 가져와 갱신+재배포.
+// 1회 설정(컴퓨터): ① https://script.google.com/home/usersettings 에서 Google Apps Script API 켜기
+//   ② 이 파일 붙여넣기+저장 ③ 프로젝트 설정→'appsscript.json 매니페스트 표시' 체크 후
+//      appsscript.json에 selfUpdateHelp() 로그의 oauthScopes 추가 ④ selfUpdate 1회 실행(권한 승인).
+// 이후: <웹앱URL>?action=selfupdate&token=<APPROVE_TOKEN> 호출 한 번 = 코드 갱신+버전+재배포 완료.
+// 갱신 소스는 아래 SELF_UPDATE_URL (정본 브랜치가 바뀌면 이 상수만 교체).
+// ============================================================
+var SELF_UPDATE_URL='https://raw.githubusercontent.com/pwr-clair/housekeeping/claude/expedia-overbooking-error-3l4n3s/gas/Code.gs';
+
+function selfUpdateHelp(){
+  Logger.log([
+    '■ appsscript.json에 추가할 항목 (기존 timeZone 등은 그대로 두고 oauthScopes만 추가/교체):',
+    '"oauthScopes": [',
+    '  "https://mail.google.com/",',
+    '  "https://www.googleapis.com/auth/script.external_request",',
+    '  "https://www.googleapis.com/auth/script.scriptapp",',
+    '  "https://www.googleapis.com/auth/script.projects",',
+    '  "https://www.googleapis.com/auth/script.deployments"',
+    '],',
+    '■ 원탭 업데이트 URL: '+(ScriptApp.getService().getUrl()||'(웹앱 미배포)')+'?action=selfupdate&token=(APPROVE_TOKEN 값)'
+  ].join('\n'));
+}
+
+function selfUpdate(){
+  var sid=ScriptApp.getScriptId(), H={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
+  // 1) 레포에서 새 코드 (캐시 우회) + 안전 검증 — 비정상이면 아무것도 안 바꾼다
+  var res=UrlFetchApp.fetch(SELF_UPDATE_URL+'?cb='+Date.now(),{muteHttpExceptions:true});
+  if(res.getResponseCode()>=300)return '레포에서 코드를 못 가져옴: HTTP '+res.getResponseCode();
+  var code=res.getContentText();
+  if(!code||code.length<20000||code.indexOf('function masterTick')<0||code.indexOf('function doPost')<0)
+    return '가져온 코드가 비정상(길이 '+(code?code.length:0)+') — 중단, 아무것도 안 바꿈';
+  // 2) 현재 프로젝트 파일 읽기 (appsscript.json 등 다른 파일은 그대로 보존)
+  var cur;
+  try{cur=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/content',{headers:H,muteHttpExceptions:true}).getContentText());}catch(e){cur={};}
+  if(!cur.files)return '프로젝트 읽기 실패 — script.google.com/home/usersettings 에서 Apps Script API를 켰는지, 매니페스트 oauthScopes를 넣었는지 확인 (selfUpdateHelp 참조)';
+  var found=false;
+  cur.files.forEach(function(f){if(f.type==='SERVER_JS'&&f.name==='Code'){f.source=code;found=true;}});
+  if(!found)return 'Code 파일을 못 찾음 — 중단';
+  // 3) 코드 반영
+  var up=UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/content',
+    {method:'put',contentType:'application/json',headers:H,payload:JSON.stringify({files:cur.files}),muteHttpExceptions:true});
+  if(up.getResponseCode()>=300)return '코드 갱신 실패: '+up.getContentText().slice(0,300);
+  // 4) 새 버전 생성 + 웹앱 배포 갱신 (URL 유지). 실패해도 트리거 함수는 이미 최신 — doGet/doPost만 수동 배포 필요.
+  try{
+    var ver=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/versions',
+      {method:'post',contentType:'application/json',headers:H,
+       payload:JSON.stringify({description:'selfUpdate '+todayKST()+' '+nowHM()}),muteHttpExceptions:true}).getContentText());
+    if(!ver.versionNumber)throw new Error(JSON.stringify(ver).slice(0,200));
+    var deps=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/deployments',{headers:H,muteHttpExceptions:true}).getContentText());
+    var n=0;
+    (deps.deployments||[]).forEach(function(d){
+      var cfg=d.deploymentConfig||{};
+      if(cfg.versionNumber==null)return;   // HEAD(테스트) 배포 제외
+      var r2=UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/deployments/'+d.deploymentId,
+        {method:'put',contentType:'application/json',headers:H,
+         payload:JSON.stringify({deploymentConfig:{scriptId:sid,versionNumber:ver.versionNumber,
+           manifestFileName:cfg.manifestFileName||'appsscript',description:cfg.description||'selfUpdate'}}),
+         muteHttpExceptions:true});
+      if(r2.getResponseCode()<300)n++;
+    });
+    return '✅ 코드 갱신 + v'+ver.versionNumber+' 배포 '+n+'건 갱신 완료 ('+todayKST()+' '+nowHM()+')';
+  }catch(e){
+    return '✅ 코드는 갱신됨 / ⚠ 재배포 실패: '+String(e).slice(0,150)+' — doGet/doPost 변경분이 있으면 수동 배포 필요';
+  }
+}
+
+// ============================================================
 // 늦은 객실준비 안내 (2026-08-25 클라라) — 15:10에도 입실안내(s3)가 못 나간
 // 오늘 체크인 방의 게스트에게 준비 지연 안내를 자동 발송. 게스트(이메일)당 하루 1회.
 // 템플릿 = 커스텀 안내 템플릿 중 이름에 '늦은' 포함(템플릿 관리에서 생성·수정). 없으면 스킵.
@@ -539,6 +606,9 @@ function doGet(e){
   if(p.token!==APPROVE_TOKEN)return ContentService.createTextOutput('Paradise Walk GAS 작동 중');
   if(p.action==='approve'){
     return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
+  }
+  if(p.action==='selfupdate'){   // 원탭 자동 업데이트 (2026-09-04) — 레포 최신 코드로 갱신+재배포
+    return ContentService.createTextOutput(selfUpdate());
   }
   if(p.action==='sendRoom'&&p.room){
     const num=String(p.room),today=todayKST();
