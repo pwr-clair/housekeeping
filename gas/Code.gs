@@ -364,6 +364,7 @@ function masterTick(){
 // ============================================================
 var SELF_UPDATE_URL='https://raw.githubusercontent.com/pwr-clair/housekeeping/claude/expedia-overbooking-error-3l4n3s/gas/Code.gs';
 
+function selfUpdateRun(){Logger.log(selfUpdate());}   // 에디터 실행용 — 결과를 로그로 (selfUpdate는 반환값이라 에디터에선 안 보임)
 function selfUpdateHelp(){
   Logger.log([
     '■ appsscript.json에 추가할 항목 (기존 timeZone 등은 그대로 두고 oauthScopes만 추가/교체):',
