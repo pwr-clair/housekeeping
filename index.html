@@ -2077,6 +2077,7 @@ async function saveBooking(){
       if(bkCoDate&&bkCoDate!==(_rec.checkoutDate||''))_sync.checkoutDate=bkCoDate;
       if(guestEmail&&guestEmail!==(_rec.guestEmail||''))_sync.guestEmail=guestEmail;
       if(guestPhone&&guestPhone!==(_rec.guestPhone||'')){_sync.guestPhone=guestPhone;_sync.phoneManual=true;}
+      if(bkNotes&&bkNotes!==(_rec.notes||''))_sync.notes=bkNotes;  // 특이사항도 동기화 — 두 번째 게스트 이메일이 GAS 발송에 실리도록 (2026-09-05 클라라)
       if(Object.keys(_sync).length)await update(ref(db,'app/pendingBookings/'+_svk),_sync);
     }
   }catch(e){}
