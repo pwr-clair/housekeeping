@@ -657,18 +657,41 @@ function doGet(e){
       if(p.dry!=='1')fbSet('app/mailTemplates/custom_tmp_s2guide',t2);
       tplKey='custom_tmp_s2guide';
     }
+    // extras=1 (2026-09-05 클라라): 아침 정규 발송이 이미 나가 도장이 찍힌 날, 특이사항 속
+    // 두 번째 게스트'만' 골라 보내는 모드. 별도 도장(_extra)으로 이 모드 자체도 중복 방지.
+    const extrasOnly=p.extras==='1';
     for(const bk of Object.values(pend)){
       if(!bk||bk.cancelled||bk.checkinDate!==tmr)continue;
-      const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_s2_reminder';
+      const who=(bk.assignedRoom||'?')+'호 '+(bk.guest||'?');
+      const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_s2_reminder'+(extrasOnly?'_extra':'');
       const already=!!fbGet('app/mailLogs/'+logKey);
-      const to=mailToFor_(bk,null,null)||'(이메일 없음)';
-      if(p.dry==='1'){rep.push((already?'[기발송] ':'[발송예정] ')+(bk.assignedRoom||'?')+'호 '+(bk.guest||'?')+' → '+to);continue;}
-      if(already){rep.push('[스킵·기발송] '+(bk.assignedRoom||'?')+'호 '+(bk.guest||'?'));continue;}
-      const ok=sendStageMail('s2_reminder',bk,null,true,tplKey);
-      rep.push((ok?'[✅발송] ':'[실패·이메일/템플릿 확인] ')+(bk.assignedRoom||'?')+'호 '+(bk.guest||'?')+' → '+to);
+      const parts=(mailToFor_(bk,null,null)||'').split(',').filter(String);
+      const to=extrasOnly?parts.slice(1).join(','):parts.join(',');
+      if(!to){rep.push((extrasOnly?'[대상없음·두번째 이메일 없음] ':'[실패·이메일 없음] ')+who);continue;}
+      if(p.dry==='1'){rep.push((already?'[기발송] ':'[발송예정] ')+who+' → '+to);continue;}
+      if(already){rep.push('[스킵·기발송] '+who);continue;}
+      let ok=false;
+      if(extrasOnly){
+        // 두 번째 게스트 단독 발송 — sendStageMail은 수신자를 스스로 정하므로 여기서 직접 조립
+        const tpl=fbGet('app/mailTemplates/'+(tplKey||'s2_reminder'))||{};
+        const nums=(bk.assignedRoom&&bk.assignedRoom!=='manual')?[String(bk.assignedRoom)]:[];
+        const rData={};nums.forEach(n=>{rData[n]=fbGet('app/rooms/'+n)||{};});
+        const fill=s=>fillTpl_(s,bk,nums,rData);
+        try{
+          const subj=fill(tpl.subject||'Check-in Reminder — Paradise Walk Residence');
+          if(tpl.bodyKo&&String(tpl.bodyKo).trim())sendMail(to,subj,fill(tpl.bodyKo));
+          if(tpl.bodyEn&&String(tpl.bodyEn).trim())sendMail(to,subj,fill(tpl.bodyEn));
+          if(!String(tpl.bodyKo||'').trim()&&!String(tpl.bodyEn||'').trim()&&String(tpl.body||'').trim())sendMail(to,subj,fill(tpl.body));
+          fbSet('app/mailLogs/'+logKey,{stage:'s2_reminder_extra',time:todayKST()+' '+nowHM(),email:to,guest:bk.guest,room:bk.assignedRoom||''});
+          ok=true;
+        }catch(err){ok=false;}
+      }else{
+        ok=sendStageMail('s2_reminder',bk,null,true,tplKey);
+      }
+      rep.push((ok?'[✅발송] ':'[실패·이메일/템플릿 확인] ')+who+' → '+to);
     }
     if(tplKey&&p.dry!=='1')fbDelete('app/mailTemplates/'+tplKey);
-    const head='내일('+tmr+') 리마인더 '+(p.dry==='1'?'점검':'발송')+(p.guide?' · 가이드 링크 치환 '+guideHits+'곳 (/'+p.guide+')':'');
+    const head='내일('+tmr+') 리마인더'+(extrasOnly?'(두번째 게스트만)':'')+' '+(p.dry==='1'?'점검':'발송')+(p.guide?' · 가이드 링크 치환 '+guideHits+'곳 (/'+p.guide+')':'');
     return ContentService.createTextOutput(head+'\n'+(rep.length?rep.join('\n'):'— 내일 입실 예약 없음(pendingBookings 기준)'));
   }
   if(p.action==='selfupdate'){   // 원탭 자동 업데이트 (2026-09-04) — 레포 최신 코드로 갱신+재배포

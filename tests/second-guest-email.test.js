@@ -63,4 +63,16 @@ assert.ok(out.includes('치환 2곳') || out.includes('치환 1곳'), '⑤ 치�
 assert.ok(get('app/mailTemplates/custom_tmp_s2guide') === null || get('app/mailTemplates/custom_tmp_s2guide') === undefined, '⑤ 임시 템플릿 삭제됨');
 assert.ok(get('app/mailLogs/d1_s2_reminder'), '⑤ 발송 도장 기록');
 
-console.log('✅ second-guest-email 5/5 통과');
+// ⑥ extras=1: 기발송 도장이 있어도 두 번째 게스트에게만 발송, _extra 도장으로 재실행 중복 차단
+setD('app/mailLogs/d1_s2_reminder', { stage: 's2_reminder' });   // 아침 정규 발송 도장
+sent.length = 0;
+out = ctx.doGet({ parameter: { token: 'x', action: 'sendS2Tomorrow', extras: '1', guide: 'appt2026' } });
+assert.strictEqual(sent.length, 1, '⑥ 두번째 게스트 1건 발송: ' + out);
+assert.strictEqual(sent[0].to, 'c@z.com', '⑥ 두번째 주소 단독: ' + sent[0].to);
+assert.ok(sent[0].body.includes('pwr-guide.online/appt2026'), '⑥ 가이드 치환: ' + sent[0].body);
+assert.ok(out.includes('[대상없음·두번째 이메일 없음]') && out.includes('G2'), '⑥ 단독 이메일 예약은 대상 아님: ' + out);
+sent.length = 0;
+out = ctx.doGet({ parameter: { token: 'x', action: 'sendS2Tomorrow', extras: '1', guide: 'appt2026' } });
+assert.strictEqual(sent.length, 0, '⑥ 재실행은 _extra 도장으로 스킵: ' + out);
+
+console.log('✅ second-guest-email 6/6 통과');
