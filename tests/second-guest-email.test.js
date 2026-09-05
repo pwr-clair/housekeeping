@@ -42,4 +42,25 @@ assert.strictEqual(sent[0].to, 'a@x.com,c@z.com', '③ 수신자: ' + sent[0].to
 to = ctx.mailToFor_({ guestEmail: 'a@x.com', notes: '주차 요청, 얼리체크인' }, null, null);
 assert.strictEqual(to, 'a@x.com', '④ 무변화: ' + to);
 
-console.log('✅ second-guest-email 4/4 통과');
+// ⑤ sendS2Tomorrow: dry=기발송/발송예정 구분, 실발송=미발송만+가이드 링크 치환+임시 템플릿 정리
+vm.runInContext(`kstDate=o=>o===1?'2026-09-06':'2026-09-05';`, ctx);
+db = {};
+setD('app/rooms/930', { currentBooking: { bookingId: 'd1', guestEmail: 'a@x.com', notes: '두번째 게스트 c@z.com' } });
+setD('app/mailTemplates/s2_reminder', { subject: 'Reminder', bodyKo: '가이드: https://pwr-guide.online/main 확인' });
+setD('app/pendingBookings/sv_d1', { bookingId: 'd1', guest: 'G1', guestEmail: 'a@x.com', assignedRoom: '930', checkinDate: '2026-09-06', checkoutDate: '2026-09-08' });
+setD('app/pendingBookings/sv_d2', { bookingId: 'd2', guest: 'G2', guestEmail: 'd@w.com', checkinDate: '2026-09-06', checkoutDate: '2026-09-07' });
+setD('app/mailLogs/d2_s2_reminder', { stage: 's2_reminder' });   // G2는 아침에 이미 발송됨
+let out = ctx.doGet({ parameter: { token: 'x', action: 'sendS2Tomorrow', dry: '1', guide: 'appt2026' } });
+assert.ok(out.includes('[발송예정] 930호 G1 → a@x.com,c@z.com'), '⑤ dry 발송예정: ' + out);
+assert.ok(out.includes('[기발송]') && out.includes('G2'), '⑤ dry 기발송 표시: ' + out);
+assert.ok(get('app/mailTemplates/custom_tmp_s2guide') === null, '⑤ dry는 임시 템플릿 안 만듦');
+sent.length = 0;
+out = ctx.doGet({ parameter: { token: 'x', action: 'sendS2Tomorrow', guide: 'appt2026' } });
+assert.strictEqual(sent.length, 1, '⑤ 미발송 1건만 발송: ' + out);
+assert.strictEqual(sent[0].to, 'a@x.com,c@z.com', '⑤ 두 주소 수신: ' + sent[0].to);
+assert.ok(sent[0].body.includes('pwr-guide.online/appt2026'), '⑤ 가이드 링크 치환: ' + sent[0].body);
+assert.ok(out.includes('치환 2곳') || out.includes('치환 1곳'), '⑤ 치환 보고: ' + out);
+assert.ok(get('app/mailTemplates/custom_tmp_s2guide') === null || get('app/mailTemplates/custom_tmp_s2guide') === undefined, '⑤ 임시 템플릿 삭제됨');
+assert.ok(get('app/mailLogs/d1_s2_reminder'), '⑤ 발송 도장 기록');
+
+console.log('✅ second-guest-email 5/5 통과');

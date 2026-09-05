@@ -644,6 +644,33 @@ function doGet(e){
   if(p.action==='approve'){
     return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
   }
+  if(p.action==='sendS2Tomorrow'){
+    // 내일 입실 리마인더(s2) 일괄 발송 (2026-09-05 클라라) — 미발송 건만(기발송은 mailLogs 도장으로 자동 스킵).
+    // guide=appt2026 → 본문·제목의 pwr-guide.online 링크 경로를 그 버전으로 교체한 임시 템플릿으로 발송(끝나면 삭제).
+    // dry=1 → 발송 없이 대상·수신자·치환 결과만 보고.
+    const tmr=kstDate(1), pend=fbGet('app/pendingBookings')||{};
+    const rep=[]; let tplKey=null, guideHits=0;
+    if(p.guide&&/^[A-Za-z0-9_\-]{1,40}$/.test(p.guide)){
+      const tpl0=fbGet('app/mailTemplates/s2_reminder')||{};
+      const sw=s=>String(s||'').replace(/(pwr-guide\.online)(\/[A-Za-z0-9_\-\/]*)?/g,function(_,h){guideHits++;return h+'/'+p.guide;});
+      const t2={name:'(임시) s2 가이드 '+p.guide,subject:sw(tpl0.subject),bodyKo:sw(tpl0.bodyKo),bodyEn:sw(tpl0.bodyEn),body:sw(tpl0.body)};
+      if(p.dry!=='1')fbSet('app/mailTemplates/custom_tmp_s2guide',t2);
+      tplKey='custom_tmp_s2guide';
+    }
+    for(const bk of Object.values(pend)){
+      if(!bk||bk.cancelled||bk.checkinDate!==tmr)continue;
+      const logKey=String(bk.bookingId).replace(/[.#$\[\]\/]/g,'_')+'_s2_reminder';
+      const already=!!fbGet('app/mailLogs/'+logKey);
+      const to=mailToFor_(bk,null,null)||'(이메일 없음)';
+      if(p.dry==='1'){rep.push((already?'[기발송] ':'[발송예정] ')+(bk.assignedRoom||'?')+'호 '+(bk.guest||'?')+' → '+to);continue;}
+      if(already){rep.push('[스킵·기발송] '+(bk.assignedRoom||'?')+'호 '+(bk.guest||'?'));continue;}
+      const ok=sendStageMail('s2_reminder',bk,null,true,tplKey);
+      rep.push((ok?'[✅발송] ':'[실패·이메일/템플릿 확인] ')+(bk.assignedRoom||'?')+'호 '+(bk.guest||'?')+' → '+to);
+    }
+    if(tplKey&&p.dry!=='1')fbDelete('app/mailTemplates/'+tplKey);
+    const head='내일('+tmr+') 리마인더 '+(p.dry==='1'?'점검':'발송')+(p.guide?' · 가이드 링크 치환 '+guideHits+'곳 (/'+p.guide+')':'');
+    return ContentService.createTextOutput(head+'\n'+(rep.length?rep.join('\n'):'— 내일 입실 예약 없음(pendingBookings 기준)'));
+  }
   if(p.action==='selfupdate'){   // 원탭 자동 업데이트 (2026-09-04) — 레포 최신 코드로 갱신+재배포
     return ContentService.createTextOutput(selfUpdate());
   }
@@ -827,8 +854,9 @@ function doGet(e){
       if(!label&&isCustom){const ct=fbGet('app/mailTemplates/'+p.stage)||{};label=ct.name||'안내';}
       // 제목: 편집창에서 일부러 비우면 빈 제목 그대로 발송(플랫폼 채팅에 제목 헤더 안 뜨게). 기본 제목은 편집값이 아예 없을 때만.
       const subject=(ov.subject==null)?((label||'안내')+' — Paradise Walk Residence'):String(ov.subject);
-      if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(bk.guestEmail,subject,ov.bodyKo);
-      if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(bk.guestEmail,subject,ov.bodyEn);
+      const __to=mailToFor_(bk,room?[String(room)]:null,null);   // 특이사항 속 두 번째 게스트 이메일 동봉
+      if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(__to,subject,ov.bodyKo);
+      if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(__to,subject,ov.bodyEn);
       fbSet('app/mailLogs/'+logKey,{stage:p.stage,time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:room||'',edited:true});
       fbDelete('app/sendOverrides/'+ovKey);
       return ContentService.createTextOutput('✅ '+bk.guest+'님께 ['+(label||p.stage)+'] 발송 완료 (편집본)');
