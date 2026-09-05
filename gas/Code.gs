@@ -88,6 +88,40 @@ function roomEmailFor_(bk,room){
   return '';
 }
 
+// ============================================================
+// 특이사항 속 추가 수신자 (2026-09-05 클라라) — 직거래 2인 예약처럼 두 번째 게스트의
+// 이름·이메일을 예약 '특이사항(notes)'에 적어두면 게스트 발송이 그 이메일에도 함께 나간다.
+// 수집원 = 예약 자체 notes + (배정)객실의 같은 예약 notes(수기 수정은 방 데이터에 먼저 저장됨).
+// GmailApp.sendEmail은 쉼표 구분 다중 수신자를 그대로 지원한다.
+// ============================================================
+function extraEmails_(txt,primary){
+  var m=String(txt||'').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)||[];
+  var seen={},out=[];
+  if(primary)seen[String(primary).trim().toLowerCase()]=1;
+  for(var i=0;i<m.length;i++){var k=m[i].toLowerCase();if(!seen[k]){seen[k]=1;out.push(m[i]);}}
+  return out;
+}
+function mailToFor_(bk,roomList,rData){
+  var to=String((bk&&bk.guestEmail)||'').trim();
+  if(!to)return to;
+  var bid=String((bk&&bk.bookingId)||'');
+  var notes=[(bk&&bk.notes)||''];
+  var nums=(roomList&&roomList.length)?roomList:((bk&&bk.assignedRoom&&bk.assignedRoom!=='manual')?[String(bk.assignedRoom)]:[]);
+  for(var i=0;i<nums.length;i++){
+    var n=String(nums[i]);
+    var r=(rData&&rData[n])||fbGet('app/rooms/'+n)||{};
+    var cands=[r.currentBooking].concat(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{}));
+    for(var j=0;j<cands.length;j++){
+      var b=cands[j];if(!b||!b.notes)continue;
+      var sameBid=bid&&String(b.bookingId||'')===bid;
+      var sameEmail=String(b.guestEmail||'').trim().toLowerCase()===to.toLowerCase();
+      if(sameBid||sameEmail)notes.push(b.notes);
+    }
+  }
+  var extra=extraEmails_(notes.join('\n'),to);
+  return extra.length?to+','+extra.join(','):to;
+}
+
 function sendMail(to, subject, body){
   var opts = { from: SENDER };
   var bcc = fbGet('app/config/bccEmail');
@@ -240,16 +274,17 @@ function sendStageMail(stage,bk,room,force,tplKey){
   const roomList=Array.isArray(room)?room.map(String):(room?[String(room)]:[]);
   const rData={};roomList.forEach(n=>{rData[n]=fbGet('app/rooms/'+n)||{};});
   const fill=s=>fillTpl_(s,bk,roomList,rData);
+  const __to=mailToFor_(bk,roomList,rData);   // 특이사항 속 두 번째 게스트 이메일 동봉
   try{
     var __subject = fill(tpl.subject);
     var __ko = (tpl.bodyKo && String(tpl.bodyKo).trim()) ? fill(tpl.bodyKo) : '';
     var __en = (tpl.bodyEn && String(tpl.bodyEn).trim()) ? fill(tpl.bodyEn) : '';
     if(__ko || __en){
-      if(__ko) sendMail(bk.guestEmail, __subject, __ko);
-      if(__en) sendMail(bk.guestEmail, __subject, __en);
+      if(__ko) sendMail(__to, __subject, __ko);
+      if(__en) sendMail(__to, __subject, __en);
     } else {
       var __body = (tpl.body && String(tpl.body).trim()) ? fill(tpl.body) : '';
-      if(__body) sendMail(bk.guestEmail, __subject, __body);
+      if(__body) sendMail(__to, __subject, __body);
     }
     fbSet('app/mailLogs/'+logKey,{stage,time:todayKST()+' '+nowHM(),email:bk.guestEmail,guest:bk.guest,room:roomList.join(',')});
     return true;
@@ -455,9 +490,10 @@ function latePrepTick_(){
       .replace(/{guest}/g,g.guest||'Guest').replace(/{room}/g,roomLabel)
       .replace(/{floor}/g,g.nums.map(floorOf).join(', ')).replace(/{checkinDate}/g,today);};
     var subject=fill(tpl.subject)||('Room Preparation Delay / 객실 준비 지연 안내 — Paradise Walk Residence');
+    var __to=mailToFor_({guestEmail:g.email},g.nums,rooms);   // 특이사항 속 두 번째 게스트 이메일 동봉
     try{
-      if(tpl.bodyKo&&String(tpl.bodyKo).trim())sendMail(g.email,subject,fill(tpl.bodyKo));
-      if(tpl.bodyEn&&String(tpl.bodyEn).trim())sendMail(g.email,subject,fill(tpl.bodyEn));
+      if(tpl.bodyKo&&String(tpl.bodyKo).trim())sendMail(__to,subject,fill(tpl.bodyKo));
+      if(tpl.bodyEn&&String(tpl.bodyEn).trim())sendMail(__to,subject,fill(tpl.bodyEn));
       fbSet('app/mailLogs/'+logKey,{stage:'late_prep',time:today+' '+nowHM(),email:g.email,guest:g.guest,room:roomLabel});
       Logger.log('latePrepTick_: '+roomLabel+'호 '+g.guest+' 지연 안내 발송');
     }catch(e){
@@ -707,8 +743,9 @@ function doGet(e){
     try{
       // 제목: 편집창에서 일부러 비우면 빈 제목 그대로 발송. 기본 제목은 편집값이 아예 없을 때만.
       const subject=(ov.subject==null)?('Check-in Info / 체크인 안내 — Room '+num):String(ov.subject);
-      if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(cb.guestEmail,subject,ov.bodyKo);
-      if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(cb.guestEmail,subject,ov.bodyEn);
+      const __to=mailToFor_(cb,markNums,null);   // 특이사항 속 두 번째 게스트 이메일 동봉
+      if(ov.bodyKo && String(ov.bodyKo).trim())sendMail(__to,subject,ov.bodyKo);
+      if(ov.bodyEn && String(ov.bodyEn).trim())sendMail(__to,subject,ov.bodyEn);
       fbSet('app/mailLogs/'+logKey,{stage:stg,time:todayKST()+' '+nowHM(),email:cb.guestEmail,guest:cb.guest,room:markNums.join(','),edited:true});
       markNums.forEach(n=>fbSet('app/sentChecks/'+n+'_'+today,today));
       fbDelete('app/sendOverrides/'+num+'_'+today);
