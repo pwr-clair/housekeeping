@@ -812,6 +812,15 @@ function autoCheckinTick(){
 // ============================================================
 // 금액 동기화 — SIRVOY 알림메일에서 Total 추출해 pendingBookings에 저장
 // ============================================================
+// 알림메일 Total 문자열 → 원 정수. 서보이가 메일마다 EU식("135.000,00")과 US식("114,750.00")을 섞어 보낸다
+// (2026-09-17 JONAN 26482가 US식이라 114원으로 들어간 사고). 끝이 [.,]+두 자리면 소수부로 떼고 나머지 숫자만 취한다.
+function wonFromMailTotal_(str){
+  var t = String(str||'').trim();
+  var m = t.match(/^(.*)[.,](\d{2})$/);
+  var n = parseInt((m ? m[1] : t).replace(/[^\d]/g,''), 10);
+  return isNaN(n) ? null : n;
+}
+
 function parseSirvoyAmount_(bookingId){
   var baseId = String(bookingId).split('_')[0].trim();
   if(!baseId) return null;
@@ -830,12 +839,11 @@ function parseSirvoyAmount_(bookingId){
       if(subj.indexOf('Booking ' + baseId + ' ') < 0) continue;
       if(subj.indexOf('Added to Sirvoy') < 0) continue;   // 취소메일 제외
       var body = msgs[m].getBody() || '';
-      var mt = body.match(/Total<\/strong>\s*:\s*([\d.]+,\d{2})/i);
-      if(!mt) mt = body.match(/Total\s*:\s*([\d.]+,\d{2})/i);
+      var mt = body.match(/Total<\/strong>\s*:\s*([\d.,]+)/i);
+      if(!mt) mt = body.match(/Total\s*:\s*([\d.,]+)/i);
       if(mt && mt[1]){
-        var num = mt[1].replace(/\./g,'').split(',')[0];
-        var won = parseInt(num,10);
-        if(!isNaN(won)) return won;
+        var won = wonFromMailTotal_(mt[1]);
+        if(won !== null) return won;
       }
     }
   }
@@ -848,7 +856,8 @@ function syncAmounts(){
   for(var key in pend){
     var bk = pend[key];
     if(!bk || bk.cancelled) continue;
-    if(bk.amount !== undefined && bk.amount !== null && bk.amount !== '') continue;
+    // 1,000원 미만은 파싱 사고(US식 Total→소수부만 잡힘)라 미수집으로 보고 다시 채운다 (2026-09-17)
+    if(bk.amount !== undefined && bk.amount !== null && bk.amount !== '' && Number(bk.amount) >= 1000) continue;
     // 2026-08-01: 직판 예약은 SIRVOY 알림메일이 아예 없어 영원히 "못 찾음"인데,
     // 이걸 5분마다 재검색하느라 Gmail 호출이 틱 실행시간을 먹고 뒤의 자동발송이 실행 한도에 잘렸다.
     // 한 예약당 하루 1회로 제한(오늘 늦게 도착한 메일은 내일 잡힌다).
