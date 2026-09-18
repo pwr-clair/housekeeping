@@ -800,31 +800,43 @@ function setupTriggers(){
   ScriptApp.newTrigger('t1100_checkoutConfirm').timeBased().atHour(11).nearMinute(0).everyDays(1).create();
   ScriptApp.newTrigger('t1159_moveBookings').timeBased().atHour(11).nearMinute(45).everyDays(1).create();
   ScriptApp.newTrigger('t1200_statusFix').timeBased().atHour(12).nearMinute(15).everyDays(1).create();
-  ScriptApp.newTrigger('autoCheckinTick').timeBased().everyHours(1).create();
-  Logger.log('트리거 6개 설치 완료');
+  // autoCheckinTick 트리거는 2026-09-18 클라라 지시로 폐지 (자동 입실중 전환 금지)
+  Logger.log('트리거 5개 설치 완료');
 }
 function setBcc(){fbSet('app/config/bccEmail','joi.hurricane@gmail.com');Logger.log('BCC 켜짐');}
 function clearBcc(){fbDelete('app/config/bccEmail');Logger.log('BCC 꺼짐');}
 
 // ============================================================
-// 자동 입실중 전환 — 21:00 이후 매시간
+// 자동 입실중 전환 — 2026-09-18 클라라 지시로 폐지
 // ============================================================
+// 예전엔 21:00 이후 매시간, 오늘 체크인 + 입실안내 발송완료된 clean_done 객실을 checkin으로 자동 전환했다.
+// 객실 상태를 사람이 확인하기 전에 전부 '입실중'으로 바꿔버려 폐지. 함수 본체는 비워 두고(기존 트리거가 남아 있어도 무해)
+// setupTriggers()에서도 제외했다. GAS 에디터 트리거 목록에서 autoCheckinTick 트리거는 삭제할 것.
 function autoCheckinTick(){
-  const min=nowMinKST();
-  if(min<1260)return;
+  return; // 폐지 — 아무 것도 하지 않음
+}
+
+// 폐지 전 마지막 실행(2026-09-18 21:00~)이 바꿔 놓은 객실을 되돌리는 일회성 함수.
+// 조건은 autoCheckinTick이 전환했던 조건과 동일: 정비중 아님 + currentBooking.checkinDate === date + 입실안내 발송완료 + status 'checkin' → 'clean_done'.
+// GAS 에디터에서 revertAutoCheckin 선택 → 실행. date를 안 주면 2026-09-18.
+function revertAutoCheckin(date){
+  date = (typeof date === 'string' && date) ? date : '2026-09-18';
   const rooms=fbGet('app/rooms')||{};
   const sent=fbGet('app/sentChecks')||{};
-  const today=todayKST();
+  const reverted=[];
   for(const num of Object.keys(rooms)){
     const r=rooms[num];
     if(!r||r.blocked)continue;
     const cb=r.currentBooking;
     if(!cb||!cb.guest)continue;
-    if(cb.checkinDate!==today)continue;
-    if(!sent[num+'_'+today])continue;
-    if(r.status==='checkin')continue;
-    if(r.status==='clean_done'){fbUpdate('app/rooms/'+num,{status:'checkin'});}
+    if(cb.checkinDate!==date)continue;
+    if(!sent[num+'_'+date])continue;
+    if(r.status!=='checkin')continue;
+    fbUpdate('app/rooms/'+num,{status:'clean_done'});
+    reverted.push(num);
   }
+  Logger.log('revertAutoCheckin('+date+'): '+reverted.length+'개 객실 checkin→clean_done: '+reverted.join(', '));
+  return reverted;
 }
 
 // ============================================================
