@@ -325,7 +325,7 @@ function runAuto_(auto,stage,min,fn){
 }
 function masterTick(){
   const min=nowMinKST();
-  try{ if(min>=719) rotateDueBookings_(); }catch(e){}   // 11:59 턴오버 누락분 자가 복구
+  try{ if(min>=719) rotateDueBookings_(true); }catch(e){}   // 11:59 턴오버 누락분 자가 복구
   try{ promoteVacantArrivals_(); }catch(e){}   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
   const auto=fbGet('app/mailConfig/auto')||{};
   const tplOf=s=>(auto[s]&&auto[s].template)||null;
@@ -741,7 +741,7 @@ function t1159_moveBookings(){
 // 턴오버(퇴실일 도래 현재예약 → 이력, 다음예약 승격). 멱등 — 이미 넘어간 방은 조건에 안 걸린다.
 // masterTick이 11:59 이후 매 틱 재호출 → 11:59 트리거가 중간에 죽거나(UrlFetch 일시 오류는 muteHttpExceptions로 안 잡힘)
 // 아예 안 돌아도 5분 내 자가 복구. 방 하나의 오류가 뒷방 전체를 막지 않도록 방별 try. (2026-09-19 1240·1236·1031·1037 미이동 건)
-function rotateDueBookings_(){
+function rotateDueBookings_(keepStatus){
   const today=todayKST();
   for(const num of roomNums()){try{
     let r=fbGet('app/rooms/'+num);
@@ -753,7 +753,8 @@ function rotateDueBookings_(){
       const nextArr=(Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{})).filter(b=>b);
       fbSet('app/bookingHistory/h_'+Date.now()+'_'+num+'_'+guard,{room:num,guest:cb.guest,checkinDate:cb.checkinDate,checkoutDate:cb.checkoutDate,source:cb.source||'',completedAt:today+' auto'});
       // 오전에 이미 청소중/청소완료 처리된 방은 상태 보존 — 정오 이동이 청소필요로 되돌리면 안 됨 (2026-07-15 클라라)
-      const st=['cleaning','clean_done'].includes(r.status)?r.status:'need_clean';
+      // keepStatus(masterTick 사후 복구): 현장이 이미 작업 중일 수 있으니 상태는 절대 안 건드리고 예약만 올린다 (2026-09-19 클라라)
+      const st=(keepStatus||['cleaning','clean_done'].includes(r.status))?r.status:'need_clean';
       if(nextArr.length>0&&nextArr[0].checkinDate&&nextArr[0].checkinDate<=today){
         r={...r,currentBooking:nextArr[0],nextBookings:nextArr.slice(1)};
         fbUpdate('app/rooms/'+num,{currentBooking:nextArr[0],nextBookings:nextArr.slice(1),status:st});
