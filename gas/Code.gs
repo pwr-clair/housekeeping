@@ -443,9 +443,11 @@ function latePrepTick_(){
   var keys=Object.keys(groups); if(!keys.length)return;
   var tpls=fbGet('app/mailTemplates')||{}, tpl=null;
   for(var k in tpls){
-    if(k.indexOf('custom_')===0&&tpls[k]&&String(tpls[k].name||'').indexOf('늦은')>=0){tpl=tpls[k];break;}
+    // 이름 매칭은 느슨하게 — '늦은/지연/late/delay' 중 하나만 들어 있으면 잡는다.
+    // (2026-09-19: '늦은' 정확 일치만 보던 탓에 템플릿이 있어도 조용히 스킵될 수 있었음)
+    if(k.indexOf('custom_')===0&&tpls[k]&&/늦은|지연|late|delay/i.test(String(tpls[k].name||''))){tpl=tpls[k];break;}
   }
-  if(!tpl){Logger.log('latePrepTick_: 이름에 "늦은"이 든 커스텀 템플릿 없음 — 스킵');return;}
+  if(!tpl){Logger.log('latePrepTick_: 이름에 늦은/지연/late/delay가 든 커스텀 템플릿 없음 — 스킵');return;}
   keys.forEach(function(kk){
     var g=groups[kk];
     var logKey='late_prep_'+kk.replace(/[.#$\[\]\/]/g,'_')+'_'+today;

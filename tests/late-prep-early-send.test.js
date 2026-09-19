@@ -61,7 +61,15 @@ reset('늦은 객실준비 안내'); setD('app/sentChecks/501_2026-09-19', '2026
 assert.strictEqual(mails.length, 0, '입실안내 이미 나간 방은 대상 아님');
 
 reset(null); at(910); tick();
-assert.strictEqual(mails.length, 0, "이름에 '늦은' 든 템플릿 없으면 조용히 스킵");
+assert.strictEqual(mails.length, 0, "매칭되는 이름의 템플릿 없으면 조용히 스킵");
+
+// 이름 매칭은 느슨하게 — 운영자가 어떻게 이름 붙였든 잡히게
+for (const nm of ['늦은 객실준비 안내', '객실 준비 지연 안내', 'Late Prep', 'delay notice']) {
+  reset(nm); at(910); tick();
+  assert.strictEqual(mails.length, 1, '템플릿 이름 "' + nm + '" 도 잡아야 함');
+}
+reset('입실 안내'); at(910); tick();
+assert.strictEqual(mails.length, 0, '무관한 템플릿은 안 잡음');
 
 // 멀티룸 = 한 통, 이메일 칸이 비어도 특이사항 주소로 (guestRecipients_ 규약)
 reset('늦은 객실준비 안내');
