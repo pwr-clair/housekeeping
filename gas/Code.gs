@@ -346,18 +346,143 @@ function masterTick(){
     }
   }
   // mode==='manual' → 아무것도 안 함 (수동 발송만)
+  try{ latePrepTick_(); }catch(e){}      // 늦은 객실준비 안내 (15:10+, 입실안내 미발송 방 게스트에게 1회)
   // 금액 동기화는 틱 맨 뒤(자동발송 뒤) — f357185에서 '맨 뒤로 옮긴다'며 지운 뒤 재삽입이 빠져 틱에서 아예 안 돌던 것 복원 (2026-09-18)
   try{ syncAmounts(); }catch(e){}
   }
 
+
+// ============================================================
+// 원탭 자동 업데이트 (2026-09-04) — 레포 최신 Code.gs를 GAS가 스스로 가져와 갱신+재배포.
+// 1회 설정(컴퓨터): ① https://script.google.com/home/usersettings 에서 Google Apps Script API 켜기
+//   ② 이 파일 붙여넣기+저장 ③ 프로젝트 설정→'appsscript.json 매니페스트 표시' 체크 후
+//      appsscript.json에 selfUpdateHelp() 로그의 oauthScopes 추가 ④ selfUpdate 1회 실행(권한 승인).
+// 이후: <웹앱URL>?action=selfupdate&token=<APPROVE_TOKEN> 호출 한 번 = 코드 갱신+버전+재배포 완료.
+// 갱신 소스는 아래 SELF_UPDATE_URL (정본 = main).
+// ============================================================
+var SELF_UPDATE_URL='https://raw.githubusercontent.com/pwr-clair/housekeeping/main/gas/Code.gs';
+
+function selfUpdateRun(){Logger.log(selfUpdate());}   // 에디터 실행용 — 결과를 로그로 (selfUpdate는 반환값이라 에디터에선 안 보임)
+function selfUpdateHelp(){
+  Logger.log([
+    '■ appsscript.json에 추가할 항목 (기존 timeZone 등은 그대로 두고 oauthScopes만 추가/교체):',
+    '"oauthScopes": [',
+    '  "https://mail.google.com/",',
+    '  "https://www.googleapis.com/auth/script.external_request",',
+    '  "https://www.googleapis.com/auth/script.scriptapp",',
+    '  "https://www.googleapis.com/auth/script.projects",',
+    '  "https://www.googleapis.com/auth/script.deployments"',
+    '],',
+    '■ 원탭 업데이트 URL: '+(ScriptApp.getService().getUrl()||'(웹앱 미배포)')+'?action=selfupdate&token=(APPROVE_TOKEN 값)'
+  ].join('\n'));
+}
+
+function selfUpdate(){
+  var sid=ScriptApp.getScriptId(), H={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
+  // 1) 레포에서 새 코드 (캐시 우회) + 안전 검증 — 비정상이면 아무것도 안 바꾼다
+  var res=UrlFetchApp.fetch(SELF_UPDATE_URL+'?cb='+Date.now(),{muteHttpExceptions:true});
+  if(res.getResponseCode()>=300)return '레포에서 코드를 못 가져옴: HTTP '+res.getResponseCode();
+  var code=res.getContentText();
+  if(!code||code.length<20000||code.indexOf('function masterTick')<0||code.indexOf('function doPost')<0)
+    return '가져온 코드가 비정상(길이 '+(code?code.length:0)+') — 중단, 아무것도 안 바꿈';
+  // 2) 현재 프로젝트 파일 읽기 (appsscript.json 등 다른 파일은 그대로 보존)
+  var cur;
+  try{cur=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/content',{headers:H,muteHttpExceptions:true}).getContentText());}catch(e){cur={};}
+  if(!cur.files)return '프로젝트 읽기 실패 — script.google.com/home/usersettings 에서 Apps Script API를 켰는지, 매니페스트 oauthScopes를 넣었는지 확인 (selfUpdateHelp 참조)';
+  var found=false;
+  cur.files.forEach(function(f){if(f.type==='SERVER_JS'&&f.name==='Code'){f.source=code;found=true;}});
+  if(!found)return 'Code 파일을 못 찾음 — 중단';
+  // 3) 코드 반영
+  var up=UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/content',
+    {method:'put',contentType:'application/json',headers:H,payload:JSON.stringify({files:cur.files}),muteHttpExceptions:true});
+  if(up.getResponseCode()>=300)return '코드 갱신 실패: '+up.getContentText().slice(0,300);
+  // 4) 새 버전 생성 + 웹앱 배포 갱신 (URL 유지). 실패해도 트리거 함수는 이미 최신 — doGet/doPost만 수동 배포 필요.
+  try{
+    var ver=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/versions',
+      {method:'post',contentType:'application/json',headers:H,
+       payload:JSON.stringify({description:'selfUpdate '+todayKST()+' '+nowHM()}),muteHttpExceptions:true}).getContentText());
+    if(!ver.versionNumber)throw new Error(JSON.stringify(ver).slice(0,200));
+    var deps=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/deployments',{headers:H,muteHttpExceptions:true}).getContentText());
+    var n=0;
+    (deps.deployments||[]).forEach(function(d){
+      var cfg=d.deploymentConfig||{};
+      if(cfg.versionNumber==null)return;   // HEAD(테스트) 배포 제외
+      var r2=UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/deployments/'+d.deploymentId,
+        {method:'put',contentType:'application/json',headers:H,
+         payload:JSON.stringify({deploymentConfig:{scriptId:sid,versionNumber:ver.versionNumber,
+           manifestFileName:cfg.manifestFileName||'appsscript',description:cfg.description||'selfUpdate'}}),
+         muteHttpExceptions:true});
+      if(r2.getResponseCode()<300)n++;
+    });
+    return '✅ 코드 갱신 + v'+ver.versionNumber+' 배포 '+n+'건 갱신 완료 ('+todayKST()+' '+nowHM()+')';
+  }catch(e){
+    return '✅ 코드는 갱신됨 / ⚠ 재배포 실패: '+String(e).slice(0,150)+' — doGet/doPost 변경분이 있으면 수동 배포 필요';
+  }
+}
+
+// ============================================================
+// 늦은 객실준비 안내 (2026-08-25 클라라) — 15:10에도 입실안내(s3)가 못 나간
+// 오늘 체크인 방의 게스트에게 준비 지연 안내를 자동 발송. 게스트(이메일)당 하루 1회.
+// 템플릿 = 커스텀 안내 템플릿 중 이름에 '늦은' 포함(템플릿 관리에서 생성·수정). 없으면 스킵.
+// {room}은 준비 안 된 방이라 {doorPw}는 치환하지 않는다(템플릿에 넣지 말 것).
+// 수신자는 guestRecipients_ — 이메일 칸이 비어도 특이사항 속 주소로 나간다(9c1f79e 규약).
+// ============================================================
+function latePrepTick_(){
+  var min=nowMinKST();
+  if(min<910||min>=1080)return;   // 15:10~18:00 창
+  var rooms=fbGet('app/rooms')||{}, sent=fbGet('app/sentChecks')||{}, today=todayKST();
+  var groups={};
+  for(var num in rooms){
+    var r=rooms[num]; if(!r||r.blocked)continue;
+    var cb=todayCheckinOf_(r,today); if(!cb)continue;
+    var to=guestRecipients_(cb); if(!to)continue;
+    if(sent[num+'_'+today])continue;   // 입실안내 이미 발송된 방 = 대상 아님
+    var key=to.toLowerCase();
+    (groups[key]=groups[key]||{guest:cb.guest,to:to,nums:[]}).nums.push(num);
+  }
+  var keys=Object.keys(groups); if(!keys.length)return;
+  var tpls=fbGet('app/mailTemplates')||{}, tpl=null;
+  for(var k in tpls){
+    if(k.indexOf('custom_')===0&&tpls[k]&&String(tpls[k].name||'').indexOf('늦은')>=0){tpl=tpls[k];break;}
+  }
+  if(!tpl){Logger.log('latePrepTick_: 이름에 "늦은"이 든 커스텀 템플릿 없음 — 스킵');return;}
+  keys.forEach(function(kk){
+    var g=groups[kk];
+    var logKey='late_prep_'+kk.replace(/[.#$\[\]\/]/g,'_')+'_'+today;
+    if(fbGet('app/mailLogs/'+logKey))return;   // 게스트당 하루 1회
+    var roomLabel=g.nums.sort().join(', ');
+    var fill=function(s){return String(s||'')
+      .replace(/{guest}/g,g.guest||'Guest').replace(/{room}/g,roomLabel)
+      .replace(/{floor}/g,g.nums.map(floorOf).join(', ')).replace(/{checkinDate}/g,today);};
+    var subject=fill(tpl.subject)||('Room Preparation Delay / 객실 준비 지연 안내 — Paradise Walk Residence');
+    try{
+      if(tpl.bodyKo&&String(tpl.bodyKo).trim())sendMail(g.to,subject,fill(tpl.bodyKo));
+      if(tpl.bodyEn&&String(tpl.bodyEn).trim())sendMail(g.to,subject,fill(tpl.bodyEn));
+      fbSet('app/mailLogs/'+logKey,{stage:'late_prep',time:today+' '+nowHM(),email:g.to,guest:g.guest,room:roomLabel});
+      Logger.log('latePrepTick_: '+roomLabel+'호 '+g.guest+' 지연 안내 발송');
+    }catch(e){
+      GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 지연안내 발송 실패: '+g.guest,String(e));
+    }
+  });
+}
+
 // ============================================================
 // 입실안내 — 발송 시각 도달 판정
-// checkinTime 있으면 그 시각 ±15분, 없으면 14:30~15:00 기본창
+// 기본 14:30부터. 얼리체크인(2026-08-23 클라라): ETA(checkinTime)가 이르면
+// '입실 1시간 전'부터 발송 허용 — 단 정오(12:00) 이전으로는 안 내려감(오전 발송 금지),
+// 기본창(14:30)보다 늦춰지지도 않음. 청소완료·당일입실 조건은 findCheckinDue가 이미 강제.
 // ============================================================
 function checkinDueNow(cb){
   var nowMin = parseInt(Utilities.formatDate(new Date(),'Asia/Seoul','HH'),10)*60
              + parseInt(Utilities.formatDate(new Date(),'Asia/Seoul','mm'),10);
-  return nowMin >= 870;   // 14:30 이후면 발송 (checkinTime 무관, 참고용일 뿐)
+  var due = 870;   // 기본 14:30
+  var ci = etaStart((cb&&cb.checkinTime)||'');
+  if(ci){
+    var m = parseInt(ci.slice(0,2),10)*60 + parseInt(ci.slice(3,5),10);
+    // 새벽대(00:00~05:59) ETA = 자정 넘긴 심야 도착 — 얼리 아님, 기본창 유지 (2026-08-23 클라라)
+    if(m >= 360) due = Math.min(870, Math.max(720, m-60));
+  }
+  return nowMin >= due;
 }
 
 // 방의 오늘 체크인 예약 탐색: currentBooking 우선, 없으면 nextBookings까지 (수동 sendRoom과 동일 —
@@ -480,6 +605,9 @@ function doGet(e){
   if(p.token!==APPROVE_TOKEN)return ContentService.createTextOutput('Paradise Walk GAS 작동 중');
   if(p.action==='approve'){
     return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
+  }
+  if(p.action==='selfupdate'){   // 원탭 자동 업데이트 (2026-09-04) — 레포 최신 코드로 갱신+재배포
+    return ContentService.createTextOutput(selfUpdate());
   }
   if(p.action==='sendRoom'&&p.room){
     const num=String(p.room),today=todayKST();
