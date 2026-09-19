@@ -325,6 +325,7 @@ function runAuto_(auto,stage,min,fn){
 }
 function masterTick(){
   const min=nowMinKST();
+  try{ if(min>=719) rotateDueBookings_(); }catch(e){}   // 11:59 턴오버 누락분 자가 복구
   try{ promoteVacantArrivals_(); }catch(e){}   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
   const auto=fbGet('app/mailConfig/auto')||{};
   const tplOf=s=>(auto[s]&&auto[s].template)||null;
@@ -733,7 +734,16 @@ function t1159_moveBookings(){
   for(const [key,h] of Object.entries(hist)){if(!h.checkoutDate||h.checkoutDate<cutoff)fbDelete('app/bookingHistory/'+key);}
   const pend=fbGet('app/pendingBookings')||{},pCutoff=kstDate(-3);
   for(const [key,bk] of Object.entries(pend)){if(bk&&bk.checkoutDate&&bk.checkoutDate<pCutoff)fbDelete('app/pendingBookings/'+key);}
-  for(const num of roomNums()){
+  rotateDueBookings_();
+  promoteVacantArrivals_();   // 턴오버 정리 후 공실 방 승격
+}
+
+// 턴오버(퇴실일 도래 현재예약 → 이력, 다음예약 승격). 멱등 — 이미 넘어간 방은 조건에 안 걸린다.
+// masterTick이 11:59 이후 매 틱 재호출 → 11:59 트리거가 중간에 죽거나(UrlFetch 일시 오류는 muteHttpExceptions로 안 잡힘)
+// 아예 안 돌아도 5분 내 자가 복구. 방 하나의 오류가 뒷방 전체를 막지 않도록 방별 try. (2026-09-19 1240·1236·1031·1037 미이동 건)
+function rotateDueBookings_(){
+  const today=todayKST();
+  for(const num of roomNums()){try{
     let r=fbGet('app/rooms/'+num);
     if(!r||r.blocked)continue;
     let guard=0;
@@ -752,8 +762,7 @@ function t1159_moveBookings(){
         fbUpdate('app/rooms/'+num,{currentBooking:null,nextBookings:nextArr,status:st});
       }
     }
-  }
-  promoteVacantArrivals_();   // 턴오버 정리 후 공실 방 승격
+  }catch(e){console.error('rotateDueBookings_ '+num+': '+e);}}
 }
 
 // 공실 방 승격 — 현재예약 없고 다음예약[0]이 오늘 이하 체크인이면 현재로 올림.
