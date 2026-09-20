@@ -125,13 +125,15 @@ assert.deepStrictEqual(keys(), before, '두 번 실행해도 동일');
 
 // ── 진단(dumpPendingDupes)은 읽기만 한다 ──
 db = { app: { rooms: {}, pendingBookings: {
-  'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '930' },
-  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '937' },
+  'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '930', checkoutDate: '2026-09-27' },
+  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '937', checkoutDate: '2026-09-27' },
+  'sv_999':         { bookingId: '999', guest: 'PAST, G', assignedRoom: '620', checkoutDate: '2026-09-18' },  // 퇴실 완료 — 고아 아님
 } } };
 const snap = JSON.stringify(db);
 const d = vm.runInContext('dumpPendingDupes', ctx)();
 assert.strictEqual(JSON.stringify(db), snap, '진단은 DB를 바꾸지 않는다');
 assert.match(d, /고아 카드/, '고아 카드 항목을 보고한다');
 assert.match(d, /sv_123_501 {2}배정표시=930호/, '고아 카드를 찾아낸다');
+assert.ok(!/PAST, G/.test(d), '퇴실 완료분은 고아로 찍지 않는다');
 
 console.log('✅ webhook-multiroom-dup: 전 항목 통과');

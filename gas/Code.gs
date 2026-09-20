@@ -1065,11 +1065,15 @@ function dumpPendingDupes(){
       L.push('     '+k+'  배정표시='+(b.assignedRoom||'없음')+'  취소='+(b.cancelled?'Y':'N')+'  '+(b.guest||'')+'  '+(b.checkinDate||'')+'~'+(b.checkoutDate||''));});
   });
   if(!dup)L.push('  (없음)');
-  L.push('■ 고아 카드 — 배정 표시는 있는데 그 예약이 들어있는 방이 없음');
+  // 퇴실한 예약은 방에서 빠지는 게 정상이라 제외 — 안 그러면 지난 손님이 전부 고아로 찍혀
+  // 진짜 문제(아직 안 온 손님인데 방에 없음)가 묻힌다. (2026-09-20, 27건 중 25건이 정상이었음)
+  var today=todayKST();
+  L.push('■ 고아 카드 — 아직 퇴실 전인데 들어있는 방이 없음 (퇴실 완료분은 제외)');
   var orph=0;
   Object.keys(pend).forEach(function(k){
     var b=pend[k]; if(!b||b.cancelled)return;
     var asg=b.assignedRoom; if(!asg||asg==='manual')return;
+    if(b.checkoutDate&&b.checkoutDate<=today)return;
     if((where[String(b.bookingId||'')]||[]).length)return;
     orph++;L.push('  '+k+'  배정표시='+asg+'호  '+(b.guest||'')+'  '+(b.checkinDate||'')+'~'+(b.checkoutDate||''));
   });
