@@ -61,50 +61,77 @@ assert.deepStrictEqual(keys(), ['sv_777'], '단일 예약 재푸시 — 카드 1
 
 // ── 이미 쌓인 복제본 청소(cleanupDupePending) ──
 const cleanup = () => vm.runInContext('cleanupDupePending', ctx)();
-db = { app: { pendingBookings: {
-  'sv_123_501':          { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },   // 원본(배정됨)
-  'sv_123_502':          { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '502' },   // 원본(배정됨)
-  'sv_123_501_501':      { bookingId: '123_501', guest: 'KIM, A', assignedRoom: null },    // 복제본
-  'sv_123_501_502':      { bookingId: '123_502', guest: 'KIM, A', assignedRoom: null },    // 복제본
-  'sv_123_501_501_501':  { bookingId: '123_501', guest: 'KIM, A', assignedRoom: null },    // 3세대 복제본
-  'sv_777':              { bookingId: '777', guest: 'LEE, B', assignedRoom: null },        // 단일 예약 — 손대면 안 됨
-  'sv_888_601':          { bookingId: '888_601', guest: 'PARK, C', assignedRoom: null },   // 멀티룸 원본 — 손대면 안 됨
+const R = (bid) => ({ currentBooking: { bookingId: bid, guest: 'KIM, A' }, nextBookings: [] });
+
+// 복제본만 지우고 원본은 남긴다 (3세대 복제본 포함)
+db = { app: { rooms: {}, pendingBookings: {
+  'sv_123_501':          { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },   // 원본
+  'sv_123_502':          { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '502' },   // 원본
+  'sv_123_501_501':      { bookingId: '123_501', guest: 'KIM, A', assignedRoom: null },
+  'sv_123_501_502':      { bookingId: '123_502', guest: 'KIM, A', assignedRoom: null },
+  'sv_123_501_501_501':  { bookingId: '123_501', guest: 'KIM, A', assignedRoom: null },
+  'sv_777':              { bookingId: '777', guest: 'LEE, B', assignedRoom: null },        // 단일 예약
+  'sv_888_601':          { bookingId: '888_601', guest: 'PARK, C', assignedRoom: null },   // 멀티룸 원본
 } } };
 cleanup();
 assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502', 'sv_777', 'sv_888_601'], '복제본만 지우고 원본은 남긴다');
 
-// 배정된 복제본: 배정 표시를 정본 카드로 옮기고 복제본은 삭제 (26222 ohtani 건)
-db = { app: { pendingBookings: {
+// 배정된 복제본 + 방이 실제로 그 예약을 담고 있음 → 배정을 정본 카드로 이관
+db = { app: { rooms: { '602': R('123_502') }, pendingBookings: {
   'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
-  'sv_123_502':     { bookingId: '123_502', guest: 'KIM, A', assignedRoom: null },    // 정본 — 미배정으로 남아 있음
-  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602' },   // 복제본인데 배정돼 있음
+  'sv_123_502':     { bookingId: '123_502', guest: 'KIM, A', assignedRoom: null },
+  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602' },
 } } };
 cleanup();
 assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502'], '복제본 삭제');
-assert.strictEqual(get('app/pendingBookings/sv_123_502/assignedRoom'), '602', '배정이 정본 카드로 이관됨');
+assert.strictEqual(get('app/pendingBookings/sv_123_502/assignedRoom'), '602', '실제 방 기준으로 배정 이관');
 
-// 정본 카드가 아예 없으면 복제본을 정본 키로 옮긴다
-db = { app: { pendingBookings: {
+// ★ 객실 모달에서 예약만 지운 경우 — 카드엔 '602호 배정'이 남아 있지만 방엔 예약이 없다.
+//   이때 배정 표시를 그대로 옮기면 정본이 숨겨져 손님이 조용히 사라진다 → 미배정으로 되돌린다.
+db = { app: { rooms: {}, pendingBookings: {
+  'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
+  'sv_123_502':     { bookingId: '123_502', guest: 'KIM, A', assignedRoom: null },
+  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602' },
+} } };
+const rpt2 = cleanup();
+assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502'], '고아 복제본 삭제');
+assert.strictEqual(get('app/pendingBookings/sv_123_502/assignedRoom'), null, '정본은 미배정으로 — 배정탭에 다시 떠야 함');
+assert.match(rpt2, /미배정 복원/, '복원 사유가 로그에 남는다');
+
+// 정본 카드가 아예 없으면 복제본을 정본 키로 옮긴다 (내용 보존)
+db = { app: { rooms: {}, pendingBookings: {
   'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
   'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602', eta: '15:00' },
 } } };
 cleanup();
 assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502'], '정본 키로 이사');
 assert.strictEqual(get('app/pendingBookings/sv_123_502/eta'), '15:00', '내용 보존');
+assert.strictEqual(get('app/pendingBookings/sv_123_502/assignedRoom'), null, '방에 없으니 미배정');
 
-// 정본과 복제본이 서로 다른 방에 배정돼 있으면 건드리지 않고 보고만
-db = { app: { pendingBookings: {
+// 정본 배정과 실제 방이 어긋나면 건드리지 않고 보고만
+db = { app: { rooms: { '602': R('123_502') }, pendingBookings: {
   'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
   'sv_123_502':     { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '502' },
   'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602' },
 } } };
 const rpt = cleanup();
 assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_501_502', 'sv_123_502'], '판단이 갈리면 보류');
-assert.match(rpt, /보류\(정본 sv_123_502은 502호인데 복제본은 602호/, '보류 사유가 로그에 남는다');
+assert.match(rpt, /보류\(정본 sv_123_502은 502호인데 실제는 602호/, '보류 사유가 로그에 남는다');
 
 // 청소는 멱등 — 두 번 돌려도 같은 결과
 const before = keys();
 cleanup();
 assert.deepStrictEqual(keys(), before, '두 번 실행해도 동일');
+
+// ── 진단(dumpPendingDupes)은 읽기만 한다 ──
+db = { app: { rooms: {}, pendingBookings: {
+  'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '930' },
+  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '937' },
+} } };
+const snap = JSON.stringify(db);
+const d = vm.runInContext('dumpPendingDupes', ctx)();
+assert.strictEqual(JSON.stringify(db), snap, '진단은 DB를 바꾸지 않는다');
+assert.match(d, /고아 카드/, '고아 카드 항목을 보고한다');
+assert.match(d, /sv_123_501 {2}배정표시=930호/, '고아 카드를 찾아낸다');
 
 console.log('✅ webhook-multiroom-dup: 전 항목 통과');

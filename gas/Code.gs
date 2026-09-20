@@ -1046,8 +1046,53 @@ function syncAmounts(){
 // 복제본 판별: 키가 '<기존키>_<방>' 꼴이고 그 <기존키>가 이미 방별 카드(bookingId에 '_')인 것.
 // 방에 배정된 복제본은 지우지 않고 목록만 남긴다 — 어느 쪽이 살아있는 배정인지는 사람이 판단.
 // ============================================================
+// 복제/고아 카드 진단 (2026-09-20) — 읽기만 한다. 아무것도 바꾸지 않는다.
+// ① 같은 bookingId에 카드가 2장 이상인 예약  ② 배정 표시는 있는데 실제로 그 예약이
+// 들어 있는 방이 없는 '고아 카드'(객실 모달에서 예약만 지우면 카드가 이렇게 남는다).
+// ============================================================
+function dumpPendingDupes(){
+  var pend=fbGet('app/pendingBookings')||{}, L=[], byBid={}, where=roomsByBookingId_(pend);
+  Object.keys(pend).forEach(function(k){
+    var bk=pend[k]; if(!bk)return;
+    (byBid[String(bk.bookingId||'?')]=byBid[String(bk.bookingId||'?')]||[]).push(k);
+  });
+  L.push('■ 카드가 2장 이상인 예약 (복제 의심)');
+  var dup=0;
+  Object.keys(byBid).sort().forEach(function(bid){
+    var ks=byBid[bid]; if(ks.length<2)return; dup++;
+    L.push('  bookingId '+bid+' — 카드 '+ks.length+'장 / 실제 예약이 들어있는 방: '+((where[bid]||[]).join(', ')||'★ 없음'));
+    ks.forEach(function(k){var b=pend[k];
+      L.push('     '+k+'  배정표시='+(b.assignedRoom||'없음')+'  취소='+(b.cancelled?'Y':'N')+'  '+(b.guest||'')+'  '+(b.checkinDate||'')+'~'+(b.checkoutDate||''));});
+  });
+  if(!dup)L.push('  (없음)');
+  L.push('■ 고아 카드 — 배정 표시는 있는데 그 예약이 들어있는 방이 없음');
+  var orph=0;
+  Object.keys(pend).forEach(function(k){
+    var b=pend[k]; if(!b||b.cancelled)return;
+    var asg=b.assignedRoom; if(!asg||asg==='manual')return;
+    if((where[String(b.bookingId||'')]||[]).length)return;
+    orph++;L.push('  '+k+'  배정표시='+asg+'호  '+(b.guest||'')+'  '+(b.checkinDate||'')+'~'+(b.checkoutDate||''));
+  });
+  if(!orph)L.push('  (없음)');
+  var out=L.join('\n');Logger.log(out);return out;
+}
+
+// bookingId → 그 예약이 실제로 들어 있는 방 목록 (app/rooms 기준)
+function roomsByBookingId_(){
+  var rooms=fbGet('app/rooms')||{}, where={};
+  Object.keys(rooms).forEach(function(n){
+    var r=rooms[n]; if(!r)return;
+    var cb=r.currentBooking;
+    if(cb&&cb.bookingId)(where[String(cb.bookingId)]=where[String(cb.bookingId)]||[]).push(n+'호(현재)');
+    var nx=Array.isArray(r.nextBookings)?r.nextBookings:Object.values(r.nextBookings||{});
+    nx.forEach(function(b){if(b&&b.bookingId)(where[String(b.bookingId)]=where[String(b.bookingId)]||[]).push(n+'호(예정)');});
+  });
+  return where;
+}
+
 function cleanupDupePending(){
-  var pend=fbGet('app/pendingBookings')||{}, L=[], mv=0, held=0, kill=[];
+  var pend=fbGet('app/pendingBookings')||{}, L=[], mv=0, back=0, held=0, kill=[];
+  var where=roomsByBookingId_();   // bookingId → 실제로 그 예약이 들어 있는 방
   // 판정은 원본 스냅샷으로 먼저 끝내고 삭제는 그 뒤에 — 3세대 복제본(sv_X_501_501_501)의
   // 부모를 도중에 지워버리면 판정이 어긋난다.
   Object.keys(pend).forEach(function(k){
@@ -1062,17 +1107,30 @@ function cleanupDupePending(){
     // 이걸 안 하면 정본 카드가 미배정으로 남아 배정탭에 '배정해야 할 예약'처럼 다시 뜬다.
     var canon='sv_'+String(bk.bookingId||'');
     if(!bk.bookingId||canon===k){held++;L.push('보류(정본 키를 못 찾음, 배정 '+asg+'호): '+k+'  '+(bk.guest||''));return;}
+    // 카드에 적힌 배정('930호')을 믿지 않고 app/rooms가 실제로 그 예약을 담고 있는지 본다.
+    // 객실 모달에서 예약만 지우면 카드의 배정 표시는 남아 거짓말을 한다 — 그걸 정본에 옮기면
+    // 정본이 '배정됨'으로 숨겨져 미배정 목록에 영영 안 뜨고, 손님이 조용히 사라진다. (2026-09-20)
+    var realRoom=(where[String(bk.bookingId)]||[])[0]||null;
     var c=pend[canon];
-    if(c&&c.assignedRoom&&c.assignedRoom!=='manual'&&String(c.assignedRoom)!==String(asg)){
-      held++;L.push('보류(정본 '+canon+'은 '+c.assignedRoom+'호인데 복제본은 '+asg+'호 — 사람이 판단): '+k+'  '+(bk.guest||''));return;
+    if(!realRoom){
+      if(!c)fbSet('app/pendingBookings/'+canon,{...bk,assignedRoom:null});
+      else if(c.assignedRoom&&c.assignedRoom!=='manual'&&!(where[String(c.bookingId||'')]||[]).length)
+        fbUpdate('app/pendingBookings/'+canon,{assignedRoom:null});
+      kill.push(k);back++;
+      L.push('미배정 복원 → '+canon+' (방에 실제 예약 없음, 복제본 '+k+' 삭제)  '+(bk.guest||'')+'  '+(bk.checkinDate||'')+'~'+(bk.checkoutDate||''));
+      return;
     }
-    if(c)fbUpdate('app/pendingBookings/'+canon,{assignedRoom:String(asg)});
-    else fbSet('app/pendingBookings/'+canon,bk);
+    var realNum=String(realRoom).replace(/호.*/,'');
+    if(c&&c.assignedRoom&&c.assignedRoom!=='manual'&&String(c.assignedRoom)!==realNum){
+      held++;L.push('보류(정본 '+canon+'은 '+c.assignedRoom+'호인데 실제는 '+realRoom+' — 사람이 판단): '+k+'  '+(bk.guest||''));return;
+    }
+    if(c)fbUpdate('app/pendingBookings/'+canon,{assignedRoom:realNum});
+    else fbSet('app/pendingBookings/'+canon,{...bk,assignedRoom:realNum});
     kill.push(k);mv++;
-    L.push('배정 이관 '+asg+'호 → '+canon+' (복제본 '+k+' 삭제)  '+(bk.guest||''));
+    L.push('배정 이관 '+realRoom+' → '+canon+' (복제본 '+k+' 삭제)  '+(bk.guest||''));
   });
   kill.forEach(function(k){fbDelete('app/pendingBookings/'+k);});
-  var out='복제 카드 삭제 '+(kill.length-mv)+'건, 배정 이관 '+mv+'건, 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
+  var out='복제 카드 삭제 '+(kill.length-mv-back)+'건, 배정 이관 '+mv+'건, 미배정 복원 '+back+'건, 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
   Logger.log(out);
   return out;
 }
