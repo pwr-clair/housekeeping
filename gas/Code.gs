@@ -159,12 +159,17 @@ function doPost(e){
     // 그 사이 수기·CS 승인으로 바뀐 eta를 덮지 않는다. 웹훅 값이 실제로 바뀐 경우만 최신으로 반영(force).
     var __rooms = (b && Array.isArray(b.rooms)) ? b.rooms : [];
     if (__rooms.length >= 2) {
+      // 방별 카드 키는 언제나 정본 id('sv_'+bookingId) 기준. targetKey(=foundKey)를 쓰면
+      // 재푸시 때 foundKey가 이미 만들어진 방별 카드(sv_123_501)로 잡혀 sv_123_501_501 같은
+      // 새 키가 생기고, 예약 한 건이 방 수만큼 통째로 복제된다(배정탭 미배정에 쌍둥이 카드).
+      // 정본 id로 고정하면 재푸시가 같은 키를 덮어써 멱등. (2026-09-20 클라라 신고)
+      var __mbase = id;
       var __wrote = 0;
       __rooms.forEach(function(__rm){
         var __rn = String((__rm && __rm.RoomName) || '').trim();
         if (!__rn) return;
         __wrote++;
-        var __mkey = targetKey + '_' + __rn;
+        var __mkey = __mbase + '_' + __rn;
         var __mprev = (pend && pend[__mkey]) || {};
         var __etaNew = !!eta && eta !== (__mprev.etaWebhook||'');
         fbSet('app/pendingBookings/'+__mkey, {
@@ -423,10 +428,12 @@ function selfUpdate(){
 // ============================================================
 // 늦은 객실준비 안내 (2026-08-25 클라라) — 15:10에도 입실안내(s3)가 못 나간
 // 오늘 체크인 방의 게스트에게 준비 지연 안내를 자동 발송. 게스트(이메일)당 하루 1회.
-// 템플릿 = 커스텀 안내 템플릿 중 이름에 '늦은' 포함(템플릿 관리에서 생성·수정). 없으면 스킵.
+// 템플릿 = 커스텀 안내 템플릿 중 이름이 LATE_PREP_TPL과 정확히 일치. 없으면 스킵.
+// 템플릿 이름을 바꾸면 이 상수도 같이 바꿔야 발송된다.
 // {room}은 준비 안 된 방이라 {doorPw}는 치환하지 않는다(템플릿에 넣지 말 것).
 // 수신자는 guestRecipients_ — 이메일 칸이 비어도 특이사항 속 주소로 나간다(9c1f79e 규약).
 // ============================================================
+var LATE_PREP_TPL='객실 준비 지연 안내';   // 템플릿 관리에 있는 이름과 글자 그대로 일치해야 함
 function latePrepTick_(){
   var min=nowMinKST();
   if(min<910||min>=1080)return;   // 15:10~18:00 창
@@ -443,11 +450,10 @@ function latePrepTick_(){
   var keys=Object.keys(groups); if(!keys.length)return;
   var tpls=fbGet('app/mailTemplates')||{}, tpl=null;
   for(var k in tpls){
-    // 이름 매칭은 느슨하게 — '늦은/지연/late/delay' 중 하나만 들어 있으면 잡는다.
-    // (2026-09-19: '늦은' 정확 일치만 보던 탓에 템플릿이 있어도 조용히 스킵될 수 있었음)
-    if(k.indexOf('custom_')===0&&tpls[k]&&/늦은|지연|late|delay/i.test(String(tpls[k].name||''))){tpl=tpls[k];break;}
+    // 템플릿 이름은 운영 중인 정확한 이름 하나로 고정 (2026-09-19 클라라 지시)
+    if(k.indexOf('custom_')===0&&tpls[k]&&String(tpls[k].name||'').trim()===LATE_PREP_TPL){tpl=tpls[k];break;}
   }
-  if(!tpl){Logger.log('latePrepTick_: 이름에 늦은/지연/late/delay가 든 커스텀 템플릿 없음 — 스킵');return;}
+  if(!tpl){Logger.log('latePrepTick_: 커스텀 템플릿 "'+LATE_PREP_TPL+'" 없음 — 스킵');return;}
   keys.forEach(function(kk){
     var g=groups[kk];
     var logKey='late_prep_'+kk.replace(/[.#$\[\]\/]/g,'_')+'_'+today;
@@ -1032,6 +1038,31 @@ function syncAmounts(){
     }
   }
   return '시도 ' + tried + '건, 채움 ' + done + '건, 메일못찾음 ' + notfound + '건';
+}
+
+// ============================================================
+// 이미 복제된 미배정 카드 청소 (2026-09-20) — 위 doPost 버그로 쌓인 쌍둥이 카드 일괄 삭제.
+// 에디터에서 1회 실행하면 끝. 실행로그에 삭제·보류 목록이 찍힌다.
+// 복제본 판별: 키가 '<기존키>_<방>' 꼴이고 그 <기존키>가 이미 방별 카드(bookingId에 '_')인 것.
+// 방에 배정된 복제본은 지우지 않고 목록만 남긴다 — 어느 쪽이 살아있는 배정인지는 사람이 판단.
+// ============================================================
+function cleanupDupePending(){
+  var pend=fbGet('app/pendingBookings')||{}, L=[], del=0, held=0, kill=[];
+  // 판정은 원본 스냅샷으로 먼저 끝내고 삭제는 그 뒤에 — 3세대 복제본(sv_X_501_501_501)의
+  // 부모를 도중에 지워버리면 판정이 어긋난다.
+  Object.keys(pend).forEach(function(k){
+    var bk=pend[k]; if(!bk)return;
+    var cut=k.lastIndexOf('_'); if(cut<0)return;
+    var baseBk=pend[k.slice(0,cut)];
+    if(!baseBk||String(baseBk.bookingId||'').indexOf('_')<0)return;   // 원본(정본 방별 카드)은 건드리지 않음
+    var asg=bk.assignedRoom;
+    if(asg&&asg!=='manual'){held++;L.push('보류(배정됨 '+asg+'호): '+k+'  '+(bk.guest||''));return;}
+    kill.push(k);L.push('삭제: '+k+'  '+(bk.guest||'')+'  '+(bk.checkinDate||''));
+  });
+  kill.forEach(function(k){fbDelete('app/pendingBookings/'+k);del++;});
+  var out='복제 카드 삭제 '+del+'건, 배정돼 있어 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
+  Logger.log(out);
+  return out;
 }
 
 // ============================================================

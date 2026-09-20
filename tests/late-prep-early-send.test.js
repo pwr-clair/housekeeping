@@ -45,34 +45,36 @@ const reset = (tplName) => {
 };
 const tick = () => vm.runInContext('latePrepTick_()', ctx);
 
-reset('늦은 객실준비 안내'); at(909); tick();
+reset('객실 준비 지연 안내'); at(909); tick();
 assert.strictEqual(mails.length, 0, '15:09 — 창 이전엔 발송 안 함');
 
-reset('늦은 객실준비 안내'); at(1080); tick();
+reset('객실 준비 지연 안내'); at(1080); tick();
 assert.strictEqual(mails.length, 0, '18:00 — 창 종료 후엔 발송 안 함');
 
-reset('늦은 객실준비 안내'); at(910); tick();
+reset('객실 준비 지연 안내'); at(910); tick();
 assert.strictEqual(mails.length, 1, '15:10 — 미발송 방 게스트에게 발송');
 assert.match(mails[0].b, /KIM님 501호/, '치환 확인');
 tick();
 assert.strictEqual(mails.length, 1, '같은 게스트 하루 1회 — 다음 틱은 스킵');
 
-reset('늦은 객실준비 안내'); setD('app/sentChecks/501_2026-09-19', '2026-09-19'); at(910); tick();
+reset('객실 준비 지연 안내'); setD('app/sentChecks/501_2026-09-19', '2026-09-19'); at(910); tick();
 assert.strictEqual(mails.length, 0, '입실안내 이미 나간 방은 대상 아님');
 
 reset(null); at(910); tick();
 assert.strictEqual(mails.length, 0, "매칭되는 이름의 템플릿 없으면 조용히 스킵");
 
-// 이름 매칭은 느슨하게 — 운영자가 어떻게 이름 붙였든 잡히게
-for (const nm of ['늦은 객실준비 안내', '객실 준비 지연 안내', 'Late Prep', 'delay notice']) {
+// 운영 중인 정확한 이름만 잡는다 (앞뒤 공백은 허용)
+reset('객실 준비 지연 안내'); at(910); tick();
+assert.strictEqual(mails.length, 1, '정확한 이름은 잡아야 함');
+reset('  객실 준비 지연 안내  '); at(910); tick();
+assert.strictEqual(mails.length, 1, '앞뒤 공백은 무시');
+for (const nm of ['늦은 객실준비 안내', '객실 준비 지연 안내 v2', '입실 안내']) {
   reset(nm); at(910); tick();
-  assert.strictEqual(mails.length, 1, '템플릿 이름 "' + nm + '" 도 잡아야 함');
+  assert.strictEqual(mails.length, 0, '다른 이름 "' + nm + '" 은 안 잡음');
 }
-reset('입실 안내'); at(910); tick();
-assert.strictEqual(mails.length, 0, '무관한 템플릿은 안 잡음');
 
 // 멀티룸 = 한 통, 이메일 칸이 비어도 특이사항 주소로 (guestRecipients_ 규약)
-reset('늦은 객실준비 안내');
+reset('객실 준비 지연 안내');
 setD('app/rooms/502', room('KIM', 'kim@x.com'));
 setD('app/rooms/601', room('LEE', '', '연락처 lee@y.com'));
 at(910); tick();
@@ -81,7 +83,7 @@ assert.match(mails.find(m => /KIM/.test(m.b)).b, /501, 502호/, '멀티룸 방�
 assert.strictEqual(mails.find(m => m.to === 'lee@y.com').to, 'lee@y.com', '특이사항 속 주소로 발송');
 
 // 차단(blocked) 방은 제외
-reset('늦은 객실준비 안내'); setD('app/rooms/501/blocked', true); at(910); tick();
+reset('객실 준비 지연 안내'); setD('app/rooms/501/blocked', true); at(910); tick();
 assert.strictEqual(mails.length, 0, '정비중 방은 대상 아님');
 
 console.log('✅ late-prep-early-send: 전 항목 통과');
