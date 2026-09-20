@@ -1047,7 +1047,7 @@ function syncAmounts(){
 // 방에 배정된 복제본은 지우지 않고 목록만 남긴다 — 어느 쪽이 살아있는 배정인지는 사람이 판단.
 // ============================================================
 function cleanupDupePending(){
-  var pend=fbGet('app/pendingBookings')||{}, L=[], del=0, held=0, kill=[];
+  var pend=fbGet('app/pendingBookings')||{}, L=[], mv=0, held=0, kill=[];
   // 판정은 원본 스냅샷으로 먼저 끝내고 삭제는 그 뒤에 — 3세대 복제본(sv_X_501_501_501)의
   // 부모를 도중에 지워버리면 판정이 어긋난다.
   Object.keys(pend).forEach(function(k){
@@ -1056,11 +1056,23 @@ function cleanupDupePending(){
     var baseBk=pend[k.slice(0,cut)];
     if(!baseBk||String(baseBk.bookingId||'').indexOf('_')<0)return;   // 원본(정본 방별 카드)은 건드리지 않음
     var asg=bk.assignedRoom;
-    if(asg&&asg!=='manual'){held++;L.push('보류(배정됨 '+asg+'호): '+k+'  '+(bk.guest||''));return;}
-    kill.push(k);L.push('삭제: '+k+'  '+(bk.guest||'')+'  '+(bk.checkinDate||''));
+    if(!asg||asg==='manual'){kill.push(k);L.push('삭제: '+k+'  '+(bk.guest||'')+'  '+(bk.checkinDate||''));return;}
+    // 배정된 복제본 — 방 데이터(app/rooms)엔 이미 예약이 들어가 있으니 배정 자체는 건드리지 않고,
+    // 카드의 배정 표시만 정본 카드('sv_'+bookingId)로 옮긴 뒤 복제본을 지운다.
+    // 이걸 안 하면 정본 카드가 미배정으로 남아 배정탭에 '배정해야 할 예약'처럼 다시 뜬다.
+    var canon='sv_'+String(bk.bookingId||'');
+    if(!bk.bookingId||canon===k){held++;L.push('보류(정본 키를 못 찾음, 배정 '+asg+'호): '+k+'  '+(bk.guest||''));return;}
+    var c=pend[canon];
+    if(c&&c.assignedRoom&&c.assignedRoom!=='manual'&&String(c.assignedRoom)!==String(asg)){
+      held++;L.push('보류(정본 '+canon+'은 '+c.assignedRoom+'호인데 복제본은 '+asg+'호 — 사람이 판단): '+k+'  '+(bk.guest||''));return;
+    }
+    if(c)fbUpdate('app/pendingBookings/'+canon,{assignedRoom:String(asg)});
+    else fbSet('app/pendingBookings/'+canon,bk);
+    kill.push(k);mv++;
+    L.push('배정 이관 '+asg+'호 → '+canon+' (복제본 '+k+' 삭제)  '+(bk.guest||''));
   });
-  kill.forEach(function(k){fbDelete('app/pendingBookings/'+k);del++;});
-  var out='복제 카드 삭제 '+del+'건, 배정돼 있어 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
+  kill.forEach(function(k){fbDelete('app/pendingBookings/'+k);});
+  var out='복제 카드 삭제 '+(kill.length-mv)+'건, 배정 이관 '+mv+'건, 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
   Logger.log(out);
   return out;
 }

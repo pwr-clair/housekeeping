@@ -73,14 +73,34 @@ db = { app: { pendingBookings: {
 cleanup();
 assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502', 'sv_777', 'sv_888_601'], '복제본만 지우고 원본은 남긴다');
 
-// 배정된 복제본은 지우지 않고 보고만 한다
+// 배정된 복제본: 배정 표시를 정본 카드로 옮기고 복제본은 삭제 (26222 ohtani 건)
 db = { app: { pendingBookings: {
   'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
+  'sv_123_502':     { bookingId: '123_502', guest: 'KIM, A', assignedRoom: null },    // 정본 — 미배정으로 남아 있음
   'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602' },   // 복제본인데 배정돼 있음
 } } };
+cleanup();
+assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502'], '복제본 삭제');
+assert.strictEqual(get('app/pendingBookings/sv_123_502/assignedRoom'), '602', '배정이 정본 카드로 이관됨');
+
+// 정본 카드가 아예 없으면 복제본을 정본 키로 옮긴다
+db = { app: { pendingBookings: {
+  'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
+  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602', eta: '15:00' },
+} } };
+cleanup();
+assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_502'], '정본 키로 이사');
+assert.strictEqual(get('app/pendingBookings/sv_123_502/eta'), '15:00', '내용 보존');
+
+// 정본과 복제본이 서로 다른 방에 배정돼 있으면 건드리지 않고 보고만
+db = { app: { pendingBookings: {
+  'sv_123_501':     { bookingId: '123_501', guest: 'KIM, A', assignedRoom: '501' },
+  'sv_123_502':     { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '502' },
+  'sv_123_501_502': { bookingId: '123_502', guest: 'KIM, A', assignedRoom: '602' },
+} } };
 const rpt = cleanup();
-assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_501_502'], '배정된 복제본은 보류');
-assert.match(rpt, /보류\(배정됨 602호\)/, '보류 사유가 로그에 남는다');
+assert.deepStrictEqual(keys(), ['sv_123_501', 'sv_123_501_502', 'sv_123_502'], '판단이 갈리면 보류');
+assert.match(rpt, /보류\(정본 sv_123_502은 502호인데 복제본은 602호/, '보류 사유가 로그에 남는다');
 
 // 청소는 멱등 — 두 번 돌려도 같은 결과
 const before = keys();
