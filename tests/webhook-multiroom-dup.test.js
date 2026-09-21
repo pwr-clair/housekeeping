@@ -18,7 +18,7 @@ const ctx = {
 };
 vm.createContext(ctx);
 vm.runInContext(src, ctx);
-vm.runInContext(`fbGet=p=>__get(p);fbSet=(p,v)=>__set(p,v);fbUpdate=(p,v)=>{const c=__get(p)||{};__set(p,{...c,...v})};fbDelete=p=>__set(p,null);todayKST=()=>'2026-09-20';nowHM=()=>'10:00';syncEtaToRoom=()=>{};`, ctx);
+vm.runInContext(`fbGet=p=>__get(p);fbSet=(p,v)=>__set(p,v);fbUpdate=(p,v)=>{const c=__get(p)||{};__set(p,{...c,...v})};fbDelete=p=>__set(p,null);todayKST=()=>'2026-09-21';nowHM=()=>'10:00';syncEtaToRoom=()=>{};`, ctx);
 ctx.__get = get; ctx.__set = setD;
 
 const post = (payload) => vm.runInContext('doPost', ctx)({ postData: { contents: JSON.stringify(payload) } });
@@ -135,5 +135,22 @@ assert.strictEqual(JSON.stringify(db), snap, '진단은 DB를 바꾸지 않는�
 assert.match(d, /고아 카드/, '고아 카드 항목을 보고한다');
 assert.match(d, /sv_123_501 {2}배정표시=930호/, '고아 카드를 찾아낸다');
 assert.ok(!/PAST, G/.test(d), '퇴실 완료분은 고아로 찍지 않는다');
+
+// ── dumpUpcoming: 단일카드+방별카드 혼재를 잡아낸다 (읽기 전용) ──
+const upcoming = () => vm.runInContext('dumpUpcoming', ctx)();
+db = { app: { rooms: {}, pendingBookings: {
+  'sv_26500_501': { bookingId: '26500_501', guest: 'A', assignedRoom: '501', checkinDate: '2026-09-24', checkoutDate: '2026-09-26' },
+  'sv_26500_502': { bookingId: '26500_502', guest: 'A', assignedRoom: '502', checkinDate: '2026-09-24', checkoutDate: '2026-09-26' },
+  'sv_26500':     { bookingId: '26500',     guest: 'A', assignedRoom: null,  checkinDate: '2026-09-24', checkoutDate: '2026-09-26' },  // 유령
+  'sv_26600':     { bookingId: '26600',     guest: 'B', assignedRoom: '601', checkinDate: '2026-09-25', checkoutDate: '2026-09-26' },  // 정상 단일
+  'sv_26400':     { bookingId: '26400',     guest: 'C', assignedRoom: '620', checkinDate: '2026-09-01', checkoutDate: '2026-09-02' },  // 과거 — 제외
+} } };
+const snap2 = JSON.stringify(db);
+const u = upcoming();
+assert.strictEqual(JSON.stringify(db), snap2, 'dumpUpcoming은 DB를 바꾸지 않는다');
+assert.match(u, /예약 26500 — 카드 3장 \(단일 1 \/ 방별 2\).*혼재/, '혼재를 잡아낸다');
+assert.ok(!/26400/.test(u), '오늘 이전 체크인은 제외');
+assert.match(u, /예약 26600 — 카드 1장 \(단일 1 \/ 방별 0\)$/m, '정상 예약엔 경고 없음');
+assert.match(u, /★ 이상한 예약 1건/, '이상 건수를 센다');
 
 console.log('✅ webhook-multiroom-dup: 전 항목 통과');

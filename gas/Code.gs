@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-21 브랜치유실 일괄복구 (cc45c77+)';
+var CODE_VER = '2026-09-21b dumpUpcoming 추가';
 function codeVersion(){
   var dep='(웹앱 미배포)';
   try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}
@@ -1150,6 +1150,43 @@ function roomsByBookingId_(){
   return where;
 }
 
+// 다가오는 예약의 카드 현황 (2026-09-21) — 읽기 전용.
+// 예약번호(bookingId의 '_' 앞부분)로 묶어서, 한 예약에 카드가 몇 장 붙어 있는지 보여준다.
+// dumpPendingDupes는 bookingId가 '같은' 카드만 복제로 보는데, 멀티룸 방별 카드는
+// bookingId가 '26500_501'이고 단일 카드는 '26500'이라 서로 달라 그 진단에 안 걸린다.
+// 미배정에 유령 카드가 한 장 더 뜨는 건 대개 이 '단일+방별 혼재' 모양이다.
+// ============================================================
+function dumpUpcoming(){
+  var pend=fbGet('app/pendingBookings')||{}, where=roomsByBookingId_(), today=todayKST(), g={}, L=[];
+  Object.keys(pend).forEach(function(k){
+    var b=pend[k]; if(!b)return;
+    if(!b.checkinDate||b.checkinDate<today)return;              // 오늘 이후 체크인만
+    var base=String(b.bookingId||'?').split('_')[0];
+    (g[base]=g[base]||[]).push(k);
+  });
+  L.push('['+CODE_VER+']');
+  L.push('오늘('+today+') 이후 체크인 예약 카드 — 예약번호별');
+  var flagged=0;
+  Object.keys(g).sort().forEach(function(base){
+    var ks=g[base].sort(), single=0, perRoom=0;
+    ks.forEach(function(k){ String(pend[k].bookingId||'').indexOf('_')<0 ? single++ : perRoom++; });
+    var warn='';
+    if(single>0&&perRoom>0) warn='   ★ 단일카드+방별카드 혼재 — 미배정에 유령 카드가 뜬다';
+    else if(single>1)       warn='   ★ 단일카드가 '+single+'장';
+    if(warn)flagged++;
+    L.push('■ 예약 '+base+' — 카드 '+ks.length+'장 (단일 '+single+' / 방별 '+perRoom+')'+warn);
+    ks.forEach(function(k){
+      var b=pend[k];
+      L.push('   '+k+'  bookingId='+b.bookingId+'  배정='+(b.assignedRoom||'없음')+
+             '  취소='+(b.cancelled?'Y':'N')+'  '+(b.checkinDate||'')+'~'+(b.checkoutDate||'')+
+             '  실제방='+((where[String(b.bookingId||'')]||[]).join(',')||'없음')+'  '+(b.guest||''));
+    });
+  });
+  L.push(flagged?('★ 이상한 예약 '+flagged+'건'):'이상 없음');
+  var out=L.join('\n'); Logger.log(out); return out;
+}
+
+// ============================================================
 function cleanupDupePending(){
   var pend=fbGet('app/pendingBookings')||{}, L=[], mv=0, back=0, held=0, kill=[];
   var where=roomsByBookingId_();   // bookingId → 실제로 그 예약이 들어 있는 방
