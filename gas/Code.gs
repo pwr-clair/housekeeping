@@ -7,6 +7,18 @@
 //   커스텀 템플릿, app/mailTemplates/custom_{ts})를 허용.
 // ============================================================
 
+// 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
+// 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
+// ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
+var CODE_VER = '2026-09-21 autoCheckin폐지복구+멀티룸복제수정';
+function codeVersion(){
+  var dep='(웹앱 미배포)';
+  try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}
+  var out='■ 에디터 코드 버전: '+CODE_VER+'\n■ 웹앱 URL: '+dep+
+          '\n※ 이 값은 저장된 코드 기준. 웹훅(doPost)까지 반영하려면 [배포 관리]에서 새 버전 배포 필요.';
+  Logger.log(out); return out;
+}
+
 const FB = 'https://paradise-walk-residence-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FB_AUTH = PropertiesService.getScriptProperties().getProperty('FB_AUTH');
 const SENDER = 'paradisewalkresidence@gmail.com';
@@ -946,31 +958,47 @@ function setupTriggers(){
   ScriptApp.newTrigger('t1100_checkoutConfirm').timeBased().atHour(11).nearMinute(0).everyDays(1).create();
   ScriptApp.newTrigger('t1159_moveBookings').timeBased().atHour(11).nearMinute(45).everyDays(1).create();
   ScriptApp.newTrigger('t1200_statusFix').timeBased().atHour(12).nearMinute(15).everyDays(1).create();
-  ScriptApp.newTrigger('autoCheckinTick').timeBased().everyHours(1).create();
-  Logger.log('트리거 6개 설치 완료');
+  // autoCheckinTick 트리거는 2026-09-18 클라라 지시로 폐지 (자동 입실중 전환 금지)
+  Logger.log('트리거 5개 설치 완료');
 }
 function setBcc(){fbSet('app/config/bccEmail','joi.hurricane@gmail.com');Logger.log('BCC 켜짐');}
 function clearBcc(){fbDelete('app/config/bccEmail');Logger.log('BCC 꺼짐');}
 
 // ============================================================
-// 자동 입실중 전환 — 21:00 이후 매시간
+// 자동 입실중 전환 — 2026-09-18 클라라 지시로 폐지 (2026-09-21 main 복구)
 // ============================================================
+// 예전엔 21:00 이후 매시간, 오늘 체크인 + 입실안내 발송완료된 clean_done 객실을 checkin으로
+// 자동 전환했다. 사람이 객실 상태를 확인하기 전에 전부 '입실중'으로 바꿔버려 폐지.
+// 함수 본체는 비워 둔다 — GAS에 기존 트리거가 남아 있어도 아무 일도 하지 않게.
+// setupTriggers()에서도 제외했다. 에디터 트리거 목록의 autoCheckinTick은 삭제할 것.
+// ★ 이 폐지는 004e586(옆 브랜치)에만 있어 main 전문 배포 때마다 되살아났다. 같은 경로의 3번째 사고.
 function autoCheckinTick(){
-  const min=nowMinKST();
-  if(min<1260)return;
+  return; // 폐지 — 아무 것도 하지 않음
+}
+
+// 폐지 전 마지막 실행이 바꿔 놓은 객실을 되돌리는 일회성 함수.
+// 조건은 autoCheckinTick이 전환했던 것과 동일: 정비중 아님 + 그 날 체크인 + 입실안내 발송완료
+// + status가 'checkin' → 'clean_done'으로 복원. 에디터에서 revertAutoCheckin 실행.
+// date를 안 주면 오늘. 다른 날을 되돌리려면 revertAutoCheckin('2026-09-20') 형태로.
+function revertAutoCheckin(date){
+  date = (typeof date === 'string' && date) ? date : todayKST();
   const rooms=fbGet('app/rooms')||{};
   const sent=fbGet('app/sentChecks')||{};
-  const today=todayKST();
+  const reverted=[];
   for(const num of Object.keys(rooms)){
     const r=rooms[num];
     if(!r||r.blocked)continue;
     const cb=r.currentBooking;
     if(!cb||!cb.guest)continue;
-    if(cb.checkinDate!==today)continue;
-    if(!sent[num+'_'+today])continue;
-    if(r.status==='checkin')continue;
-    if(r.status==='clean_done'){fbUpdate('app/rooms/'+num,{status:'checkin'});}
+    if(cb.checkinDate!==date)continue;
+    if(!sent[num+'_'+date])continue;
+    if(r.status!=='checkin')continue;
+    fbUpdate('app/rooms/'+num,{status:'clean_done'});
+    reverted.push(num);
   }
+  const out='revertAutoCheckin('+date+'): '+reverted.length+'개 객실 checkin→clean_done: '+reverted.join(', ');
+  Logger.log(out);
+  return out;
 }
 
 // ============================================================
@@ -1134,7 +1162,7 @@ function cleanupDupePending(){
     L.push('배정 이관 '+realRoom+' → '+canon+' (복제본 '+k+' 삭제)  '+(bk.guest||''));
   });
   kill.forEach(function(k){fbDelete('app/pendingBookings/'+k);});
-  var out='복제 카드 삭제 '+(kill.length-mv-back)+'건, 배정 이관 '+mv+'건, 미배정 복원 '+back+'건, 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
+  var out='['+CODE_VER+']\n복제 카드 삭제 '+(kill.length-mv-back)+'건, 배정 이관 '+mv+'건, 미배정 복원 '+back+'건, 보류 '+held+'건'+(L.length?'\n'+L.join('\n'):'');
   Logger.log(out);
   return out;
 }
@@ -1145,6 +1173,7 @@ function cleanupDupePending(){
 // ============================================================
 function checkAutoSend(){
   const today=todayKST(), L=[];
+  L.push('■ 코드버전 '+CODE_VER);
   L.push('■ 지금(KST) '+today+' '+nowHM());
   try{ L.push('트리거: '+ScriptApp.getProjectTriggers().map(function(t){return t.getHandlerFunction();}).join(', ')); }
   catch(e){ L.push('트리거: 조회실패 '+e); }
