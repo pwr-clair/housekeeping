@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-21 autoCheckin폐지복구+멀티룸복제수정';
+var CODE_VER = '2026-09-21 브랜치유실 일괄복구 (cc45c77+)';
 function codeVersion(){
   var dep='(웹앱 미배포)';
   try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}
