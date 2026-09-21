@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-21c 빠진방 유령카드 수정';
+var CODE_VER = '2026-09-21d 유령카드 삭제함수';
 function codeVersion(){
   var dep='(웹앱 미배포)';
   try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}
@@ -1190,6 +1190,29 @@ function roomsByBookingId_(){
 // dumpPendingDupes는 bookingId가 '같은' 카드만 복제로 보는데, 멀티룸 방별 카드는
 // bookingId가 '26500_501'이고 단일 카드는 '26500'이라 서로 달라 그 진단에 안 걸린다.
 // 미배정에 유령 카드가 한 장 더 뜨는 건 대개 이 '단일+방별 혼재' 모양이다.
+// ============================================================
+// 유령 카드 지정 삭제 (2026-09-21) — SIRVOY 알림메일의 Room details로 실제 방 수를 확인한 뒤
+// 예약에 없는 방의 카드만 골라 지운다. 아래 목록을 고쳐서 재사용할 것.
+//   26325 Biliński: SIRVOY 2개방(1236·1240) → 920 카드는 유령
+//   26230 彭 裕夫  : SIRVOY 2개방(1031·1037-T) → 628 카드는 유령
+//   (26222 ohtani 4개방·26221 Erni 2개방은 카드 수가 맞아 대상 아님)
+// 앞으로는 staleRoomCards_가 웹훅에서 자동 정리하므로 이 함수는 기존 잔여분 청소용이다.
+// ============================================================
+var GHOST_KEYS = ['sv_26325_920', 'sv_26230_628'];
+function deleteGhostCards(){
+  var L=['['+CODE_VER+']'];
+  GHOST_KEYS.forEach(function(k){
+    var v=fbGet('app/pendingBookings/'+k);
+    if(!v){L.push('없음(이미 정리됨): '+k);return;}
+    if(v.assignedRoom&&v.assignedRoom!=='manual'){
+      L.push('★ 건너뜀 — '+k+' 는 '+v.assignedRoom+'호에 배정돼 있다. 배정을 먼저 푼 뒤 다시 실행할 것');return;
+    }
+    fbDelete('app/pendingBookings/'+k);
+    L.push('삭제: '+k+'  '+(v.guest||'')+'  '+(v.checkinDate||'')+'~'+(v.checkoutDate||''));
+  });
+  var out=L.join('\n');Logger.log(out);return out;
+}
+
 // ============================================================
 function dumpUpcoming(){
   var pend=fbGet('app/pendingBookings')||{}, where=roomsByBookingId_(), today=todayKST(), g={}, L=[];
