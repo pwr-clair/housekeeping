@@ -59,6 +59,42 @@ const single = { bookingId: 777, channelBookingId: 'CH-777', guest: { lastName: 
 post(single); post(single); post(single);
 assert.deepStrictEqual(keys(), ['sv_777'], '단일 예약 재푸시 — 카드 1장 유지');
 
+// ── 예약 수정으로 빠진 방의 카드는 정리된다 (26325·26230 유령 카드) ──
+const multiRooms = (rooms, eta) => ({
+  bookingId: 26325, channelBookingId: 'CH-325', bookingSource: 'booking.com',
+  guest: { lastName: 'Bilinski', firstName: 'W', email: 'b@x.com' },
+  arrivalDate: '2026-09-24', departureDate: '2026-09-25', eta: eta || '',
+  rooms: rooms.map(r => ({ RoomName: r })),
+});
+
+db = { app: { pendingBookings: {} } };
+post(multiRooms(['1236', '1240', '920']));
+assert.deepStrictEqual(keys(), ['sv_26325_1236', 'sv_26325_1240', 'sv_26325_920'], '첫 푸시 — 방 3개');
+post(multiRooms(['1236', '1240']));            // SIRVOY에서 920을 뺐다
+assert.deepStrictEqual(keys(), ['sv_26325_1236', 'sv_26325_1240'], '빠진 방(920) 카드는 삭제된다');
+
+// 배정된 카드는 지우지 않고 보존 (사람 판단 필요)
+db = { app: { pendingBookings: {} } };
+post(multiRooms(['1236', '1240', '920']));
+setD('app/pendingBookings/sv_26325_920/assignedRoom', '628');
+post(multiRooms(['1236', '1240']));
+assert.deepStrictEqual(keys(), ['sv_26325_1236', 'sv_26325_1240', 'sv_26325_920'], '배정된 카드는 보존');
+assert.strictEqual(get('app/pendingBookings/sv_26325_920/assignedRoom'), '628', '배정 표시 그대로');
+
+// 멀티룸 → 1방으로 줄면 방별 카드는 전부 낡은 것
+db = { app: { pendingBookings: {} } };
+post(multiRooms(['1236', '1240']));
+post(multiRooms(['1236']));                    // 1방짜리로 수정 → 단일 카드 경로
+assert.deepStrictEqual(keys(), ['sv_26325'], '1방으로 줄면 단일 카드만 남는다');
+
+// rooms 배열이 없는 푸시는 방별 카드를 건드리지 않는다 (수정 알림 등)
+db = { app: { pendingBookings: {} } };
+post(multiRooms(['1236', '1240']));
+post({ bookingId: 26325, channelBookingId: 'CH-325', guest: { lastName: 'Bilinski', firstName: 'W' },
+       arrivalDate: '2026-09-24', departureDate: '2026-09-25' });
+assert.ok(keys().includes('sv_26325_1236') && keys().includes('sv_26325_1240'),
+  'rooms 없는 푸시에 방별 카드를 지우면 안 된다');
+
 // ── 이미 쌓인 복제본 청소(cleanupDupePending) ──
 const cleanup = () => vm.runInContext('cleanupDupePending', ctx)();
 const R = (bid) => ({ currentBooking: { bookingId: bid, guest: 'KIM, A' }, nextBookings: [] });

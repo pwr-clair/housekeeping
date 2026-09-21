@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-21b dumpUpcoming 추가';
+var CODE_VER = '2026-09-21c 빠진방 유령카드 수정';
 function codeVersion(){
   var dep='(웹앱 미배포)';
   try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}
@@ -124,6 +124,27 @@ function jsonOut(obj){
 // ============================================================
 // SIRVOY Webhook 수신
 // ============================================================
+// 예약 수정으로 빠진 방의 카드 정리 (2026-09-21 클라라 신고: 9/24 예약 2건에 미배정 유령 카드)
+// SIRVOY가 예약의 방을 바꿔 다시 보내면 doPost는 이번 푸시에 든 방의 카드만 덮어쓰고,
+// 빠진 방의 카드는 그대로 남아 배정탭 미배정에 영원히 뜬다. 그 잔여 카드를 지운다.
+// 배정된 카드는 지우지 않는다 — 사람이 그 카드로 방을 배정해 뒀을 수 있어 판단이 필요하다.
+//   pend=푸시 직전 스냅샷, base='sv_'+bookingId, keep={이번 푸시에 쓴 키}
+function staleRoomCards_(pend, base, keep){
+  Object.keys(pend||{}).forEach(function(k){
+    if(k.indexOf(base+'_')!==0) return;            // 이 예약의 방별 카드만
+    if(keep&&keep[k]) return;                       // 이번 푸시에 포함된 방
+    var v=pend[k]; if(!v) return;
+    if(String(v.bookingId||'').indexOf('_')<0) return;   // 방별 카드가 아니면 건드리지 않음
+    var asg=v.assignedRoom;
+    if(asg&&asg!=='manual'){
+      Logger.log('staleRoomCards_: '+k+' 는 '+asg+'호에 배정돼 있어 보존 — 예약에서 빠진 방인지 확인 필요');
+      return;
+    }
+    fbDelete('app/pendingBookings/'+k);
+    Logger.log('staleRoomCards_: '+k+' 삭제 (예약 수정으로 빠진 방)');
+  });
+}
+
 function doPost(e){
   try{
     const b=JSON.parse(e.postData.contents);
@@ -189,12 +210,13 @@ function doPost(e){
       // 새 키가 생기고, 예약 한 건이 방 수만큼 통째로 복제된다(배정탭 미배정에 쌍둥이 카드).
       // 정본 id로 고정하면 재푸시가 같은 키를 덮어써 멱등. (2026-09-20 클라라 신고)
       var __mbase = id;
-      var __wrote = 0;
+      var __wrote = 0, __kept = {};
       __rooms.forEach(function(__rm){
         var __rn = String((__rm && __rm.RoomName) || '').trim();
         if (!__rn) return;
         __wrote++;
         var __mkey = __mbase + '_' + __rn;
+        __kept[__mkey] = true;
         var __mprev = (pend && pend[__mkey]) || {};
         var __etaNew = !!eta && eta !== (__mprev.etaWebhook||'');
         fbSet('app/pendingBookings/'+__mkey, {
@@ -218,26 +240,39 @@ function doPost(e){
       // 단일 레코드 판별 = bookingId에 '_' 없음(위 매칭 로직과 동일 규약). 방별 기록 실패 시엔 보존.
       var __old = pend[targetKey];
       if (__wrote >= 2 && __old && String(__old.bookingId||'').indexOf('_') < 0) fbDelete('app/pendingBookings/'+targetKey);
+      if (__wrote >= 2) staleRoomCards_(pend, id, __kept);
     } else {
-      var __etaNew1 = !!eta && eta !== (prev.etaWebhook||'');
-      fbSet('app/pendingBookings/'+targetKey,{
-      bookingId:prev.bookingId||String(b.bookingId),
-      channelBookingId:chId||prev.channelBookingId||'',
-      source:b.bookingSource||prev.source||'',
+      // 멀티룸이었다가 1방으로 줄면 foundKey가 방별 카드(sv_123_501)를 가리킨다.
+      // 거기에 단일 카드를 덮어쓰면 아래 staleRoomCards_가 그걸 '빠진 방'으로 보고 지워
+      // 카드가 통째로 사라진다. 이 경우엔 정본 키(sv_123)에 쓴다. (2026-09-21)
+      var __skey = targetKey, __p = prev;
+      if (__p && String(__p.bookingId||'').indexOf('_') >= 0) { __skey = id; __p = pend[id] || {}; }
+      var __etaNew1 = !!eta && eta !== (__p.etaWebhook||'');
+      fbSet('app/pendingBookings/'+__skey,{
+      bookingId:__p.bookingId||String(b.bookingId),
+      channelBookingId:chId||__p.channelBookingId||'',
+      source:b.bookingSource||__p.source||'',
       guest:gName,
-      guestEmail:(b.guest&&b.guest.email)||prev.guestEmail||'',
-      guestPhone:prev.phoneManual?(prev.guestPhone||''):((b.guest&&b.guest.phone)||prev.guestPhone||''),  // 수동 입력 번호(phoneManual)는 웹훅 중계번호로 덮지 않음
-      phoneManual:prev.phoneManual||null,
+      guestEmail:(b.guest&&b.guest.email)||__p.guestEmail||'',
+      guestPhone:__p.phoneManual?(__p.guestPhone||''):((b.guest&&b.guest.phone)||__p.guestPhone||''),  // 수동 입력 번호(phoneManual)는 웹훅 중계번호로 덮지 않음
+      phoneManual:__p.phoneManual||null,
       checkinDate:b.arrivalDate||'',checkoutDate:b.departureDate||'',
-      eta:__etaNew1?eta:(prev.eta||''),etaWebhook:eta,notes:notes,
-      amount:(prev.amount!=null&&prev.amount!==''?prev.amount:null),  // 재푸시에 금액 보존
+      eta:__etaNew1?eta:(__p.eta||''),etaWebhook:eta,notes:notes,
+      amount:(__p.amount!=null&&__p.amount!==''?__p.amount:null),  // 재푸시에 금액 보존
       cancelled:false,
-      assignedRoom:prev.assignedRoom||null,
-      receivedAt:prev.receivedAt||(todayKST()+' '+nowHM())
+      assignedRoom:__p.assignedRoom||null,
+      receivedAt:__p.receivedAt||(todayKST()+' '+nowHM())
     });
-    if(__etaNew1) syncEtaToRoom(prev.bookingId || String(b.bookingId), eta, true);
+    if(__etaNew1) syncEtaToRoom(__p.bookingId || String(b.bookingId), eta, true);
+    // 멀티룸 → 1방으로 줄어든 예약: 남아 있는 방별 카드는 전부 낡은 것.
+    // 단, rooms 배열이 아예 없는 푸시(수정 알림 등)에는 손대지 않는다 — 정상 카드를 지울 수 있다.
+    if (__rooms.length === 1) staleRoomCards_(pend, id, {});
     }
-  }catch(err){}
+  }catch(err){
+    // 웹훅 처리 실패를 조용히 삼키면 카드가 안 생기거나 안 지워져도 아무 흔적이 남지 않는다.
+    // 실행 로그에라도 남긴다. SIRVOY에는 OK를 돌려줘 재전송 폭주는 피한다. (2026-09-21)
+    try{ Logger.log('doPost 실패: '+err+' | payload='+String(e&&e.postData&&e.postData.contents).slice(0,400)); }catch(_){}
+  }
   return ContentService.createTextOutput('OK');
 }
 
