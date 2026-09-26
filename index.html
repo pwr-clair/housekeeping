@@ -15,6 +15,7 @@
 :root{--bg:#F7F6F3;--bg2:#EEECEA;--bg3:#E4E2DE;--border:#D8D5D0;--border2:#C8C4BE;--text:#1A1814;--text2:#6B6660;--text3:#9E9A95;--accent:#042C53;--navy:#042C53;--radius:12px;--radius-sm:8px;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;} /* iOS 사파리 글자 자동확대(숫자만 커지는 현상) 차단 */
+body{overflow-x:hidden;} /* 글자 확대 시 가로 밀림 방지 (넓은 표는 각자 내부 스크롤) */
 html,body{height:100%;background:var(--bg);font-family:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:var(--text);}
 input,select,button,textarea{font-family:inherit;}
 #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px 24px;max-width:420px;margin:0 auto;}
@@ -1287,22 +1288,23 @@ function logout(){
 window.logout=logout;
 
 // 글자 크기 조절 (가− / 가+) — 0.7~1.9, 한 번에 30%씩, localStorage로 기기별 유지.
-// 표준 zoom 지원 브라우저는 zoom(리플로우 포함), 미지원(구형 iOS 사파리)은 transform 폴백.
-// transform 폴백 시 모달을 body 직속으로 옮겨 position:fixed가 화면 기준으로 남게 한다.
+// transform scale + 폭 보정(100/배율%) 방식: 확대해도 가로폭이 화면에 딱 맞아 옆으로 밀리지 않는다.
+// (iOS 사파리의 zoom은 폭 재계산 없이 그냥 키워서 가로 스크롤이 생기므로 zoom은 쓰지 않는다.)
+// 모달은 body 직속으로 옮긴다 — transform된 조상 밑에서는 position:fixed가 화면 기준이 아니게 되므로.
 let fontScale=1;
 try{const s=parseFloat(localStorage.getItem('pwr_font_scale'));if(s>=0.7&&s<=1.9)fontScale=s;}catch(e){}
-const ZOOM_OK=!!(window.CSS&&CSS.supports&&CSS.supports('zoom','1.1'));
 function applyFontScale(){
-  if(ZOOM_OK){
-    document.body.style.zoom=(fontScale===1?'':fontScale);
-    return;
-  }
-  document.querySelectorAll('#app-screen .modal-overlay').forEach(m=>document.body.appendChild(m));
+  document.body.style.zoom='';
+  document.querySelectorAll('#app-screen .modal-overlay, #login-screen .modal-overlay').forEach(m=>document.body.appendChild(m));
   ['app-screen','login-screen'].forEach(id=>{
     const el=document.getElementById(id); if(!el)return;
     el.style.transformOrigin='50% 0';
-    if(fontScale===1){el.style.transform='';el.style.width='';}
-    else{el.style.transform='scale('+fontScale+')';el.style.width=(100/fontScale)+'%';}
+    if(fontScale===1){el.style.transform='';el.style.width='';el.style.maxWidth='';}
+    else{
+      el.style.transform='scale('+fontScale+')';
+      el.style.width=(100/fontScale)+'%';
+      el.style.maxWidth=(420/fontScale)+'px'; // 원래 max-width:420px를 배율만큼 줄여, 확대 후 시각 폭이 420px을 넘지 않게
+    }
   });
 }
 function adjFont(d){
