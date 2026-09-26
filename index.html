@@ -205,6 +205,8 @@ input,select,button,textarea{font-family:inherit;}
       <div id="user-name-chip" onclick="openAssigneeModal()" style="font-size:11px;font-weight:600;color:var(--text2);background:var(--bg2);padding:3px 8px;border-radius:100px;cursor:pointer;"></div>
       <button class="icon-btn" onclick="openLogModal()" style="position:relative;"><i class="ti ti-bell"></i><div class="notif-badge" id="notif-badge" style="display:none;"></div></button>
       <button class="icon-btn" onclick="window.open('manual.html','_blank')" title="매뉴얼"><i class="ti ti-help"></i></button>
+      <button class="icon-btn" onclick="adjFont(-1)" title="글자 작게" style="font-size:10px;font-weight:700;padding:4px 8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg2);">가−</button>
+      <button class="icon-btn" onclick="adjFont(1)" title="글자 크게" style="font-size:13px;font-weight:700;padding:4px 8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg2);">가+</button>
       <button class="icon-btn" onclick="toggleLang()" id="lang-btn" style="font-size:10px;font-weight:700;padding:4px 8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg2);">EN</button>
       <button class="logout-btn" id="logout-btn" onclick="logout()">나가기</button>
     </div>
@@ -1282,6 +1284,23 @@ function logout(){
   });
 }
 window.logout=logout;
+
+// 글자 크기 조절 (가− / 가+) — body zoom 방식, localStorage로 기기별 유지. 0.8~1.6, 0.1 단계.
+let fontScale=1;
+try{const s=parseFloat(localStorage.getItem('pwr_font_scale'));if(s>=0.8&&s<=1.6)fontScale=s;}catch(e){}
+function applyFontScale(){
+  document.body.style.zoom=fontScale;
+  if(!document.body.style.zoom){ // zoom 미지원 브라우저 폴백: 루트 폰트 확대 (px 고정 요소는 안 커질 수 있음)
+    document.documentElement.style.fontSize=(fontScale*100)+'%';
+  }
+}
+function adjFont(d){
+  fontScale=Math.round(Math.min(1.6,Math.max(0.8,fontScale+d*0.1))*10)/10;
+  try{localStorage.setItem('pwr_font_scale',fontScale);}catch(e){}
+  applyFontScale();
+}
+window.adjFont=adjFont;
+applyFontScale();
 
 function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHistory();renderNotice();renderUpcoming();renderCsNoticeBoard();if(canSendMail)renderSendTab();}
 // 11:00 경계(카드 금액 줄·'현' 칩 게이트)를 페이지 열어둔 채 넘겨도 자동 재렌더 — 새로고침 불필요
