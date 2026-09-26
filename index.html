@@ -14,6 +14,7 @@
 <style>
 :root{--bg:#F7F6F3;--bg2:#EEECEA;--bg3:#E4E2DE;--border:#D8D5D0;--border2:#C8C4BE;--text:#1A1814;--text2:#6B6660;--text3:#9E9A95;--accent:#042C53;--navy:#042C53;--radius:12px;--radius-sm:8px;}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;} /* iOS 사파리 글자 자동확대(숫자만 커지는 현상) 차단 */
 html,body{height:100%;background:var(--bg);font-family:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:var(--text);}
 input,select,button,textarea{font-family:inherit;}
 #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px 24px;max-width:420px;margin:0 auto;}
@@ -1285,14 +1286,24 @@ function logout(){
 }
 window.logout=logout;
 
-// 글자 크기 조절 (가− / 가+) — body zoom 방식, localStorage로 기기별 유지. 0.8~1.6, 0.1 단계.
+// 글자 크기 조절 (가− / 가+) — 0.8~1.6, 0.1 단계, localStorage로 기기별 유지.
+// 표준 zoom 지원 브라우저는 zoom(리플로우 포함), 미지원(구형 iOS 사파리)은 transform 폴백.
+// transform 폴백 시 모달을 body 직속으로 옮겨 position:fixed가 화면 기준으로 남게 한다.
 let fontScale=1;
 try{const s=parseFloat(localStorage.getItem('pwr_font_scale'));if(s>=0.8&&s<=1.6)fontScale=s;}catch(e){}
+const ZOOM_OK=!!(window.CSS&&CSS.supports&&CSS.supports('zoom','1.1'));
 function applyFontScale(){
-  document.body.style.zoom=fontScale;
-  if(!document.body.style.zoom){ // zoom 미지원 브라우저 폴백: 루트 폰트 확대 (px 고정 요소는 안 커질 수 있음)
-    document.documentElement.style.fontSize=(fontScale*100)+'%';
+  if(ZOOM_OK){
+    document.body.style.zoom=(fontScale===1?'':fontScale);
+    return;
   }
+  document.querySelectorAll('#app-screen .modal-overlay').forEach(m=>document.body.appendChild(m));
+  ['app-screen','login-screen'].forEach(id=>{
+    const el=document.getElementById(id); if(!el)return;
+    el.style.transformOrigin='50% 0';
+    if(fontScale===1){el.style.transform='';el.style.width='';}
+    else{el.style.transform='scale('+fontScale+')';el.style.width=(100/fontScale)+'%';}
+  });
 }
 function adjFont(d){
   fontScale=Math.round(Math.min(1.6,Math.max(0.8,fontScale+d*0.1))*10)/10;
