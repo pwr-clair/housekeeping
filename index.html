@@ -3232,9 +3232,9 @@ function renderAssignCalendar(){
   if(!el)return;
   if(window._gridDragging){window._gridRerenderPending=true;return;}   // 드래그 중 재렌더 보류
   const SRC_COLOR={booking:'#1A4FA0',agoda:'#C0392B',expedia:'#B7791F',direct:'#5A6B7B'};
-  // 7일 날짜 배열
+  // 날짜 배열: 어제(직전 예약 확인용)부터 6일 뒤까지 8일
   const days=[];
-  for(let i=0;i<7;i++){
+  for(let i=-1;i<7;i++){
     const d=new Date();d.setDate(d.getDate()+i);
     days.push({
       ymd:ymd(d),
@@ -3242,9 +3242,9 @@ function renderAssignCalendar(){
       dow:['일','월','화','수','목','금','토'][d.getDay()]
     });
   }
-  const today=days[0].ymd;
+  const today=ymd(new Date());
   // 헤더
-  let html='<table style="border-collapse:collapse;min-width:560px;width:100%;font-size:10px;">';
+  let html='<table style="border-collapse:collapse;min-width:620px;width:100%;font-size:10px;">';
   html+='<tr><th style="position:sticky;left:0;background:var(--bg2);border:0.5px solid var(--border);padding:6px 8px;min-width:44px;z-index:2;">객실</th>';
   for(const d of days){
     const isToday=d.ymd===today;
@@ -3295,6 +3295,10 @@ function renderAssignCalendar(){
       const color=SRC_COLOR[srcKey(bk.source)]||'#5A6B7B';
       const startsBefore=bk.checkinDate<days[i].ymd;
       const endsAfter=bk.checkoutDate>days[days.length-1].ymd;
+      // 이어진 예약(앞 예약 체크아웃일 = 이 예약 체크인일)이면 맞닿는 쪽 모서리·여백을 없애 한 줄로 이어져 보이게
+      const contPrev=books.some(b=>b!==bk&&b.checkoutDate===bk.checkinDate);
+      const contNext=books.some(b=>b!==bk&&b.checkinDate===bk.checkoutDate);
+      const rl=(startsBefore||contPrev)?'0':'6px', rr=(endsAfter||contNext)?'0':'6px';
       let confHit=false,ovlMax=1;
       for(let k=i;k<i+span;k++){
         if(confDates.has(days[k].ymd))confHit=true;
@@ -3307,7 +3311,7 @@ function renderAssignCalendar(){
       const _amt=amountOf(bk,num);
       const _cty=guessCountry(bk)||'';   // 번호+이름 결합 (2026-07-30 클라라)
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;'+(confHit?'background:#FDECEC;':'')+'">'
-        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px;height:24px;border-radius:'+(startsBefore?'0':'6px')+' '+(endsAfter?'0 0':'6px 6px')+' '+(startsBefore?'0':'6px')+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
+        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px '+(contNext?'0':'3px')+' 3px '+(contPrev?'0':'3px')+';height:24px;border-radius:'+rl+' '+rr+' '+rr+' '+rl+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
         +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+'</div></td>';
       i+=span;
     }
