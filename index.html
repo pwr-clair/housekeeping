@@ -3295,10 +3295,8 @@ function renderAssignCalendar(){
       const color=SRC_COLOR[srcKey(bk.source)]||'#5A6B7B';
       const startsBefore=bk.checkinDate<days[i].ymd;
       const endsAfter=bk.checkoutDate>days[days.length-1].ymd;
-      // 이어진 예약(앞 예약 체크아웃일 = 이 예약 체크인일)이면 맞닿는 쪽 모서리·여백을 없애 한 줄로 이어져 보이게
-      const contPrev=books.some(b=>b!==bk&&b.checkoutDate===bk.checkinDate);
-      const contNext=books.some(b=>b!==bk&&b.checkinDate===bk.checkoutDate);
-      const rl=(startsBefore||contPrev)?'0':'6px', rr=(endsAfter||contNext)?'0':'6px';
+      // 표 범위 밖으로 이어지는 예약만 끝을 잘린 모양으로 (예약 사이 구분은 네 귀퉁이 둥글게 유지)
+      const rl=startsBefore?'0':'6px', rr=endsAfter?'0':'6px';
       let confHit=false,ovlMax=1;
       for(let k=i;k<i+span;k++){
         if(confDates.has(days[k].ymd))confHit=true;
@@ -3311,7 +3309,7 @@ function renderAssignCalendar(){
       const _amt=amountOf(bk,num);
       const _cty=guessCountry(bk)||'';   // 번호+이름 결합 (2026-07-30 클라라)
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;'+(confHit?'background:#FDECEC;':'')+'">'
-        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px '+((contNext||endsAfter)?'0':'3px')+' 3px '+((contPrev||startsBefore)?'0':'3px')+';height:24px;border-radius:'+rl+' '+rr+' '+rr+' '+rl+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
+        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px '+(endsAfter?'0':'3px')+' 3px '+(startsBefore?'0':'3px')+';height:24px;border-radius:'+rl+' '+rr+' '+rr+' '+rl+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
         +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+(endsAfter?' …':'')+'</div></td>';
       i+=span;
     }
