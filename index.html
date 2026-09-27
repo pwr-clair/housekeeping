@@ -3311,8 +3311,8 @@ function renderAssignCalendar(){
       const _amt=amountOf(bk,num);
       const _cty=guessCountry(bk)||'';   // 번호+이름 결합 (2026-07-30 클라라)
       html+='<td colspan="'+span+'" style="border:0.5px solid var(--border);padding:0;height:30px;'+(confHit?'background:#FDECEC;':'')+'">'
-        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px '+(contNext?'0':'3px')+' 3px '+(contPrev?'0':'3px')+';height:24px;border-radius:'+rl+' '+rr+' '+rr+' '+rl+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
-        +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+'</div></td>';
+        +'<div data-gbar="1" data-room="'+num+'" data-bid="'+encodeURIComponent(gKey(bk))+'" data-amt="'+(_amt||'')+'" data-cty="'+_cty+'" style="margin:3px '+((contNext||endsAfter)?'0':'3px')+' 3px '+((contPrev||startsBefore)?'0':'3px')+';height:24px;border-radius:'+rl+' '+rr+' '+rr+' '+rl+';background:'+color+';color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;'+(confHit?'outline:2px solid #C0392B;outline-offset:-2px;':'')+'" title="'+ttl+'">'
+        +(confHit?'⚠ ':'')+(startsBefore?'…':'')+bk.guest+(ovlMax>1?' ×'+ovlMax:'')+(endsAfter?' …':'')+'</div></td>';
       i+=span;
     }
     html+='</tr>';
