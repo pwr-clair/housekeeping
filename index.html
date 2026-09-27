@@ -3243,6 +3243,7 @@ function renderAssignCalendar(){
     });
   }
   const today=ymd(new Date());
+  const _af=new Date();_af.setDate(_af.getDate()+7);const afterLast=ymd(_af); // 마지막 표시일 다음날 — 이날 체크아웃이면 표 안에서 끝나는 예약
   // 헤더
   let html='<table style="border-collapse:collapse;min-width:620px;width:100%;font-size:10px;">';
   html+='<tr><th style="position:sticky;left:0;background:var(--bg2);border:0.5px solid var(--border);padding:6px 8px;min-width:44px;z-index:2;">객실</th>';
@@ -3294,7 +3295,7 @@ function renderAssignCalendar(){
       }
       const color=SRC_COLOR[srcKey(bk.source)]||'#5A6B7B';
       const startsBefore=bk.checkinDate<days[i].ymd;
-      const endsAfter=bk.checkoutDate>days[days.length-1].ymd;
+      const endsAfter=bk.checkoutDate>afterLast; // 마지막 날 밤을 넘겨 머무는 예약만 '계속됨'(잘린 모양) — 다음날 아침 체크아웃(1박 등)은 둥글게
       // 표 범위 밖으로 이어지는 예약만 끝을 잘린 모양으로 (예약 사이 구분은 네 귀퉁이 둥글게 유지)
       const rl=startsBefore?'0':'6px', rr=endsAfter?'0':'6px';
       let confHit=false,ovlMax=1;
