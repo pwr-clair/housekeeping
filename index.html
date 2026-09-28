@@ -149,10 +149,6 @@ input,select,button,textarea{font-family:inherit;}
 .modal-btn{padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:var(--text);width:100%;text-align:center;}
 .modal-btn.primary{background:var(--accent);color:#E6F1FB;border-color:var(--accent);}
 .modal-btn.danger{color:#A32D2D;border-color:#F7C1C1;}
-.assignee-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-.assignee-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
-.assignee-name-input{flex:1;min-width:0;font-size:13px;padding:5px 8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text);outline:none;}
-.assignee-del{background:none;border:none;cursor:pointer;color:var(--text3);font-size:15px;padding:0;flex-shrink:0;}
 .add-btn{width:100%;padding:7px;border:0.5px dashed var(--border);border-radius:var(--radius-sm);background:none;color:var(--text2);font-size:12px;cursor:pointer;margin-top:2px;margin-bottom:12px;}
 .section-divider{border:none;border-top:0.5px solid var(--border);margin:10px 0;}
 .pw-row{display:flex;gap:8px;}
@@ -595,12 +591,6 @@ input,select,button,textarea{font-family:inherit;}
       <div id="rm-supplies-list" style="margin-bottom:6px;"></div>
       <button class="add-btn" style="margin-bottom:8px;" onclick="addSupplyItem()" id="supply-add-btn"><i class="ti ti-plus"></i> 비품 추가</button>
 
-      <!-- 청소 담당자 (맨 아래) -->
-      <div class="field-box full" style="margin-bottom:8px;">
-        <div class="field-label"><i class="ti ti-user-circle" style="font-size:9px;"></i> <span id="assignee-label-modal">청소 담당자</span></div>
-        <select class="field-select" id="rm-assignee"></select>
-      </div>
-
       <div class="btn-row">
         <button class="modal-btn primary" onclick="applyRoomChanges()"><i class="ti ti-check"></i> <span id="btn-save-room"></span></button>
         <button class="modal-btn" onclick="closeModal('room-modal')" id="btn-close-room"></button>
@@ -675,20 +665,6 @@ input,select,button,textarea{font-family:inherit;}
         <button class="modal-btn primary" onclick="saveBooking()" id="bk-save-btn">저장</button>
         <button class="modal-btn" onclick="closeModal('booking-modal')" id="bk-cancel-btn">취소</button>
       </div>
-    </div>
-  </div>
-
-  <!-- 인력관리 모달 -->
-  <div class="modal-overlay" id="assignee-modal" onclick="if(event.target===this)closeModal('assignee-modal')">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title" id="assignee-modal-title">청소 담당자</span>
-        <button class="modal-close" onclick="closeModal('assignee-modal')"><i class="ti ti-x"></i></button>
-      </div>
-      <div id="assignee-list"></div>
-      <button class="add-btn" onclick="addAssignee()" id="assignee-add-btn"><i class="ti ti-plus"></i> 팀원 추가</button>
-      <button class="modal-btn primary" style="width:100%;padding:10px;" onclick="saveAssignees()" id="assignee-save-btn">저장</button>
-      <button id="assignee-room-mgr-btn" onclick="closeModal('assignee-modal');openRoomManager();" style="display:none;width:100%;padding:10px;margin-top:8px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;"><i class="ti ti-settings"></i> 객실 관리</button>
     </div>
   </div>
 
@@ -788,8 +764,6 @@ function floorGroups(){
 }
 const CHECK_ITEMS_KO = ['침구 교체','욕실 청소','진공 청소','쓰레기 수거','미니바 보충'];
 function getCheckItems(){ return t('check_items') || CHECK_ITEMS_KO; }
-const AC = ['#E6F1FB','#EAF3DE','#EEEDFE','#FAEEDA','#FAECE7'];
-const AT = ['#0C447C','#27500A','#26215C','#633806','#4A1B0C'];
 const STATUS_OPTS = ['need_clean','cleaning','clean_done','checkout_confirm','checkout_done','checkin'];
 const STATUS_LABEL = {checkin:'입실중',checkout_confirm:'퇴실확인중',checkout_done:'퇴실완료',cleaning:'청소중',clean_done:'청소완료',need_clean:'청소필요'};
 const STATUS_ICON = {checkin:'ti-user',checkout_confirm:'ti-clock',checkout_done:'ti-door-exit',cleaning:'ti-sparkles',clean_done:'ti-check',need_clean:'ti-wash'};
@@ -803,9 +777,8 @@ const COLOR_MAP = {
   blocked:'background:#F5F4F2;color:#4A4845'
 };
 
-let assignees=['최은주'], rooms={}, cleanTasks={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
+let rooms={}, cleanTasks={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
 let dateBlocks={};   // 방·날짜 단위 차단 (app/dateBlocks/{방}/{YYYY-MM-DD}=true) — 배정 캘린더 빈 칸 탭으로 토글 (2026-08-24 클라라)
-let members=[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}];
 let currentUser=null;
 let currentRoomNum=null, currentStatus=null, originalStatus=null, currentBookingType=null, currentNextBookingIdx=0;
 let calYear, calMonth, calCiDate=null, calCoDate=null, calSelectStep=0;
@@ -1110,20 +1083,14 @@ async function initFirebaseData(){
   if(!snap.exists()){
     const initRooms={};
     ['620','628','920','930','1031','1037','1230','1236','1240'].forEach(num=>{
-      initRooms[num]={num,status:'need_clean',blocked:false,doorPw:'',assignee:'최은주',currentBooking:null,nextBookings:[]};
+      initRooms[num]={num,status:'need_clean',blocked:false,doorPw:'',currentBooking:null,nextBookings:[]};
     });
     await set(ref(db,'app'),{
       password:'1234',
-      assignees:{0:'최은주'},
-      members:[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}],
       rooms:initRooms,cleanTasks:{},schedules:{},bookingHistory:{},changeLogs:{}
     });
   } else {
-    // members 없으면 초기화
     const d=snap.val();
-    if(!d.members){
-      await set(ref(db,'app/members'),[{name:'Bibian'},{name:'Dennis'},{name:'Claire'}]);
-    }
     if(!d.changeLogs){
       await set(ref(db,'app/changeLogs'),{});
     }
@@ -1134,13 +1101,6 @@ let csSuggs={}; // CS 제안(cs/suggestions) 읽기 전용 미러 — Clara 전�
 function startListeners(){
   onValue(ref(db,'app/waMessages'),snap=>{waMessages=snap.exists()?(snap.val()||{}):{};if(isLoggedIn)renderSendTab();});
   onValue(ref(db,'cs/suggestions'),snap=>{csSuggs=snap.exists()?(snap.val()||{}):{};if(isLoggedIn)renderCsNoticeBoard();});
-  onValue(ref(db,'app/members'),snap=>{
-    if(snap.exists()){const v=snap.val();members=Array.isArray(v)?v:Object.values(v);}
-  });
-  onValue(ref(db,'app/assignees'),snap=>{
-    if(snap.exists()){const v=snap.val();assignees=Array.isArray(v)?v:Object.values(v);}
-    if(isLoggedIn)renderAll();
-  });
   onValue(ref(db,'app/rooms'),snap=>{
     if(snap.exists())rooms=snap.val();
     roomsLoaded=true;
@@ -1341,7 +1301,7 @@ async function addRoomManaged(){
   if(!num||!/^\d+$/.test(num)){alert('숫자로 된 방번호를 입력해주세요.');return;}
   if(rooms[num]){alert(num+'호는 이미 있는 객실이에요.');return;}
   try{
-    await set(ref(db,'app/rooms/'+num),{num:num,status:'need_clean',blocked:true,doorPw:'',assignee:'최은주',currentBooking:null,nextBookings:[]});
+    await set(ref(db,'app/rooms/'+num),{num:num,status:'need_clean',blocked:true,doorPw:'',currentBooking:null,nextBookings:[]});
   }catch(e){alert('추가 실패: '+e);return;}
   alert(num+"호가 '정비중'으로 추가됐어요. 객실 카드에서 정비중을 해제하면 운영을 시작합니다.");
   closeModal('room-manager-modal');
@@ -1530,20 +1490,6 @@ function renderRooms(){
       if(isNextDA)badges.push({lbl:currentLang==='ko'?'모레':'D+2',style:''});
       const topStart=ciTime?18:4;
       const nextBadge=badges.map((b,i)=>`<div class="next-badge" style="position:absolute;top:${topStart+i*14}px;left:4px;${b.style}${i>0?'opacity:.8;':''}">${b.lbl}</div>`).join('');
-      // 청소 담당자 이니셜 뱃지 — 청소 관련 상태(청소필요/청소중/청소완료)에서만 표시
-      const cleanPhase=['need_clean','cleaning','clean_done'].includes(r.status)&&!r.blocked;
-      const asgnName=(cleanPhase&&r.assignee&&r.assignee!=='미배정'&&r.assignee!=='Unassigned')?r.assignee:'';
-      const asgnPalette=[
-        {bg:'#F3DCE3',fg:'#9C2448',bd:'#D89AAC'},
-        {bg:'#DCE4F3',fg:'#1A4FA0',bd:'#9AB2D8'},
-        {bg:'#DCEEE2',fg:'#2F6B45',bd:'#9AC8A9'},
-        {bg:'#F5E6CC',fg:'#92600B',bd:'#D8BA84'},
-        {bg:'#E5E0F0',fg:'#5A4A8A',bd:'#B6A9D6'},
-        {bg:'#D9EEEA',fg:'#0F6E56',bd:'#94C9BE'}
-      ];
-      const asgnIdx=asgnName?assignees.indexOf(asgnName):-1;
-      const ap=asgnIdx>=0?asgnPalette[asgnIdx%asgnPalette.length]:{bg:'#E5E7EB',fg:'#4B5563',bd:'#C2C7CF'};
-      const asgnBadge=asgnName?`<div title="청소: ${asgnName}" style="position:absolute;top:5px;right:24px;width:15px;height:15px;border-radius:50%;background:${ap.bg};color:${ap.fg};border:1px solid ${ap.bd};font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;z-index:3;">${asgnName.charAt(0).toUpperCase()}</div>`:'';
       // 금액 줄 (열람권한 + 11:00~24:00 + 오늘 체크인 예약 + 금액유효 → 전부 만족 시에만 렌더, 아니면 줄 자체 없음)
       let amountLine='';
       if(canViewAmount()){
@@ -1566,7 +1512,7 @@ function renderRooms(){
       return `<div class="room-card ${cls}" onclick="openRoomModal('${num}')">
         ${r.blocked?`<div class="blocked-badge">${t('blocked_lbl')}</div>`:''}
         ${r.roomNote?`<div style="position:absolute;bottom:6px;right:6px;background:#D90040;color:#fff;font-size:8px;font-weight:700;border-radius:100px;padding:1px 6px;white-space:nowrap;z-index:2;">${r.roomNote}</div>`:''}
-        ${nextBadge}${timeBadge}${sentBadge}${asgnBadge}
+        ${nextBadge}${timeBadge}${sentBadge}
         <i class="ti ${ico} room-icon"></i>
         <div class="room-num">${num}</div>
         <div class="room-status-label">${lbl}</div>
@@ -1619,7 +1565,7 @@ function operatingOn(r,ymdStr){
 // ── 객실 모달 ──
 function openRoomModal(num){
   currentRoomNum=num;
-  const r=rooms[num]||{status:'need_clean',blocked:false,doorPw:'',assignee:'최은주',currentBooking:null,nextBookings:[]};
+  const r=rooms[num]||{status:'need_clean',blocked:false,doorPw:'',currentBooking:null,nextBookings:[]};
   currentStatus=r.status;
   originalStatus=r.status;  // 모달 열 때의 원래 상태 (저장 시 변경 여부 판단용)
 
@@ -1632,8 +1578,6 @@ function openRoomModal(num){
   document.getElementById('rm-room-note').value=r.roomNote||'';
   document.getElementById('rm-operating-from').value=r.operatingFrom||'';
   document.getElementById('rm-operating-row').style.display=(r.blocked||false)?'':'none';
-  const asel=document.getElementById('rm-assignee');
-  asel.innerHTML=[(currentLang==='ko'?'미배정':'Unassigned'),...assignees].map(a=>`<option value="${a}"${a===(r.assignee||assignees[0])?' selected':''}>${a}</option>`).join('');
   renderCurrentBooking(r.currentBooking);
   renderNextBookings(getNextBookings(r));
   // 비품 로드
@@ -1645,7 +1589,6 @@ function openRoomModal(num){
   const mnl=document.getElementById('modal-next-label');if(mnl)mnl.childNodes[0]&&(mnl.childNodes[0].textContent=t('modal_next'));
   const mns=document.getElementById('modal-next-sub');if(mns)mns.textContent=t('modal_drag');
   const msl=document.getElementById('modal-state-label');if(msl)msl.childNodes[0]&&(msl.childNodes[0].textContent=t('modal_state')+' ');
-  const mal=document.getElementById('assignee-label-modal');if(mal)mal.textContent=t('modal_assignee');
   const bcr=document.getElementById('btn-close-room');if(bcr)bcr.textContent=t('modal_close');
   document.getElementById('room-modal').classList.add('open');
 }
@@ -2173,7 +2116,6 @@ async function applyRoomChanges(){
   const updates={
     blocked:document.getElementById('rm-blocked').checked,
     doorPw:document.getElementById('rm-doorpw').value.trim(),
-    assignee:document.getElementById('rm-assignee').value,
     roomNote:document.getElementById('rm-room-note').value.trim(),
     operatingFrom:document.getElementById('rm-operating-from').value||'',
   };
@@ -2199,17 +2141,14 @@ async function applyRoomChanges(){
   if(needsTask&&!existing){
     await set(ref(db,`app/cleanTasks/${currentRoomNum}`),{
       room:currentRoomNum,status:effectiveStatus==='cleaning'?'inprog':'pending',
-      assignee:updates.assignee||assignees[0]||'미배정',
       items:CHECK_ITEMS_KO,checked:CHECK_ITEMS_KO.map(()=>false),time:t('wait_assign')
     });
   } else if(!needsTask&&existing){
     if(effectiveStatus==='clean_done'){
       const hKey='h_'+Date.now();
-      await set(ref(db,`app/bookingHistory/${hKey}`),{room:currentRoomNum,name:existing.assignee,time:nowTime()+' 완료',type:'청소완료',id:hKey});
+      await set(ref(db,`app/bookingHistory/${hKey}`),{room:currentRoomNum,name:currentUser||'',time:nowTime()+' 완료',type:'청소완료',id:hKey});
     }
     await set(ref(db,`app/cleanTasks/${currentRoomNum}`),null);
-  } else if(needsTask&&existing){
-    await update(ref(db,`app/cleanTasks/${currentRoomNum}`),{assignee:updates.assignee||assignees[0]||'미배정'});
   }
   // 비품 저장
   const supplyItems=getSupplyItemsFromModal();
@@ -2228,17 +2167,11 @@ function renderCleaning(){
         <div class="clean-room"><i class="ti ti-door" style="font-size:12px;margin-right:4px;"></i>${t.room}${currentLang==='ko'?'호':''}${rooms[t.room]&&rooms[t.room].currentBooking&&rooms[t.room].currentBooking.guest?` <span style="font-size:10px;color:var(--text2);">(${rooms[t.room].currentBooking.guest})</span>`:''}</div>
         <span class="clean-badge ${t.status}">${bl[t.status]||'대기'}</span>
       </div>
-      <div style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px;"><i class="ti ti-user-circle" style="font-size:12px;"></i>
-        <select onchange="changeTaskAssignee('${t.room}',this.value)" style="font-size:11px;border:none;background:transparent;color:var(--text2);padding:0;cursor:pointer;outline:none;">
-          ${[(currentLang==='ko'?'미배정':'Unassigned'),...assignees].map(a=>`<option value="${a}"${a===t.assignee?' selected':''}>${a}</option>`).join('')}
-        </select>
-      </div>
       <div class="clean-checks">${(t.items||CHECK_ITEMS_KO).map((item,i)=>`<div class="check-item${(t.checked||[])[i]?' checked':''}" onclick="toggleCheck('${t.room}',${i})"><i class="ti ${(t.checked||[])[i]?'ti-check':'ti-circle'}"></i>${item}</div>`).join('')}</div>
       <div style="font-size:10px;color:var(--text3);margin-top:5px;"><i class="ti ti-clock" style="font-size:10px;margin-right:2px;"></i>${t.time||''}</div>
     </div>`).join(''):`<div class="empty-msg">${t("empty_clean")}</div>`;
 }
 
-async function changeTaskAssignee(room,val){await update(ref(db,`app/cleanTasks/${room}`),{assignee:val});}
 async function toggleCheck(room,i){
   const t=cleanTasks[room];if(!t)return;
   const checked=[...(t.checked||getCheckItems().map(()=>false))];
@@ -2247,7 +2180,7 @@ async function toggleCheck(room,i){
     const r=rooms[room];
     if(r)await update(ref(db,`app/rooms/${room}`),{status:'clean_done'});
     const hKey='h_'+Date.now();
-    await set(ref(db,`app/bookingHistory/${hKey}`),{room,name:t.assignee,time:nowTime()+' 완료',type:'청소완료',id:hKey});
+    await set(ref(db,`app/bookingHistory/${hKey}`),{room,name:currentUser||'',time:nowTime()+' 완료',type:'청소완료',id:hKey});
     await set(ref(db,`app/cleanTasks/${room}`),null);
     sendNotif(room,'clean_done');
     addChangeLog(room,'clean_done');
@@ -2942,64 +2875,12 @@ async function sendNotif(room,status){
 
 }
 
-// ── 인력관리 ──
+// ── 이름칩: 담당자 지정 기능 제거(2026-09-28 클라라 — 이력에 작업자가 기록되므로 불필요).
+// 관리자에게는 객실 관리 진입 통로로만 동작한다.
 function openAssigneeModal(){
-  renderAssigneeList();
-  const btn=document.getElementById('notif-btn');
-  if(btn)btn.textContent=Notification.permission==='granted'?'✓ 허용됨':'허용하기';
-  const rm=document.getElementById('assignee-room-mgr-btn');
-  if(rm)rm.style.display=ADMIN_NAMES.includes(currentUser)?'':'none';  // 관리자(Clara/Dennis)만 노출
-  document.getElementById('assignee-modal').classList.add('open');
+  if(ADMIN_NAMES.includes(currentUser))openRoomManager();
 }
-function renderAssigneeList(){
-  const list=document.getElementById('assignee-list');if(!list)return;
-  list.innerHTML=members.map((m,i)=>`
-    <div class="assignee-row">
-      <div class="assignee-avatar" style="background:${AC[i%5]};color:${AT[i%5]}">${m.name.slice(0,2)}</div>
-      <input class="assignee-name-input" type="text" value="${m.name}" id="asgn-name-${i}" placeholder="${currentLang==='ko'?'이름':'Name'}" style="flex:1;">
-      <button class="assignee-del" onclick="saveAssigneeRow(${i})" style="color:#27AE60;" title="저장"><i class="ti ti-check"></i></button>
-      <button class="assignee-del" onclick="removeAssignee(${i})" title="팀원 삭제"><i class="ti ti-trash"></i></button>
-    </div>`).join('');
-}
-async function saveAssigneeRow(i){
-  const list=[];let j=0;
-  while(document.getElementById('asgn-name-'+j)){
-    const name=document.getElementById('asgn-name-'+j).value.trim();
-    if(name)list.push({name});
-    j++;
-  }
-  if(!list.length)return;
-  members=list;
-  await set(ref(db,'app/members'),members);
-  const obj={};members.forEach((m,k)=>obj[k]=m.name);
-  await set(ref(db,'app/assignees'),obj);
-  renderAssigneeList();
-  alert(currentLang==='ko'?'저장되었습니다.':'Saved.');
-}
-window.saveAssigneeRow=saveAssigneeRow;
-
-function addAssignee(){
-  members.push({name:currentLang==='ko'?'새 팀원':'New Member'});
-  renderAssigneeList();
-  const el=document.getElementById('asgn-name-'+(members.length-1));
-  if(el){el.focus();el.select();}
-}
-function removeAssignee(i){members.splice(i,1);renderAssigneeList();}
-async function saveAssignees(){
-  const list=[];let i=0;
-  while(document.getElementById('asgn-name-'+i)){
-    const name=document.getElementById('asgn-name-'+i).value.trim();
-    if(name)list.push({name});
-    i++;
-  }
-  members=list.length?list:members;
-  await set(ref(db,'app/members'),members);
-  // assignees도 이름 목록으로 업데이트
-  const obj={};members.forEach((m,i)=>obj[i]=m.name);
-  await set(ref(db,'app/assignees'),obj);
-  closeModal('assignee-modal');
-}
-window.openAssigneeModal=openAssigneeModal; window.addAssignee=addAssignee; window.removeAssignee=removeAssignee; window.saveAssignees=saveAssignees;
+window.openAssigneeModal=openAssigneeModal;
 
 // ════════════ 발송 탭 (0003 전용) ════════════
 function toggleSendModeA(){
@@ -4096,7 +3977,7 @@ const TEXTS = {
     supply_placeholder: '예) 샴푸, 수건 2장',
     unknown_user: '알 수 없음',
     notif_activated: '알림이 활성화됐어요!',
-    wait_assign: '배정 대기',
+    wait_assign: '대기',
   },
   en: {
     logout: 'Exit', notice_label: '📢 Notice', notice_add: '📣 Post Notice',
@@ -4223,9 +4104,6 @@ function applyLang(){
   const hts=document.getElementById('history-tab-title');if(hts)hts.textContent=t('history_tab_title');
 
   // 인력관리 모달
-  const amt=document.getElementById('assignee-modal-title');if(amt)amt.textContent=t('assignee_title');
-  const aab=document.getElementById('assignee-add-btn');if(aab)aab.innerHTML=`<i class="ti ti-plus"></i> ${t('assignee_add').replace('+ ','')}`;
-  const asb=document.getElementById('assignee-save-btn');if(asb)asb.textContent=t('assignee_save');
 
   // 알림 설정
   const ntt=document.getElementById('notif-title-txt');if(ntt)ntt.innerHTML=`<i class="ti ti-bell" style="font-size:13px;"></i> ${t('notif_title')}`;
