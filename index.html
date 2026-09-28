@@ -551,7 +551,7 @@ input,select,button,textarea{font-family:inherit;}
       <!-- 호실 번호 + 도어락 -->
       <div style="display:flex;gap:8px;margin-bottom:10px;align-items:stretch;">
         <div id="rm-big" style="width:30%;flex:0 0 30%;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;min-height:60px;overflow:hidden;box-sizing:border-box;"></div>
-        <div class="field-box" style="flex:1;min-height:60px;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;gap:12px;">
+        <div class="field-box" id="doorpw-box" style="flex:1;min-height:60px;display:flex;align-items:center;justify-content:space-between;padding:10px 16px;gap:12px;">
           <div style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:4px;white-space:nowrap;flex-shrink:0;"><i class="ti ti-lock" style="font-size:12px;"></i> <span id="doorpw-label">도어락 비밀번호</span></div>
           <input class="field-input" type="text" id="rm-doorpw" placeholder="----" maxlength="8" style="font-size:20px;letter-spacing:6px;font-weight:700;text-align:right;flex:1;min-width:0;border:none;outline:none;background:transparent;">
         </div>
@@ -830,6 +830,7 @@ const ADMIN_NAMES=['Clara','Dennis']; // 관리자(배정/발송 탭) — 이 �
 // 금액 열람 권한 — 관리자와 별개 개념. 명단에 없으면 금액이 어디에도 안 보이는 게 의도된 동작.
 const AMOUNT_VIEWERS=['clara','dennis','bibian','otae']; // 금액 열람 허용 명단 — 이후 새 스텝은 여기 추가하지 않는 한 금액이 보이지 않는 최소권한 (2026-09-28 클라라)
 function canViewAmount(){return AMOUNT_VIEWERS.includes(String(currentUser||'').toLowerCase());}
+function canViewDoorPw(){return AMOUNT_VIEWERS.includes(String(currentUser||'').toLowerCase());} // 도어락 비번(손님 전송용) 열람·수정 — 최소권한 스텝 제외, 명단은 금액과 동일 (2026-09-28 클라라)
 let unreadLogs=0;
 
 function toMin(t){if(!t)return null;const p=t.split(':');if(p.length<2||isNaN(+p[0])||isNaN(+p[1]))return null;return +p[0]*60+ +p[1];}
@@ -1517,7 +1518,7 @@ function renderRooms(){
         <div class="room-num">${num}</div>
         <div class="room-status-label">${lbl}</div>
         ${dateLine}
-        <div class="room-pw"><i class="ti ti-lock" style="font-size:9px;"></i>${pw}</div>
+        ${canViewDoorPw()?`<div class="room-pw"><i class="ti ti-lock" style="font-size:9px;"></i>${pw}</div>`:''}
         ${guestPanel}
         ${amountLine}
       </div>`;
@@ -1574,7 +1575,8 @@ function openRoomModal(num){
   big.textContent=num+(currentLang==='ko'?'호':'');
   document.getElementById('rm-blocked').checked=r.blocked||false;
   renderStatusOpts(r.status);
-  document.getElementById('rm-doorpw').value=r.doorPw||'';
+  const _dpBox=document.getElementById('doorpw-box');if(_dpBox)_dpBox.style.display=canViewDoorPw()?'flex':'none';
+  document.getElementById('rm-doorpw').value=canViewDoorPw()?(r.doorPw||''):'';
   document.getElementById('rm-room-note').value=r.roomNote||'';
   document.getElementById('rm-operating-from').value=r.operatingFrom||'';
   document.getElementById('rm-operating-row').style.display=(r.blocked||false)?'':'none';
@@ -2115,10 +2117,10 @@ window.onBlockedToggle=onBlockedToggle;
 async function applyRoomChanges(){
   const updates={
     blocked:document.getElementById('rm-blocked').checked,
-    doorPw:document.getElementById('rm-doorpw').value.trim(),
     roomNote:document.getElementById('rm-room-note').value.trim(),
     operatingFrom:document.getElementById('rm-operating-from').value||'',
   };
+  if(canViewDoorPw())updates.doorPw=document.getElementById('rm-doorpw').value.trim(); // 최소권한은 doorPw 미포함 → update()라 기존 값 유지
   // 사용자가 상태 버튼을 실제로 눌러서 바꿨을 때만 status를 저장.
   // (모달 열려있는 동안 GAS 자동전환 등으로 상태가 바뀌어도 덮어쓰지 않도록)
   if(currentStatus!==originalStatus){
