@@ -855,7 +855,7 @@ const SRC_INIT={booking:'B',agoda:'A',expedia:'E',direct:'D'};
 const SRC_AVA={agoda:{c:'A',bg:'#FCEBEB',fg:'#A32D2D'},booking:{c:'B',bg:'#E6F1FB',fg:'#185FA5'},expedia:{c:'E',bg:'#FAEEDA',fg:'#854F0B'},direct:{c:'D',bg:'#F1EFE8',fg:'#5F5E5A'}};
 const ADMIN_NAMES=['Clara','Dennis']; // 관리자(배정/발송 탭) — 이 이름들이 관리자
 // 금액 열람 권한 — 관리자와 별개 개념. 명단에 없으면 금액이 어디에도 안 보이는 게 의도된 동작.
-const AMOUNT_VIEWERS=['clara','dennis','bibian'];
+const AMOUNT_VIEWERS=['clara','dennis','bibian','otae']; // 금액 열람 허용 명단 — 이후 새 스텝은 여기 추가하지 않는 한 금액이 보이지 않는 최소권한 (2026-09-28 클라라)
 function canViewAmount(){return AMOUNT_VIEWERS.includes(String(currentUser||'').toLowerCase());}
 let unreadLogs=0;
 
