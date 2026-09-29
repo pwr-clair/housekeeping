@@ -1401,6 +1401,24 @@ function renderCheckinOrder(){
 
 function renderRooms(){
   renderCheckinOrder();
+  // 멀티룸 묶음 ETA 통일 — 같은 원본 bookingId의 오늘 입실 예약들은 가장 이른 시간 하나로 통일 표시
+  // (묶음인데 방마다 IN 시간이 다르게 뜨거나 한쪽만 뜨던 것, 입실 스트립의 묶음 시각과도 일치. 2026-09-29 클라라)
+  const _grpEta={};
+  {
+    const _t=todayStr();
+    for(const n2 of roomNums()){
+      const r2=rooms[n2];if(!r2)continue;
+      [r2.currentBooking,...getNextBookings(r2)].forEach(b=>{
+        if(!b||!b.guest||b.checkinDate!==_t)return;
+        const tv=(b.checkinTime&&/^\d{1,2}:\d{2}/.test(b.checkinTime))?b.checkinTime:'';
+        if(!tv)return;
+        const bid=String(b.bookingId||'');
+        const k=bid?bid.split('_')[0]:String(b.guestEmail||b.guest||n2).toLowerCase();
+        const m=(+tv.split(':')[0])*60+(+tv.split(':')[1]);
+        if(!(k in _grpEta)||m<_grpEta[k].min)_grpEta[k]={min:m,str:tv};
+      });
+    }
+  }
   const groups=floorGroups();
   // 층칸(.floor-section) 동적 생성: 현재 존재하는 층만, 순서대로
   const host=document.getElementById('floor-sections');
@@ -1483,7 +1501,12 @@ function renderRooms(){
       const today3=todayStr();
       const showTimeBadge=['need_clean','cleaning','clean_done'].includes(cls);
       const todayBk=showTimeBadge?[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===today3):null;
-      const ciTime=todayBk&&todayBk.checkinTime?todayBk.checkinTime:'';
+      let ciTime=todayBk&&todayBk.checkinTime?todayBk.checkinTime:'';
+      if(todayBk){ // 묶음 통일 시각 우선 (같은 예약의 다른 방에만 시간이 있어도 이 카드에 표시)
+        const _bid=String(todayBk.bookingId||'');
+        const _gk=_bid?_bid.split('_')[0]:String(todayBk.guestEmail||todayBk.guest||num).toLowerCase();
+        if(_grpEta[_gk])ciTime=_grpEta[_gk].str;
+      }
       const timeBadge=ciTime?`<div style="position:absolute;top:4px;left:4px;font-size:8px;background:#c0392b;color:#fff;border-radius:3px;padding:1px 4px;font-weight:700;">IN ${ciTime}</div>`:'';
       const badges=[];
       if(isNextToday)badges.push({lbl:currentLang==='ko'?'오늘':'Today',style:'background:#FDEEF3;color:#9C2448;border:0.5px solid #F5B7CC;'});
@@ -3141,6 +3164,20 @@ function renderAssignCalendar(){
   for(const num of roomNums()){
     const r=rooms[num];if(!r)continue;
     const books=[r.currentBooking,...getNextBookings(r)].filter(b=>b&&b.guest&&b.checkinDate&&b.checkoutDate);
+    // 지나간 예약 보강: 방 슬롯은 체크아웃·턴오버 후 비워지므로, 원본(pendingBookings)에서 이 방에 배정됐던
+    // 이미 시작된 예약을 합쳐 어제 칸에도 표시. 미래 예약은 슬롯이 정본이라 합치지 않음(중복·오탐 방지).
+    {
+      const _k1=new Set(books.map(b=>gKey(b)));
+      const _k2=new Set(books.map(b=>(b.guest||'')+'|'+(b.checkinDate||'')));
+      for(const b of Object.values(pendingBookings||{})){
+        if(!b||b.cancelled||!b.guest||!b.checkinDate||!b.checkoutDate)continue;
+        if(String(b.assignedRoom)!==String(num))continue;
+        if(b.checkinDate>today)continue;
+        if(b.checkoutDate<days[0].ymd)continue;
+        if(_k1.has(gKey(b))||_k2.has((b.guest||'')+'|'+(b.checkinDate||'')))continue;
+        books.push(b);
+      }
+    }
     // 중복배정 감지: 같은 방 기간 겹침 (체크아웃일=체크인일은 정상 턴오버)
     const confDates=new Set();
     for(let a=0;a<books.length;a++)for(let b2=a+1;b2<books.length;b2++){
