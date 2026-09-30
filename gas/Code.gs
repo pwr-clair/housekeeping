@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-21d 유령카드 삭제함수';
+var CODE_VER = '2026-09-30a 방문고지 빈제목 가드 재제거';
 function codeVersion(){
   var dep='(웹앱 미배포)';
   try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}
@@ -299,14 +299,16 @@ function sendStageMail(stage,bk,room,force,tplKey){
   // 템플릿 매칭(2026-07-25 클라라): 자동발송이 mailConfig/auto/{stage}.template로 다른 템플릿을 지정할 수 있다.
   // 지정 템플릿이 삭제·부재면 단계 기본 템플릿으로 폴백. dedupe(logKey)는 템플릿 무관하게 단계 기준 유지.
   const tpl=fbGet('app/mailTemplates/'+(tplKey||stage))||(tplKey?fbGet('app/mailTemplates/'+stage):null);
-  if(!tpl||!tpl.subject)return false;
+  // ★ 제목(subject) 없다고 발송을 포기하지 말 것 — s5 템플릿은 subject가 null이라 이 가드가 있으면
+  // 방문고지가 조용히 전멸한다. 07-28 브랜치에서 제거했던 가드가 main 재작업으로 되살아났던 회귀(2026-09-30 재수리).
+  if(!tpl)return false;
   // room: 문자열(단일) 또는 배열(멀티룸 몰아보내기 — 같은 게스트 방 여러 개를 1통에)
   const roomList=Array.isArray(room)?room.map(String):(room?[String(room)]:[]);
   const rData={};roomList.forEach(n=>{rData[n]=fbGet('app/rooms/'+n)||{};});
   const fill=s=>fillTpl_(s,bk,roomList,rData);
   try{
     var __to = guestRecipients_(bk);   // 특이사항 추가 이메일 포함
-    var __subject = fill(tpl.subject);
+    var __subject = fill(tpl.subject||'') || 'Paradise Walk Residence'; // 제목 폴백 — OTA 릴레이가 무제목 메일을 떨어뜨리는 것 방지
     var __ko = (tpl.bodyKo && String(tpl.bodyKo).trim()) ? fill(tpl.bodyKo) : '';
     var __en = (tpl.bodyEn && String(tpl.bodyEn).trim()) ? fill(tpl.bodyEn) : '';
     if(__ko || __en){
