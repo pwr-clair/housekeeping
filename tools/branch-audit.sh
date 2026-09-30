@@ -24,12 +24,6 @@ else
   echo "  (재구현돼서 커밋만 없는 경우도 있으니 커밋 존재 여부가 아니라 '코드 내용'으로 판단)"
 fi
 
-# ── 알려진 회귀 시그니처 검사 (커밋 여부와 무관하게 '코드 내용'으로 잡는다) ──
+# ── 회귀 전수 검사 — 사고 이력 기반, 커밋이 아니라 '코드 내용'으로 잡는다 ──
 echo
-if grep -q "!tpl *|| *!tpl\.subject" gas/Code.gs 2>/dev/null; then
-  echo "★★ 회귀 감지: gas/Code.gs에 빈 제목 가드(!tpl.subject)가 다시 들어있다!"
-  echo "   s5(방문고지) 템플릿은 subject가 null이라 이 가드가 있으면 방문고지가 조용히 전멸한다."
-  echo "   (07-28 수리 → 08-01 재발 → 09-30 재수리된 3회차 회귀. 이대로 배포 금지 — 가드부터 제거할 것)"
-else
-  echo "✅ 회귀 시그니처 없음 (s5 빈 제목 가드)"
-fi
+sh "$(dirname "$0")/regression-check.sh" || exit 1
