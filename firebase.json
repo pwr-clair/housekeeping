@@ -1,12 +1,17 @@
 {
   "hosting": {
     "public": "site",
-    "ignore": ["**/.*"],
+    "ignore": [
+      "**/.*"
+    ],
     "headers": [
       {
-        "source": "**/*.html",
+        "source": "**",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
         ]
       }
     ]
