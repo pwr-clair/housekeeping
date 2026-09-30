@@ -62,6 +62,14 @@ if grep -q 'autoSend/lastRun' gas/Code.gs; then ok "자동발송 도장(lastRun)
 else bad "gas/Code.gs 자동발송이 도장(autoSend/lastRun) 방식이 아니다 — 10분 창 방식이면 트리거 밀림에 그날 발송이 통째로 날아간다 (07-29 사고 재발)"; fi
 
 echo
+
+# [11] firebase.json public 경로 (사고 2026-09-30 — 레포 비공개화로 앱 20분 다운, 이전 준비 중)
+if [ -f firebase.json ]; then
+  if grep -qE '"public"[[:space:]]*:[[:space:]]*"\.?"' firebase.json; then
+    bad "firebase.json의 public이 레포 루트다 — 배포하면 CLAUDE.md·gas/Code.gs·tools/가 통째로 웹에 공개된다. \"site\"로 되돌릴 것"
+  else ok "firebase.json public=site (루트 유출 없음)"; fi
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ 회귀 검사 전 항목 통과 (${FAIL} 실패)"
 else
