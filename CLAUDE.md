@@ -85,13 +85,13 @@ RTDB는 **이미 `auth != null`로 잠겨 있다.** 비로그인 접근은 전�
 - GAS 프로젝트명: PWR-HK-Engine (구 ParadiseWalk-CS, 2026-07-04 개명)
 - 진입점: `doPost` = SIRVOY webhook 수신 → 예약 레코드 생성/수정(위 키 규칙 적용).
 - Firebase 접근: `fbGet / fbSet / fbUpdate / fbDelete` 4함수만 사용 (auth 자동 부착).
-- 스케줄 트리거: 5분 주기 `masterTick`(s2/s3/s4/s5/s6 발송 타이밍 + `syncAmounts` 금액 동기화 포함), 일일 `t1100 / t1159 / t1200`, 매시간 `autoCheckinTick`.
+- 스케줄 트리거: 5분 주기 `masterTick`(s2/s3/s4/s5/s6 발송 타이밍 + `syncAmounts` 금액 동기화 포함), 일일 `t1100 / t1159 / t1200`. **`autoCheckinTick`은 2026-09-18 클라라 지시로 폐지**(함수 본체 비움, `setupTriggers()`에서 제외 — 에디터 트리거 목록에는 아직 남아 있으나 no-op).
   - 자동발송 시각·템플릿은 운영자가 발송탭에서 조정: `app/mailConfig/auto/{stage}` = `{time:'HH:MM', template:'custom_*'}` (2026-07-25). 미설정이면 코드 기본 시각(s2 07:00 / s5 11:05 / s6 12:30 / s4 21:00)·단계 기본 템플릿. on/off는 기존 `app/mailConfig/stages`. s3(입실)은 체크인 시각 연동이라 이 설정 대상 아님.
-  - `autoCheckinTick`: **21:00 이후**(코드상 `if(min<1260)return;` — 하한만 있고 상한 가드는 없음) **+ "오늘 체크인" 날짜 조건**이 맞는 객실 중, 입실안내 발송완료된 `clean_done` 객실을 `checkin`으로 전환. (자정 이후엔 날짜 조건이 자연히 안 맞아 결과적으로 안 돈다 — 상한 가드가 있는 게 아니다.)
+  - `autoCheckinTick`(폐지): 예전엔 21:00 이후 매시간, 오늘 체크인 + 입실안내 발송완료된 `clean_done` 객실을 `checkin`으로 자동 전환했다. 사람이 객실 상태를 확인하기 전에 전부 '입실중'이 돼버려 폐지. 되돌리기는 `revertAutoCheckin(date)`. **이 폐지는 옆 브랜치에만 있어 main 전문 배포 때마다 3번 되살아났다 — 되살리지 말 것.**
 - **GAS 수정 후에는 반드시 "배포 관리 → 새 버전 → 배포"를 해야 반영된다.** `doGet/doPost`는 *배포된 버전*이 돌기 때문에, 코드만 고치고 배포 안 하면 "고쳤는데 왜 그대로지?"로 시간을 날린다. 단, **트리거 함수와 Firebase 템플릿 변경은 배포와 무관**하게 즉시 반영된다.
 - **GAS 정본 버전관리 (2026-07-14 시작): HK GAS 소스 = 이 레포 `gas/Code.gs`.** 수정은 레포에서 하고, 클라라에게는 raw URL 한 줄로 전달: `https://raw.githubusercontent.com/pwr-clair/housekeeping/main/gas/Code.gs`
 - **클라라 복붙 반영물 전달 규칙 (2026-07-14 클라라 지시)**: 복붙 반영해야 하는 코드·텍스트는 ①채팅에 바로 복붙 가능하게 주거나 ②정확한 원클릭 URL만 줄 것. "레포 가서 파일 열고 복사해서…" 식 다단계 안내 금지. 배포 절차는 클라라가 숙지 — "배포까지 하세요" 한 줄이면 충분.
-- **GAS 코드 전문을 줄 때는 GAS 에디터 링크를 반드시 세트로 같이 줄 것 (2026-08-25 클라라 지시).** 붙여넣을 곳 없이 코드만 주지 말 것. 에디터 진입: https://script.google.com/home/my → PWR-HK-Engine. (클라라가 프로젝트 고유 URL을 주면 그걸로 교체해 원클릭화할 것.)
+- **GAS 코드 전문을 줄 때는 GAS 에디터 링크를 반드시 세트로 같이 줄 것 (2026-08-25 클라라 지시).** 붙여넣을 곳 없이 코드만 주지 말 것. **에디터 원클릭(2026-09-30 클라라 제공): https://script.google.com/home/projects/1Has2BDgsRrsE-pfvnJbnleYo8PP3-pnymFE5zX3_IVymyz6uQp5vJAuv/edit** — script ID `1Has2BDgsRrsE-pfvnJbnleYo8PP3-pnymFE5zX3_IVymyz6uQp5vJAuv` (clasp 용).
 - **★ main 전문을 GAS에 붙여넣기 전에 `sh tools/branch-audit.sh`를 반드시 실행할 것 (2026-09-21 신설).** 원격 세션들이 각자 브랜치에 커밋하고 main에 안 올린 채 끝나는 일이 반복됐고, 그 상태에서 main 전문을 배포하면 옆 브랜치의 수정이 통째로 덮여 사라진다. 실제 사고 3건: 725dd6c(금액 자동수집 정지)·e446102(딜레이 메시지 전멸)·004e586(21시 자동입실 폐지가 되살아남). 커밋이 없다고 빠진 게 아니라 **코드 내용으로** 판단할 것 — 나중에 재구현된 경우도 있다.
 - **지금 GAS에 붙어 있는 코드 버전 확인: 에디터에서 `codeVersion` 실행.** `CODE_VER` 상수를 로그로 찍는다. 붙여넣기·재배포 여부를 추측하지 말 것. 커밋할 때 `CODE_VER`도 같이 갱신한다.
 
