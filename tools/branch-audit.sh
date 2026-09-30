@@ -8,7 +8,8 @@ set -e
 cd "$(dirname "$0")/.."
 git fetch --all -q 2>/dev/null || true
 found=0
-for b in $(git branch -r --no-merged main | grep -v HEAD); do
+# pages-notice는 옛 주소 안내 페이지 전용 고아 가지 — main과 합칠 내용이 아니다(제외)
+for b in $(git branch -r --no-merged main | grep -v HEAD | grep -v 'pages-notice'); do
   n=$(git rev-list --count "main..$b")
   [ "$n" -eq 0 ] && continue
   found=$((found+1))
