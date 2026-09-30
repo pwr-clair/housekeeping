@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paradise Walk — 주소가 바뀌었습니다</title>
+<style>
+  :root{
+    --bg:#FAF8F5; --card:#FFFFFF; --ink:#2A2724; --muted:#6B645C;
+    --line:#E8E3DC; --accent:#639922; --warn:#F59E0B;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1A1817; --card:#242120; --ink:#F0EDE8; --muted:#A39B91;
+      --line:#38332F; --accent:#8FBF4A; --warn:#F5B942;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",Roboto,sans-serif;
+    line-height:1.65; -webkit-text-size-adjust:100%;
+    display:flex; justify-content:center; padding:32px 16px 56px;
+  }
+  .wrap{width:100%; max-width:520px;}
+  .badge{
+    display:inline-block; background:var(--warn); color:#3A2A00;
+    font-size:13px; font-weight:700; padding:5px 12px; border-radius:99px; margin-bottom:18px;
+  }
+  h1{font-size:25px; line-height:1.35; margin:0 0 10px;}
+  .sub{color:var(--muted); margin:0 0 26px; font-size:15px;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:20px; margin-bottom:18px;
+  }
+  .label{font-size:12px; color:var(--muted); letter-spacing:.04em; margin-bottom:8px;}
+  .url{
+    display:block; font-size:17px; font-weight:700; color:var(--accent);
+    word-break:break-all; text-decoration:none; margin-bottom:14px;
+  }
+  .btn{
+    display:block; background:var(--accent); color:#fff; text-align:center;
+    padding:15px; border-radius:12px; text-decoration:none; font-weight:700; font-size:16px;
+  }
+  ol{margin:0; padding-left:20px;}
+  li{margin-bottom:11px;}
+  .note{
+    border-left:3px solid var(--warn); padding:12px 14px; background:var(--card);
+    border-radius:0 10px 10px 0; font-size:14.5px; margin-top:16px;
+  }
+  .en{margin-top:30px; padding-top:22px; border-top:1px solid var(--line); color:var(--muted); font-size:14px;}
+  .en strong{color:var(--ink);}
+  code{background:var(--bg); padding:2px 6px; border-radius:5px; font-size:.92em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <span class="badge">주소 변경 안내</span>
+  <h1>하우스키핑 앱이<br>새 주소로 옮겨졌습니다</h1>
+  <p class="sub">이 주소는 곧 닫힙니다. 아래 새 주소로 다시 설정해주세요.<br>아이디·비밀번호와 화면·데이터는 예전과 똑같습니다.</p>
+
+  <div class="card">
+    <div class="label">새 주소</div>
+    <a class="url" href="https://paradise-walk-residence.web.app">paradise-walk-residence.web.app</a>
+    <a class="btn" href="https://paradise-walk-residence.web.app">새 주소로 열기</a>
+  </div>
+
+  <div class="card">
+    <div class="label">홈 화면에 다시 깔아주세요</div>
+    <ol>
+      <li>위 <strong>「새 주소로 열기」</strong>를 누릅니다</li>
+      <li><strong>홈 화면에 추가</strong>합니다<br>
+        · 아이폰 — 아래 <strong>공유 버튼 (↑)</strong> → 홈 화면에 추가<br>
+        · 안드로이드 — 오른쪽 위 <strong>⋮</strong> → 홈 화면에 추가</li>
+      <li>홈 화면에 생긴 <strong>아이콘으로 앱을 열고</strong>, 거기서 로그인합니다</li>
+      <li>예전 바로가기는 지워주세요</li>
+    </ol>
+    <div class="note">
+      <strong>3번이 중요합니다.</strong> 브라우저에서 로그인하지 마시고
+      <strong>홈 화면 아이콘으로 열어서</strong> 로그인하세요.
+      그래야 다음부터 로그인 없이 바로 들어갑니다.
+    </div>
+  </div>
+
+  <div class="en">
+    <p><strong>The Housekeeping app has moved.</strong><br>
+    New address: <a class="url" style="font-size:15px" href="https://paradise-walk-residence.web.app">paradise-walk-residence.web.app</a></p>
+    <p>Open the new address, add it to your <strong>Home Screen</strong>
+    (iPhone: Share ↑ → Add to Home Screen · Android: ⋮ → Add to Home screen),
+    then <strong>open the app from that home-screen icon and log in there</strong>.
+    Logging in from the browser will not be remembered.</p>
+    <p>Your ID, password, screens and data are unchanged.</p>
+  </div>
+
+</div>
+</body>
+</html>
