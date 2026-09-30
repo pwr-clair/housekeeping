@@ -1704,6 +1704,7 @@ function renderCurrentBooking(cur){
       <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
         <button onclick="editCurrentBooking()" title="${currentLang==='ko'?'수정':'Edit'}" style="width:28px;height:28px;border-radius:50%;border:0.5px solid var(--border);background:#fff;cursor:pointer;color:var(--text2);font-size:13px;display:flex;align-items:center;justify-content:center;"><i class="ti ti-edit"></i></button>
         <button onclick="openMoveCurrentBookingModal()" title="${currentLang==='ko'?'방 이동':'Move room'}" style="width:28px;height:28px;border-radius:50%;border:0.5px solid #B5D4F4;background:#E6F1FB;cursor:pointer;color:#185FA5;font-size:13px;display:flex;align-items:center;justify-content:center;"><i class="ti ti-arrows-exchange"></i></button>
+        ${String(currentUser||'').toLowerCase()==='clara' ? `<button onclick="markNoShow()" title="${currentLang==='ko'?'노쇼 (청소 불필요·메일 중단)':'No-show (no cleaning, stop mail)'}" style="width:28px;height:28px;border-radius:50%;border:0.5px solid #E3C08A;background:#FDF4E3;cursor:pointer;color:#8A5A00;font-size:13px;display:flex;align-items:center;justify-content:center;"><i class="ti ti-user-off"></i></button>` : ''}
         <button onclick="deleteCurrentBooking()" title="${currentLang==='ko'?'삭제':'Delete'}" style="width:28px;height:28px;border-radius:50%;border:0.5px solid #F5B7CC;background:#FDEEF3;cursor:pointer;color:#c0392b;font-size:13px;display:flex;align-items:center;justify-content:center;"><i class="ti ti-trash"></i></button>
       </div>
     </div>`;
@@ -2224,9 +2225,47 @@ async function toggleCheck(room,i){
 }
 async function deleteCurrentBooking(){
   if(!confirm(t('confirm_del_cur')))return;
-  await update(ref(db,`app/rooms/${currentRoomNum}`),{currentBooking:null,status:'need_clean'});
+  // 상태 보존 (2026-09-30 클라라) — 예전엔 무조건 need_clean으로 덮어서, 청소완료된 방의
+  // 예약을 지우기만 해도 청소가 되살아났다(920호 사고). 2026-07-15 정오이동 수리와 같은 보호.
+  const r0=rooms[currentRoomNum]||{};
+  const keep=['cleaning','clean_done'].includes(r0.status);
+  await update(ref(db,`app/rooms/${currentRoomNum}`),
+    keep?{currentBooking:null}:{currentBooking:null,status:'need_clean'});
+  addChangeLog(currentRoomNum,'예약삭제');
   renderCurrentBooking(null);
 }
+
+// 노쇼 처리 (2026-09-30 클라라, clara 전용) — 안 온 손님이므로
+//  ①방 상태를 건드리지 않는다(청소 불필요, 다음날 그대로 받는다)
+//  ②발송 원본(pendingBookings)에 cancelled를 찍어 게스트 메일을 멈춘다
+//    ★이게 없으면 오지도 않은 손님에게 퇴실안내·후기요청이 계속 나간다
+//  ③변경 로그에 '노쇼'를 남긴다(조용히 안 바뀌도록)
+async function markNoShow(){
+  if(String(currentUser||'').toLowerCase()!=='clara'){alert('관리자만 사용할 수 있어요.');return;}
+  const r=rooms[currentRoomNum]||{};
+  const cur=r.currentBooking;
+  if(!cur||!cur.guest){alert('현재 예약이 없어요.');return;}
+  if(!confirm(currentLang==='ko'
+    ? `${cur.guest} 님을 노쇼 처리할까요?\n\n· 방 상태는 그대로 둡니다 (청소 불필요)\n· 이 손님에게 나가는 자동 메일을 멈춥니다\n· 예약 카드는 비워집니다`
+    : `Mark ${cur.guest} as no-show?\n\n· Room status stays unchanged (no cleaning)\n· Automated guest emails will stop\n· The booking card will be cleared`))return;
+  // 발송 원본에서 이 예약을 찾아 취소 표시 — bookingId 우선, 없으면 이름+입실일
+  try{
+    const snap=await get(ref(db,'app/pendingBookings'));
+    const pend=snap.exists()?(snap.val()||{}):{};
+    let n=0;
+    for(const k in pend){
+      const b=pend[k]; if(!b||b.cancelled===true)continue;
+      const sameId=cur.bookingId&&String(b.bookingId)===String(cur.bookingId);
+      const sameGuest=!cur.bookingId&&b.guest===cur.guest&&b.checkinDate===cur.checkinDate;
+      if(sameId||sameGuest){ await update(ref(db,`app/pendingBookings/${k}`),{cancelled:true}); n++; }
+    }
+    if(!n)console.warn('[노쇼] 발송 원본에서 해당 예약을 못 찾음 — 메일이 계속 나갈 수 있음');
+  }catch(e){ alert('메일 중단 처리에 실패했어요. 다시 시도해주세요.'); return; }
+  await update(ref(db,`app/rooms/${currentRoomNum}`),{currentBooking:null});  // status는 건드리지 않는다
+  addChangeLog(currentRoomNum,'노쇼');
+  renderCurrentBooking(null);
+}
+window.markNoShow=markNoShow;
 
 function openMoveCurrentBookingModal(){
   const r=rooms[currentRoomNum];

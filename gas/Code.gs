@@ -10,7 +10,56 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-30a 방문고지 빈제목 가드 재제거';
+var CODE_VER = '2026-09-30e 노쇼버튼·삭제상태보존';
+// ============================================================
+// 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
+// ============================================================
+// 배경: 앱의 예약 삭제(deleteCurrentBooking)가 ①객실 상태를 무조건 need_clean으로
+// 덮고 ②발송 원본(pendingBookings)은 손대지 않았다. 그래서 노쇼 예약을 지우면
+// 청소가 되살아나고, 오지도 않은 손님에게 퇴실안내·후기요청 메일이 계속 나간다.
+// 이 함수는 그렇게 이미 지워버린 건을 수습한다.
+//
+// 에디터에서 noShowFix 실행 → 기본은 '점검만'(아무것도 안 바꿈).
+// 실제 반영하려면 코드에서 noShowFix('920', null, true) 형태로 고쳐 실행.
+function noShowFix(room, date, apply, onlyKey){
+  room = String(room || '920');
+  date = date || todayKST();
+  var L = ['[noShowFix] 방 ' + room + ' / 기준일 ' + date + ' / ' + (apply ? '★실제 반영' : '점검만 (아무것도 안 바꿈)')];
+  var pend = fbGet('app/pendingBookings') || {};
+  var hit = 0;
+  for (var k in pend) {
+    var b = pend[k];
+    if (!b) continue;
+    var rn = String(b.assignedRoom || '');
+    var keyHasRoom = k.indexOf('_' + room) >= 0;
+    if (rn !== room && !keyHasRoom) continue;
+    if (b.checkinDate !== date && b.checkoutDate !== date) continue;
+    if (onlyKey && k !== onlyKey) { L.push('  · (건너뜀) ' + k + ' | ' + (b.guest || '?')); continue; }
+    hit++;
+    L.push('  · 키 ' + k + ' | ' + (b.guest || '?') + ' | 입실 ' + b.checkinDate + ' 퇴실 ' + b.checkoutDate
+         + ' | assignedRoom=' + (b.assignedRoom === undefined ? '(필드없음)' : JSON.stringify(b.assignedRoom))
+         + ' | 매칭이유=' + (rn === room ? 'assignedRoom' : '') + (keyHasRoom ? '키' : '')
+         + ' | cancelled=' + (b.cancelled === true));
+    if (apply && b.cancelled !== true) {
+      fbUpdate('app/pendingBookings/' + k, {cancelled: true});
+      L.push('      → cancelled=true 처리 (게스트 메일 중단)');
+    }
+  }
+  if (!hit) L.push('  · 그 방·그 날짜 예약이 발송 원본에 없음');
+  var rm = fbGet('app/rooms/' + room) || {};
+  L.push('  현재 객실: 상태=' + (rm.status || '?')
+       + ' / 예약카드=' + (rm.currentBooking ? (rm.currentBooking.guest || '있음') : '없음'));
+  if (apply && rm.status === 'need_clean') {
+    fbUpdate('app/rooms/' + room, {status: 'clean_done'});
+    L.push('      → 상태 need_clean → clean_done 복원 (노쇼는 청소 불필요)');
+  }
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+
+
 function codeVersion(){
   var dep='(웹앱 미배포)';
   try{ dep=ScriptApp.getService().getUrl()||dep; }catch(e){}

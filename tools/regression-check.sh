@@ -70,6 +70,19 @@ if [ -f firebase.json ]; then
   else ok "firebase.json public=site (루트 유출 없음)"; fi
 fi
 
+# [12] 예약 삭제가 객실 상태를 무조건 덮는 회귀 (사고 2026-09-30 — 920호 노쇼)
+# deleteCurrentBooking이 status:'need_clean'을 조건 없이 쓰면, 청소완료된 방의 예약을
+# 지우기만 해도 청소가 되살아난다. 2026-07-15 정오이동 수리와 같은 함정의 두 번째 사례.
+# 보호 장치(keep 가드)가 있는지를 본다 — else 분기의 need_clean은 정상이므로 그걸로 판정하면 오탐이 난다.
+if grep -q "\['cleaning','clean_done'\].includes(r0.status)" index.html; then
+  ok "예약 삭제 시 청소 상태 보존(keep 가드 있음)"
+else bad "deleteCurrentBooking에 상태 보존 가드가 없다 — 청소완료된 방의 예약을 지우기만 해도 청소가 되살아난다 (사고 2026-09-30 재발)"; fi
+
+# [13] 노쇼 처리가 발송 원본을 취소 표시하는지 (사고 2026-09-30 — 노쇼에게 메일 발송)
+if grep -q "markNoShow" index.html && grep -q "cancelled:true" index.html; then
+  ok "노쇼 처리가 발송 원본에 cancelled 표시"
+else bad "노쇼 처리가 pendingBookings에 cancelled를 안 찍는다 — 오지 않은 손님에게 퇴실안내·후기요청이 계속 나간다"; fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ 회귀 검사 전 항목 통과 (${FAIL} 실패)"
 else
