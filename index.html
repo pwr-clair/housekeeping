@@ -1127,6 +1127,14 @@ function startListeners(){
     workLogs=snap.exists()?snap.val():{};
     if(isLoggedIn)renderHistory();
   });
+  onValue(ref(db,'app/sendBlocks'),snap=>{
+    sendBlocks=snap.exists()?(snap.val()||{}):{};
+    const today=todayStr();
+    Object.entries(sendBlocks).forEach(([k,v])=>{ // 지난 날짜 차단은 자동 소멸
+      if(v&&v.date&&v.date<today){delete sendBlocks[k];set(ref(db,'app/sendBlocks/'+k),null);}
+    });
+    if(isLoggedIn){renderRooms();if(canSendMail)renderSendTab();}
+  });
   onValue(ref(db,'app/sentChecks'),snap=>{
     checkedSentSet.clear();
     const today=todayStr();
@@ -1496,7 +1504,8 @@ function renderRooms(){
       const allNext=getNextBookings(r);
       const ckId2=`${num}_${today2}`;
       const sentChecked=checkedSentSet.has(ckId2);
-      const sentBadge=sentChecked&&cls==='clean_done'?`<div style="position:absolute;top:28px;left:50%;transform:translateX(-50%);background:#F4F8F0;color:#c0392b;font-size:9px;font-weight:700;padding:2px 6px;white-space:nowrap;z-index:3;">입실안내완</div>`:'';
+      const sentBadge=sendBlocks[ckId2]?`<div style="position:absolute;top:28px;left:50%;transform:translateX(-50%);background:#EEF0F2;color:#6E6B67;font-size:9px;font-weight:700;padding:2px 6px;white-space:nowrap;z-index:3;">입실안내 차단</div>`
+        :(sentChecked&&cls==='clean_done'?`<div style="position:absolute;top:28px;left:50%;transform:translateX(-50%);background:#F4F8F0;color:#c0392b;font-size:9px;font-weight:700;padding:2px 6px;white-space:nowrap;z-index:3;">입실안내완</div>`:'');
       // 체크인/아웃 시간 배지 - 청소필요/청소중 상태면 숨김
       const today3=todayStr();
       const showTimeBadge=['need_clean','cleaning','clean_done'].includes(cls);
@@ -2408,6 +2417,41 @@ window.openCounterModal=openCounterModal;
 
 let upcomingTabMode='upcoming';
 const checkedSentSet=new Set();
+// 입실안내 발송 차단 (연장·연박 예약용, 2026-09-30 클라라): 발송탭 입실 버튼 3연타로 토글.
+// 차단 시 app/sentChecks/{방}_{날짜}=오늘 마크를 같이 심는다 — GAS(findCheckinDue·latePrepTick·sendEligible)가
+// 이 마크를 보고 건너뛰므로 GAS 코드 수정 없이 자동·수동 발송이 전부 막힌다. sendBlocks는 UI 구분용(차단⛔ vs 발송완료초록).
+let sendBlocks={};
+let _cinTap={num:null,cnt:0,t:0,timer:null};
+function tapCheckin(num,resend){
+  const now=Date.now();
+  if(_cinTap.num===num&&now-_cinTap.t<600)_cinTap.cnt++;else _cinTap.cnt=1;
+  _cinTap.num=num;_cinTap.t=now;
+  clearTimeout(_cinTap.timer);
+  const key=num+'_'+todayStr();
+  if(_cinTap.cnt>=3){
+    _cinTap.cnt=0;
+    if(sendBlocks[key]){
+      set(ref(db,'app/sendBlocks/'+key),null);
+      set(ref(db,'app/sentChecks/'+key),null);
+      alert(num+'호 입실안내 차단 해제 — 다시 발송할 수 있어요.');
+    }else{
+      set(ref(db,'app/sendBlocks/'+key),{date:todayStr(),by:currentUser||'',time:nowTime()});
+      set(ref(db,'app/sentChecks/'+key),todayStr());
+      alert(num+'호 오늘 입실안내 발송 차단 완료.\n(연장 예약 등) 자동발송·수동발송 모두 안 나갑니다.\n\n해제: 입실 버튼을 다시 세 번 연달아 터치.');
+    }
+    return;
+  }
+  _cinTap.timer=setTimeout(()=>{
+    if(_cinTap.num!==num)return;
+    _cinTap.cnt=0;
+    if(sendBlocks[key]){
+      alert(num+'호는 오늘 입실안내가 차단돼 있어요 (연장 예약 등).\n해제하려면 입실 버튼을 세 번 연달아 터치하세요.');
+      return;
+    }
+    openCheckinPreview(num,!!resend);
+  },430);
+}
+window.tapCheckin=tapCheckin;
 
 async function toggleSentCheck(id,el){
   if(checkedSentSet.has(id)){
@@ -3498,9 +3542,11 @@ function renderSendTab(){
     let lblCheckin;
     if(isToday&&bk.guestEmail){
       const cinBase='height:22px;box-sizing:border-box;padding:0 7px;font-size:9px;border-radius:5px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;';
-      lblCheckin=isSent
-        ? '<span onclick="openCheckinPreview(\''+num+'\',true)" style="'+cinBase+'background:'+I+';color:#fff;cursor:pointer;" title="발송됨 — 클릭 시 재발송">입실</span>'
-        : '<span onclick="openCheckinPreview(\''+num+'\')" style="'+cinBase+'border:0.5px solid #185FA5;color:#042C53;background:#fff;cursor:pointer;" title="클릭하면 지금 발송">입실</span>';
+      if(sendBlocks[sentKey]){ // 차단 상태(연장 예약 등) — 3연타로 해제
+        lblCheckin='<span onclick="tapCheckin(\''+num+'\')" style="'+cinBase+'background:#AAB0B8;color:#fff;cursor:pointer;" title="입실안내 발송 차단됨 — 세 번 연달아 터치하면 해제">입실⛔</span>';
+      } else lblCheckin=isSent
+        ? '<span onclick="tapCheckin(\''+num+'\',true)" style="'+cinBase+'background:'+I+';color:#fff;cursor:pointer;" title="발송됨 — 클릭 시 재발송 · 3연타=발송 차단">입실</span>'
+        : '<span onclick="tapCheckin(\''+num+'\')" style="'+cinBase+'border:0.5px solid #185FA5;color:#042C53;background:#fff;cursor:pointer;" title="클릭하면 지금 발송 · 3연타=발송 차단">입실</span>';
     } else {
       lblCheckin=stageLabel('입실',isSent,'',I,'내일 발송 가능');
     }
