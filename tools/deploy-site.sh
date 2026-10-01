@@ -32,3 +32,5 @@ echo "  site/ 내용: $extra"
 echo
 echo "── Firebase 배포 ──"
 npx firebase-tools deploy --only hosting
+
+# (자동배포 동작 확인 2026-10-01)
