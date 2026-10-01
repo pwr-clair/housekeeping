@@ -903,7 +903,16 @@ async function freshMoveSrc(srcNum,bk){
       +'화면이 낡은 상태예요. 새로고침 후 다시 시도해주세요.');
     return null;
   }
-  return {tgtOf:n=>R[n]||{},inCur,nexts,key};
+  // tgtNexts = 대상 방 예정목록에서 "이 예약"을 뺀 것. 이동이 두 번 겹쳐 돌 때(확인창 두 번 → 1230·1236 Silvertooth 복제, 2026-09-30)
+  // 두 번째 이동이 이미 옮겨진 예약을 또 붙이지 못하게 한다. 대상에 끼울 때는 반드시 이걸 쓴다.
+  return {tgtOf:n=>R[n]||{},tgtNexts:n=>getNextBookings(R[n]).filter(b=>gKey(b)!==key),inCur,nexts,key};
+}
+// 이동 잠금(2026-09-30): 드롭·탭이 겹쳐 같은 예약의 이동이 동시에 두 번 돌면 둘 다 "서버 최신본"을 읽은 시점이
+// 첫 쓰기 전이라 freshMoveSrc 검사를 통과하고, 대상에 두 번 붙는다(복제). 한 번에 한 이동만 돌게 막는다.
+let _moveBusy=false;
+function moveLock(){
+  if(_moveBusy){alert('앞선 이동을 처리 중이에요 — 잠시 후 다시 해주세요.');return false;}
+  _moveBusy=true;return true;
 }
 // 이 예약의 "지금" 금액: 원본(sv.amount) 우선 → 수기(amountManual) 폴백 → 없으면 null
 function amountOf(booking, roomNum){
@@ -1930,7 +1939,10 @@ async function deleteNextBookingAt(i){
   // 엉뚱한 예약이 지워지거나 그 사이 들어온 예약이 되살아나는 것 방지(2026-08-17)
   const F=await freshMoveSrc(currentRoomNum,bk);
   if(!F)return;
-  const arr=F.nexts.filter(b=>gKey(b)!==F.key);
+  // 같은 예약이 복제돼 두 장 있을 때 한 장만 지우려고 누른 건데 둘 다 사라지던 것 방지 — 딱 한 장만 뺀다(2026-09-30)
+  const arr=F.nexts.slice();
+  const at=arr.findIndex(b=>gKey(b)===F.key);
+  if(at>=0)arr.splice(at,1);
   await update(ref(db,`app/rooms/${currentRoomNum}`),{nextBookings:arr});
   renderNextBookings(arr);
 }
@@ -1958,17 +1970,19 @@ window.openMoveNextBookingModal=openMoveNextBookingModal;
 async function moveNextBookingToRoomAt(targetNum){
   const nxt=getNextBookings(rooms[currentRoomNum])[currentNextBookingIdx];
   if(!nxt)return;
+  if(!moveLock())return;
   let arr=null;
   try{
     const F=await freshMoveSrc(currentRoomNum,nxt);   // 화면 대신 서버 최신본 기준 (복제 방지)
     if(!F){closeModal('move-booking-modal');return;}
     arr=F.nexts.filter(b=>gKey(b)!==F.key);
-    await update(ref(db,`app/rooms/${targetNum}`),{nextBookings:sortByCheckin([...getNextBookings(F.tgtOf(targetNum)),nxt])});
+    await update(ref(db,`app/rooms/${targetNum}`),{nextBookings:sortByCheckin([...F.tgtNexts(targetNum),nxt])});
     await update(ref(db,`app/rooms/${currentRoomNum}`),{nextBookings:arr});
     const _svk=svKeyOf(nxt,currentRoomNum);   // 원본 assignedRoom 동기화 (못 찾으면 스킵)
     if(_svk)await update(ref(db,'app/pendingBookings/'+_svk),{assignedRoom:String(targetNum)});
     await verifyMoved(currentRoomNum,targetNum,nxt);
   }catch(e){alert('이동 실패: '+((e&&e.message)||e));}
+  finally{_moveBusy=false;}
   closeModal('move-booking-modal');
   if(arr)renderNextBookings(arr);
 }
@@ -2290,6 +2304,7 @@ async function moveCurrentBookingToRoom(targetNum){
   const r=rooms[currentRoomNum];
   const cur=r&&r.currentBooking;
   if(!cur)return;
+  if(!moveLock())return;
   // 중복 겹침 허용: 대상 방에 현재 예약이 있어도 삭제하지 않고 예정 목록으로 보존한다.
   // (배정탭 중복감지 ⚠️ 경고를 운영자가 보고 재조정. 2026-07-02 삭제 가드는 이 정책으로 대체.)
   try{
@@ -2297,7 +2312,7 @@ async function moveCurrentBookingToRoom(targetNum){
     if(!F){closeModal('move-booking-modal');return;}
     const tgt=F.tgtOf(targetNum);
     if(tgt.currentBooking&&tgt.currentBooking.guest){
-      const targetArr=sortByCheckin([...getNextBookings(tgt),tgt.currentBooking]);
+      const targetArr=sortByCheckin([...F.tgtNexts(targetNum),tgt.currentBooking]);
       await update(ref(db,`app/rooms/${targetNum}`),{currentBooking:cur,nextBookings:targetArr});
     }else{
       await update(ref(db,`app/rooms/${targetNum}`),{currentBooking:cur});
@@ -2307,6 +2322,7 @@ async function moveCurrentBookingToRoom(targetNum){
     if(_svk)await update(ref(db,'app/pendingBookings/'+_svk),{assignedRoom:String(targetNum)});
     await verifyMoved(currentRoomNum,targetNum,cur);
   }catch(e){alert('이동 실패: '+((e&&e.message)||e));}
+  finally{_moveBusy=false;}
   closeModal('move-booking-modal');
   renderCurrentBooking(null);
 }
@@ -2535,6 +2551,36 @@ window.markWa=markWa;
 // 키 = GAS waMirror의 mailLogs 키와 동일 규칙(bookingId sanitize, 방 fallback은 room_방_날짜).
 const waMirrorKey=(bid,num)=>safeBid(bid||('room_'+num+'_'+todayStr()))+'_waMirror';
 let waMirrorCtx=null;
+// 영문 시각 표기: '23:00'→'11 PM', '15:30'→'3:30 PM'
+function fmtTimeEn(t){
+  if(!t)return '';
+  const m=String(t).match(/^(\d{1,2}):(\d{2})/);if(!m)return String(t);
+  let h=+m[1];const min=m[2];
+  const ap=h<12?'AM':'PM';let h12=h%12;if(h12===0)h12=12;
+  return h12+(min!=='00'?':'+min:'')+' '+ap;
+}
+// 방·예약ID로 화면 rooms에서 그 예약을 찾는다(현재예약 → 예정목록 순). 없으면 그 방의 오늘 체크인 예약.
+function waBookingOf(bid,num){
+  const r=rooms[num];if(!r)return null;
+  const want=safeBid(bid||'');
+  const all=[r.currentBooking,...getNextBookings(r)].filter(b=>b&&b.guest);
+  if(want){const hit=all.find(b=>safeBid(b.bookingId||'')===want);if(hit)return hit;}
+  return all.find(b=>b.checkinDate===todayStr())||null;
+}
+// OTA 미러 본문에 ETA 자동 삽입(2026-10-01 클라라): 매일 아침 "We have your ETA noted as 11 PM"의 시각을 객실 옆 ⏰시각 보고
+// 손으로 고치던 것. 예약의 checkinTime이 있으면 그 시각으로 바꿔 넣고, 없으면 그 괄호 문장을 통째로 뺀다.
+// 템플릿에 {ETA} 자리표시자를 써도 같은 시각으로 치환된다.
+function applyWaEta(body,bk){
+  const t=bk&&bk.checkinTime?fmtTimeEn(bk.checkinTime):'';
+  if(t){
+    body=body.replace(/\{ETA\}/g,t);
+    body=body.replace(/(ETA noted as )[^—)\n]*?(?=\s*(?:—|\)))/,'$1'+t);
+  }else{
+    body=body.replace(/\s*\(We have your ETA noted as[^)]*\)/,'');
+    body=body.replace(/\{ETA\}/g,'');
+  }
+  return body;
+}
 function openWaMirror(lang,bid,num){
   const fallback=WA_FALLBACK[lang]||WA_FALLBACK.en;
   const alreadySent=!!mailLogs[waMirrorKey(bid,num)];
@@ -2542,7 +2588,7 @@ function openWaMirror(lang,bid,num){
   document.getElementById('wam-title').textContent='OTA 채팅(이메일) 안내 발송'+(num?' — '+num+'호':'');
   document.getElementById('wam-warn').style.display=alreadySent?'block':'none';
   document.getElementById('wam-body-label').textContent=lang==='ko'?'본문 (한국어)':'본문 (English)';
-  document.getElementById('wam-body').value=(waMessages&&waMessages[lang])||fallback;
+  document.getElementById('wam-body').value=applyWaEta((waMessages&&waMessages[lang])||fallback,waBookingOf(bid,num));
   document.getElementById('wa-mirror-modal').classList.add('open');
 }
 window.openWaMirror=openWaMirror;
@@ -3413,7 +3459,9 @@ async function moveGridBooking(srcNum,bid,tgtNum){
   if(src.currentBooking&&src.currentBooking.guest&&gKey(src.currentBooking)===bid){bk=src.currentBooking;fromCur=true;}
   else bk=getNextBookings(src).find(b=>b&&gKey(b)===bid)||null;
   if(!bk){alert(currentLang==='ko'?'예약을 찾지 못했어요 — 새로고침 후 다시 시도해주세요':'Booking not found — refresh and retry');return;}
+  if(_moveBusy){alert('앞선 이동을 처리 중이에요 — 잠시 후 다시 해주세요.');return;}   // 확인창 뜨기 전에 막는다 (두 번째 확인창 자체가 안 뜨게)
   if(!confirm(bk.guest+' ('+String(bk.checkinDate).slice(5)+'~'+String(bk.checkoutDate).slice(5)+')\n'+srcNum+(currentLang==='ko'?'호 → ':' → ')+tgtNum+(currentLang==='ko'?'호로 이동할까요?':'?')))return;
+  if(!moveLock())return;
   const today=todayStr();
   try{
     const F=await freshMoveSrc(srcNum,bk);   // 화면 대신 서버 최신본 기준 (복제 방지)
@@ -3423,7 +3471,7 @@ async function moveGridBooking(srcNum,bid,tgtNum){
     if(bk.checkinDate<=today&&today<bk.checkoutDate&&!(tgt2.currentBooking&&tgt2.currentBooking.guest)){
       await update(ref(db,'app/rooms/'+tgtNum),{currentBooking:bk});
     }else{
-      await update(ref(db,'app/rooms/'+tgtNum),{nextBookings:sortByCheckin([...getNextBookings(tgt2),bk])});
+      await update(ref(db,'app/rooms/'+tgtNum),{nextBookings:sortByCheckin([...F.tgtNexts(tgtNum),bk])});
     }
     if(F.inCur)await update(ref(db,'app/rooms/'+srcNum),{currentBooking:null});
     else await update(ref(db,'app/rooms/'+srcNum),{nextBookings:F.nexts.filter(b=>gKey(b)!==F.key)});
@@ -3431,6 +3479,7 @@ async function moveGridBooking(srcNum,bid,tgtNum){
     if(_svk)await update(ref(db,'app/pendingBookings/'+_svk),{assignedRoom:String(tgtNum)});
     await verifyMoved(srcNum,tgtNum,bk);
   }catch(e){alert('이동 실패: '+((e&&e.message)||e));}
+  finally{_moveBusy=false;}
 }
 
 function renderSendTab(){
