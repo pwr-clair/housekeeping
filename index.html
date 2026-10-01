@@ -3375,6 +3375,22 @@ function renderAssignCalendar(){
 }
 
 // ── 주간표 인터랙션: 짧은 탭=금액 표시 / 길게(0.45초)=드래그로 방 이동 ──
+// 게스트에게 실제로 닿는 주소인지 (2026-10-01 사고 — 633호 cs_suppliers@agoda.com)
+// GAS의 badGuestMailReason_와 같은 규칙. 둘 중 하나만 고치면 어긋나므로 같이 고칠 것.
+const GUEST_MAIL_DOMAIN={agoda:/@agoda-messaging\.com$/i,booking:/@guest\.booking\.com$/i};
+const NEVER_GUEST=/(^|[._-])(cs[._-]?suppliers?|supplier|support|noreply|no-reply|donotreply|info|admin|billing)@/i;
+function badGuestMailReason(email,source){
+  const e=String(email||'').trim();
+  if(!e)return '이메일 없음';
+  if(!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(e))return '형식이 이메일이 아님';
+  if(NEVER_GUEST.test(e))return '게스트용이 아닌 공용 주소';
+  const src=String(source||'').toLowerCase();
+  for(const k in GUEST_MAIL_DOMAIN){
+    if(src.indexOf(k)<0)continue;
+    if(!GUEST_MAIL_DOMAIN[k].test(e))return k+' 예약인데 게스트 릴레이 주소가 아님';
+  }
+  return '';
+}
 function gKey(b){return safeBid(b.bookingId||'')||((b.guest||'')+'|'+(b.checkinDate||''));}
 let _gd=null,_gdHl=null;
 window._gridDragging=false;
@@ -3535,7 +3551,10 @@ function renderSendTab(){
         +'<span style="font-size:13px;font-weight:700;">'+b.guest+amtHtml+'</span>'
         +'<span style="font-size:10px;font-weight:600;color:var(--text2);">'+srcLabel(b.source)+'</span></div>'
         +'<div style="font-size:11px;color:var(--text2);margin-bottom:2px;">'+(b.checkinDate||'?')+' → '+(b.checkoutDate||'?')+(b.eta?' | ETA '+b.eta:'')+'</div>'
-        +'<div style="font-size:10px;color:'+(b.guestEmail?'var(--text3)':'#C0392B')+';margin-bottom:8px;">'+(b.guestEmail?'📧 '+b.guestEmail:'⚠️ 이메일 없음 — 수기 입력 필요')+'</div>'
+        +(()=>{const _why=badGuestMailReason(b.guestEmail,b.source);
+          return '<div style="font-size:10px;color:'+(_why?'#C0392B':'var(--text3)')+';margin-bottom:8px;">'
+            +(_why?('⚠️ '+_why+(b.guestEmail?' ('+b.guestEmail+')':'')+' — 게스트에게 안 닿습니다. OTA 채팅창에서 직접 보내세요')
+                 :('📧 '+b.guestEmail))+'</div>';})()
         +(b.notes?'<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">📝 '+b.notes+'</div>':'')
         +'<div style="display:flex;gap:6px;"><select id="assign-'+key+'" style="flex:1;padding:6px;font-size:12px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;"><option value="">객실 선택...</option>'+opts+'</select>'
         +'<button onclick="assignPending(\''+key+'\')" style="padding:6px 14px;border:none;border-radius:var(--radius-sm);background:#042C53;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">배정</button></div>'

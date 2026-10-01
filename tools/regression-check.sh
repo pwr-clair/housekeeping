@@ -83,6 +83,21 @@ if grep -q "markNoShow" index.html && grep -q "cancelled:true" index.html; then
   ok "노쇼 처리가 발송 원본에 cancelled 표시"
 else bad "노쇼 처리가 pendingBookings에 cancelled를 안 찍는다 — 오지 않은 손님에게 퇴실안내·후기요청이 계속 나간다"; fi
 
+# [14] 취소 웹훅이 객실 배정까지 반영하는지 (사고 2026-10-01 — 취소분이 자리를 차지)
+if grep -q "removeBookingFromRooms_" gas/Code.gs; then
+  ok "취소 시 객실 배정 자동 제거"
+else bad "취소 웹훅이 pendingBookings에만 도장을 찍고 객실은 안 건드린다 — 없어진 예약이 자리를 차지한다 (사고 2026-10-01 재발)"; fi
+
+# [15] 게스트에게 안 닿는 주소를 발송 대상에서 거르는지 (사고 2026-10-01 — 633호 cs_suppliers@agoda.com)
+if grep -q "badGuestMailReason_" gas/Code.gs && grep -q "badGuestMailReason" index.html; then
+  ok "비게스트 주소 차단(GAS·프론트 양쪽)"
+else bad "비게스트 주소 판별이 GAS나 프론트에서 빠졌다 — 발송이 '성공'으로 기록되는데 게스트는 못 받는다 (사고 2026-10-01 재발)"; fi
+
+# [16] 취소 반영이 청소 상태를 건드리지 않는지 (920호 사고 교훈)
+if grep -q "fbUpdate('app/rooms/' + num, upd);   // status는 포함하지 않는다" gas/Code.gs; then
+  ok "취소 반영이 청소 상태를 보존"
+else bad "removeBookingFromRooms_가 status를 함께 쓰고 있을 수 있다 — 예약 제거로 청소가 되살아난다 (920호 사고 재발)"; fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ 회귀 검사 전 항목 통과 (${FAIL} 실패)"
 else

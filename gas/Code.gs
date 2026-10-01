@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-01j 진단함수 정리';
+var CODE_VER = '2026-10-01l 취소 자동반영';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -414,13 +414,29 @@ function checkRoomSend(num){
 // 게스트 메일 주소 점검 (읽기 전용) — 게스트에게 안 닿는 주소를 가려낸다.
 // 2026-10-01 사고: 633호 Marion, Lery의 주소가 cs_suppliers@agoda.com(아고다 공급사 지원팀)이라
 // 발송은 성공 기록이 남았는데 게스트 채팅창에는 안 들어갔다. 로그만 보면 알 수 없는 조용한 실패다.
-var NON_GUEST_MAILS = ['cs_suppliers@agoda.com', 'supplier', 'noreply', 'no-reply', 'donotreply'];
-function isNonGuestMail_(e){
-  e = String(e || '').toLowerCase();
-  if (!e) return true;
-  for (var i = 0; i < NON_GUEST_MAILS.length; i++) if (e.indexOf(NON_GUEST_MAILS[i]) >= 0) return true;
-  return false;
+// 게스트에게 실제로 닿는 주소인지 판별 (2026-10-01 사고 — 633호 cs_suppliers@agoda.com)
+// OTA는 게스트마다 전용 릴레이 주소를 발급한다. 그 형태가 아니면 게스트 채팅창에 안 들어간다.
+// 발송은 "성공"으로 기록되므로 로그만 봐서는 절대 알 수 없다.
+//   Agoda        영숫자@agoda-messaging.com
+//   Booking.com  이름.숫자@guest.booking.com
+// 모르는 채널은 형태를 단정할 수 없으므로 명백한 비(非)게스트 주소만 거른다(오탐 방지).
+var GUEST_MAIL_DOMAIN = { agoda: /@agoda-messaging\.com$/i, booking: /@guest\.booking\.com$/i };
+var NEVER_GUEST = /(^|[._-])(cs[._-]?suppliers?|supplier|support|noreply|no-reply|donotreply|info|admin|billing)@/i;
+
+// 반환: '' = 정상 / 사유 문자열 = 게스트에게 안 닿음
+function badGuestMailReason_(email, source){
+  var e = String(email || '').trim();
+  if (!e) return '이메일 없음';
+  if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(e)) return '형식이 이메일이 아님';
+  if (NEVER_GUEST.test(e)) return '게스트용이 아닌 공용 주소';
+  var src = String(source || '').toLowerCase();
+  for (var k in GUEST_MAIL_DOMAIN) {
+    if (src.indexOf(k) < 0) continue;
+    if (!GUEST_MAIL_DOMAIN[k].test(e)) return k + ' 예약인데 게스트 릴레이 주소가 아님';
+  }
+  return '';
 }
+function isNonGuestMail_(e, source){ return badGuestMailReason_(e, source) !== ''; }
 function checkGuestMails(){
   var pend = fbGet('app/pendingBookings') || {};
   var today = todayKST();
@@ -428,10 +444,11 @@ function checkGuestMails(){
   for (var k in pend) {
     var b = pend[k]; if (!b || b.cancelled) continue;
     if (b.checkoutDate && b.checkoutDate < today) { past++; continue; }   // 지난 예약은 제외
-    if (isNonGuestMail_(b.guestEmail)) {
+    var why = badGuestMailReason_(b.guestEmail, b.source);
+    if (why) {
       bad.push('    ★ ' + (b.assignedRoom || '미배정') + '호 | ' + (b.guest || '?')
              + ' | 입실 ' + (b.checkinDate || '?') + ' | ' + (b.guestEmail || '(비어있음)')
-             + ' | ' + (b.source || '') + ' | key=' + k);
+             + ' | ' + (b.source || '') + '  →  ' + why + '  | key=' + k);
     } else ok++;
   }
   var L = ['[checkGuestMails] ' + today + '  (읽기 전용 — 앞으로 남은 예약만)'];
@@ -445,6 +462,47 @@ function checkGuestMails(){
   var out = L.join('\n');
   Logger.log(out);
   return out;
+}
+
+
+// 취소된 예약을 객실 배정에서 제거 (2026-10-01)
+// ★ 청소 상태는 절대 건드리지 않는다 — 예약을 지웠다고 청소를 되살리면 920호 사고(2026-09-30)가 재발한다.
+// 매칭은 bookingId 우선, 없으면 이름+입실일. 지운 사실은 변경로그에 남겨 조용히 사라지지 않게 한다.
+function removeBookingFromRooms_(bookingId, assignedRoom, guest, checkinDate){
+  var bid = String(bookingId || '');
+  var rooms = fbGet('app/rooms') || {};
+  var nums = assignedRoom ? [String(assignedRoom)] : Object.keys(rooms);
+  var hit = 0;
+  var match = function(x){
+    if (!x) return false;
+    if (bid && String(x.bookingId || '') === bid) return true;
+    if (!bid && guest && x.guest === guest && x.checkinDate === checkinDate) return true;
+    return false;
+  };
+  for (var i = 0; i < nums.length; i++) {
+    var num = nums[i], r = rooms[num]; if (!r) continue;
+    var upd = {}, what = [];
+
+    if (match(r.currentBooking)) { upd.currentBooking = null; what.push('현재예약'); }
+
+    var nx = r.nextBookings;
+    var arr = (nx instanceof Array) ? nx : (nx ? Object.keys(nx).map(function(k){ return nx[k]; }) : []);
+    arr = arr.filter(function(x){ return x; });
+    var kept = arr.filter(function(x){ return !match(x); });
+    if (kept.length !== arr.length) { upd.nextBookings = kept; what.push('예정예약 ' + (arr.length - kept.length) + '건'); }
+
+    if (!what.length) continue;
+    fbUpdate('app/rooms/' + num, upd);   // status는 포함하지 않는다 — 청소 상태 보존
+    hit++;
+    var key = 'log_' + Date.now() + '_' + num;
+    fbSet('app/changeLogs/' + key, {
+      id: key, room: num, action: '취소 반영(자동삭제: ' + what.join(', ') + ')',
+      who: 'OTA 취소', time: nowHM(), date: todayKST(), ts: Date.now()
+    });
+    Logger.log('[cancel] ' + num + '호에서 제거: ' + what.join(', ') + ' — ' + (guest || bid));
+  }
+  if (!hit) Logger.log('[cancel] 객실에 배정된 흔적 없음 — ' + (guest || bid));
+  return hit;
 }
 
 function codeVersion(){
@@ -549,7 +607,17 @@ function sendMail(to, subject, body){
 function guestRecipients_(bk){
   var main=String((bk&&bk.guestEmail)||'').trim();
   var list=[],seen={};
-  var add=function(e){e=String(e||'').trim();if(!e)return;var k=e.toLowerCase();if(seen[k])return;seen[k]=1;list.push(e);};
+  var src=(bk&&bk.source)||'';
+  var add=function(e){
+    e=String(e||'').trim(); if(!e)return;
+    var k=e.toLowerCase(); if(seen[k])return; seen[k]=1;
+    // 게스트에게 안 닿는 주소는 발송 대상에서 뺀다 (2026-10-01).
+    // 넣어두면 발송이 "성공"으로 기록되는데 게스트는 못 받아, 아무도 모르는 채 지나간다.
+    // 전부 걸러져 목록이 비면 sendStageMail이 '이메일 없음'과 똑같이 발송을 포기한다.
+    var why=badGuestMailReason_(e,src);
+    if(why){ Logger.log('[guestRecipients_] 제외 '+e+' ('+why+') — '+((bk&&bk.guest)||'?')); return; }
+    list.push(e);
+  };
   main.split(/[,;\s]+/).forEach(add);
   (String((bk&&bk.notes)||'').match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g)||[]).forEach(add);
   return list.join(',');
@@ -601,6 +669,11 @@ function doPost(e){
 
     if(b.event==='cancelled'||b.cancelled===true){
       fbUpdate('app/pendingBookings/'+targetKey,{cancelled:true});
+      // 배정된 객실에서도 뺀다 (2026-10-01 클라라). 예전엔 발송 원본에 '취소' 도장만 찍어서
+      // 메일은 멈췄지만 화면에는 그대로 남았고, 운영자가 빨간 알림을 보고 손으로 지워야 했다.
+      // 놓치면 없어진 예약이 자리를 차지한 채 새 예약을 받지 못한다(10/3 1236호 Aoi, Sasaki 건).
+      try{ removeBookingFromRooms_(prev.bookingId||b.bookingId, prev.assignedRoom, prev.guest, prev.checkinDate); }
+      catch(e){ Logger.log('[cancel] 객실 반영 실패: '+e); }
       return ContentService.createTextOutput('OK');
     }
 
