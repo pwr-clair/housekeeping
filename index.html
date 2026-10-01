@@ -2568,17 +2568,13 @@ function waBookingOf(bid,num){
   return all.find(b=>b.checkinDate===todayStr())||null;
 }
 // OTA 미러 본문에 ETA 자동 삽입(2026-10-01 클라라): 매일 아침 "We have your ETA noted as 11 PM"의 시각을 객실 옆 ⏰시각 보고
-// 손으로 고치던 것. 예약의 checkinTime이 있으면 그 시각으로 바꿔 넣고, 없으면 그 괄호 문장을 통째로 뺀다.
+// 손으로 고치던 것. 예약의 checkinTime이 있으면 그 시각, 없으면 기본 체크인 시각 3 PM(클라라 지시)으로 바꿔 넣는다.
 // 템플릿에 {ETA} 자리표시자를 써도 같은 시각으로 치환된다.
+const WA_ETA_DEFAULT='3 PM';
 function applyWaEta(body,bk){
-  const t=bk&&bk.checkinTime?fmtTimeEn(bk.checkinTime):'';
-  if(t){
-    body=body.replace(/\{ETA\}/g,t);
-    body=body.replace(/(ETA noted as )[^—)\n]*?(?=\s*(?:—|\)))/,'$1'+t);
-  }else{
-    body=body.replace(/\s*\(We have your ETA noted as[^)]*\)/,'');
-    body=body.replace(/\{ETA\}/g,'');
-  }
+  const t=(bk&&bk.checkinTime?fmtTimeEn(bk.checkinTime):'')||WA_ETA_DEFAULT;
+  body=body.replace(/\{ETA\}/g,t);
+  body=body.replace(/(ETA noted as )[^—)\n]*?(?=\s*(?:—|\)))/,'$1'+t);
   return body;
 }
 function openWaMirror(lang,bid,num){
