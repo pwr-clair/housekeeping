@@ -108,6 +108,21 @@ if grep -q "mailBlocked" gas/Code.gs && grep -q "mail-blocked-banner" index.html
   ok "메일 막힘 감지+배너"
 else bad "메일 막힘 깃발(app/autoSend/mailBlocked)이나 배너가 빠졌다 — 할당량이 바닥나도 운영자가 모른다"; fi
 
+# [19] PWA 파일이 서빙 목록에 있는지 (빠지면 알림만 조용히 죽는다 — 앱은 멀쩡해 눈치채기 어렵다)
+_serve=$(sed -n 's/^SERVE="\(.*\)"$/\1/p' tools/deploy-site.sh)
+_miss=""
+for _f in manifest.json firebase-messaging-sw.js icon-192.png icon-512.png; do
+  case " $_serve " in *" $_f "*) ;; *) _miss="$_miss $_f";; esac
+  [ -f "$_f" ] || _miss="$_miss $_f(파일없음)"
+done
+if [ -z "$_miss" ]; then ok "PWA 파일 서빙 목록 포함"
+else bad "서빙 목록(SERVE)이나 레포에서 빠진 PWA 파일:$_miss — 알림이 조용히 안 온다"; fi
+
+# [20] 서비스워커 파일명 고정 (Firebase Messaging이 루트의 이 이름을 찾는다)
+if [ -f firebase-messaging-sw.js ] && grep -q "onBackgroundMessage" firebase-messaging-sw.js; then
+  ok "서비스워커 존재+배경 수신 처리"
+else bad "firebase-messaging-sw.js가 없거나 onBackgroundMessage가 빠졌다 — 앱 꺼진 상태 알림 불가"; fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ 회귀 검사 전 항목 통과 (${FAIL} 실패)"
 else

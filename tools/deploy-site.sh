@@ -12,7 +12,9 @@
 #   logos/ 는 원본 보관용이라 서빙하지 않는다(앱이 참조하지 않음).
 # ============================================================
 cd "$(dirname "$0")/.." || exit 1
-SERVE="index.html manual.html"
+# ★ PWA 파일은 반드시 여기 있어야 한다. 빠지면 알림만 조용히 안 오고 앱은 멀쩡해서 눈치채기 어렵다.
+#   firebase-messaging-sw.js는 이름·위치(루트)가 고정이다 — Firebase Messaging이 거기서 찾는다.
+SERVE="index.html manual.html manifest.json firebase-messaging-sw.js icon-192.png icon-512.png"
 
 echo "── 배포 전 검사 ──"
 sh tools/regression-check.sh || { echo "배포 중단 — 회귀 검사 실패"; exit 1; }

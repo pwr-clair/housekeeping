@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Housekeeping">
@@ -744,6 +745,7 @@ input,select,button,textarea{font-family:inherit;}
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getDatabase, ref, onValue, set, update, get, push, remove } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getMessaging, getToken, onMessage, isSupported as msgSupported } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCHGeD4GBYeatmrsNFaMLJ7rradXnzbSE8",
@@ -1263,6 +1265,7 @@ function enterApp(user){
   if(upLbl)upLbl.textContent=canSendMail?'예약':'주간표';
   if(canSendMail)renderSendTab();
   renderNotifToggles();
+  refreshPushIfOn();
 }
 
 // Firebase 세션 상태 감지 → 로그인돼 있으면 자동 진입, 아니면 로그인 화면
@@ -2211,6 +2214,9 @@ async function applyRoomChanges(){
   await update(ref(db,`app/rooms/${currentRoomNum}`),updates);
   if(prevStatus!==newStatusKey){
     markMyChange(currentRoomNum);   // 내 기기에서 중복 알림 방지
+    // 다른 기기 푸시 요청 — GAS masterTick이 집어서 쏜다. 앱이 꺼진 사람에게도 간다.
+    try{ set(ref(db,'app/pushQueue/'+Date.now()+'_'+currentRoomNum),
+      {room:currentRoomNum,status:newStatusKey,by:currentUser||'',at:todayStr()+' '+nowTime()}); }catch(e){}
     sendNotif(currentRoomNum,newStatusKey);
     addChangeLog(currentRoomNum,newStatusKey);
     // 입실중으로 바뀌면 처리
@@ -3427,6 +3433,69 @@ function badGuestMailReason(email,source){
   return '';
 }
 
+
+// ════════════════════════════════════════════════════════════
+// 푸시 알림 (PWA) — 앱이 꺼져 있어도 받는다 (2026-10-01 클라라)
+// ────────────────────────────────────────────────────────────
+// 앞서 만든 알림은 앱이 켜져 있을 때만 동작했다(detectStatusChanges). 이건 서비스워커가
+// 받아주므로 앱을 완전히 종료해도 온다. 둘은 공존한다 — 앱이 열려 있으면 앞엣것이,
+// 꺼져 있으면 이것이 울린다(중복 방지는 tag로).
+//
+// ★ 아이폰은 '홈 화면에 추가한 앱'에서만 푸시가 허용된다. 사파리 탭에서는 등록 자체가 실패한다.
+// ★ 기기마다 주소(토큰)가 다르다. app/pushTokens/{사용자}/{토큰} 아래에 모아두고 GAS가 그리로 쏜다.
+const VAPID_PUBLIC_KEY='BOZaw4y93CjigL5aCykNOCS9GhaQBfVP_xCPxWusX7FesWfqS3aR5MQTlA3RtqCXDSeaFmNfOkLx0hY2Ta04pJ8';
+let _messaging=null, _pushToken=null;
+
+function isStandalone(){
+  try{ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone===true; }
+  catch(e){ return false; }
+}
+
+// 푸시 등록. 성공하면 토큰을 Firebase에 저장한다. 실패 사유를 사람이 읽을 수 있게 돌려준다.
+async function enablePush(){
+  if(!('serviceWorker' in navigator)) return '이 브라우저는 알림을 지원하지 않아요.';
+  if(!(await msgSupported().catch(()=>false))) return '이 브라우저는 푸시 알림을 지원하지 않아요.';
+  if(!isStandalone() && /iPhone|iPad|iPod/.test(navigator.userAgent))
+    return '아이폰은 홈 화면에 추가한 앱에서만 알림이 됩니다.\n사파리 하단 공유(↑) → 홈 화면에 추가 → 그 아이콘으로 열어주세요.';
+  if(Notification.permission!=='granted'){
+    const r=await Notification.requestPermission();
+    if(r!=='granted') return '알림이 차단되어 있어요. 설정 → 알림에서 허용해주세요.';
+  }
+  try{
+    const reg=await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    await navigator.serviceWorker.ready;
+    _messaging=_messaging||getMessaging(app);
+    const tok=await getToken(_messaging,{vapidKey:VAPID_PUBLIC_KEY,serviceWorkerRegistration:reg});
+    if(!tok) return '알림 주소를 받지 못했어요. 잠시 후 다시 시도해주세요.';
+    _pushToken=tok;
+    // 사용자별로 모은다. 같은 사람이 폰·태블릿을 쓰면 토큰이 여러 개 생긴다.
+    await set(ref(db,`app/pushTokens/${currentUser||'unknown'}/${tok.slice(0,40).replace(/[.#$\[\]\/]/g,'_')}`),
+      {token:tok, user:currentUser||'', at:todayStr()+' '+nowTime(), ua:(navigator.userAgent||'').slice(0,120)});
+    // 앱이 열려 있을 때 도착하는 푸시 — 서비스워커가 아니라 여기로 온다
+    onMessage(_messaging,(payload)=>{
+      const d=(payload&&payload.data)||{};
+      notify(d.title||'Paradise Walk', d.body||'');
+    });
+    return '';
+  }catch(e){ return '알림 등록에 실패했어요: '+((e&&e.message)||e); }
+}
+
+async function disablePush(){
+  try{
+    if(_pushToken){
+      await set(ref(db,`app/pushTokens/${currentUser||'unknown'}/${_pushToken.slice(0,40).replace(/[.#$\[\]\/]/g,'_')}`),null);
+      _pushToken=null;
+    }
+  }catch(e){}
+}
+
+// 이미 켜둔 기기는 로그인할 때마다 토큰을 갱신한다(토큰은 만료·교체될 수 있다)
+async function refreshPushIfOn(){
+  if(!notifOn() && !notifFailOn()) return;
+  if(Notification.permission!=='granted') return;
+  await enablePush();
+}
+
 // ════════════════════════════════════════════════════════════
 // 알림 (2026-10-01 클라라) — 객실 상태가 바뀌면 다른 기기에도 알린다.
 // ────────────────────────────────────────────────────────────
@@ -3454,6 +3523,13 @@ async function toggleNotif(kind){
   }
   try{ localStorage.setItem(key, now?'0':'1'); }catch(e){}
   renderNotifToggles();
+  // 켜면 푸시까지 등록 — 앱이 꺼져 있어도 받으려면 필요하다
+  if(!now){
+    const err=await enablePush();
+    if(err){ alert(err); try{ localStorage.setItem(key,'0'); }catch(e){} renderNotifToggles(); }
+  } else if(!notifOn() && !notifFailOn()){
+    await disablePush();   // 둘 다 껐을 때만 주소를 지운다
+  }
 }
 window.toggleNotif=toggleNotif;
 
