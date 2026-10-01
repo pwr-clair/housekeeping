@@ -38,15 +38,14 @@
 ```
 
 - **프론트(index.html)**: 단일 HTML 파일. Firebase를 직접 실시간 구독/쓰기. 모든 UI가 이 한 파일 안에 있다. 홈화면 아이콘(apple-touch-icon)도 base64로 이 파일에 내장돼 있어 `logos/`는 서빙 대상이 아니다(원본 보관용).
-- **★★ 앱 서빙 = Firebase Hosting. `index.html`을 고쳤으면 `sh tools/deploy-site.sh`를 돌려야 라이브에 반영된다.**
-  **커밋·push만으로는 아무 일도 일어나지 않는다.** 옛 GitHub Pages 자동반영 시절의 감각으로 커밋만 하고 끝내면,
-  코드는 고쳐졌는데 운영자 화면은 그대로여서 "고쳤는데 왜 안 돼"로 시간을 날린다.
-  - 실제 사고 2026-10-01: 폰(클라우드) 세션이 이동 복제 수리를 커밋만 하고 끝냈고, 배포가 안 된 줄 모른 채
-    운영자가 복제분을 지우다 **예약이 통째로 소실**됐다(옛 코드의 '같은 예약 전부 삭제'가 돌았다).
-  - **폰·클라우드 세션은 배포를 할 수 없다** — 배포 자격증명(`~/.config/configstore/firebase-tools.json`,
-    `~/.clasprc.json`)이 클라라 맥에만 있다. 폰에서 작업했으면 **맥에서 배포 한 번**이 반드시 뒤따라야 하고,
-    세션 끝에 그 사실을 운영자에게 알릴 것.
-  - 옛 주소 `https://pwr-clair.github.io/housekeeping/`는 이제 **"새 주소로 가세요" 안내 페이지**다
+- **★★ 앱 서빙 = Firebase Hosting. main에 push하면 `.github/workflows/deploy.yml`이 앱·GAS를 자동 배포한다
+  (2026-10-01 신설). 폰·클라우드 세션에서 커밋해도 반영된다 — 맥이 없어도 된다.**
+  - 회귀 검사를 통과해야만 배포된다. 실패하면 배포 없이 멈춘다(Actions 탭에서 확인).
+  - 수동 배포도 가능: `sh tools/deploy-site.sh`(앱) · `sh tools/deploy-gas.sh`(GAS).
+  - 사고 2026-10-01(이 자동화를 만든 이유): 폰 세션이 이동 복제 수리를 커밋만 하고 끝냈는데 당시엔
+    배포가 수동이라 반영되지 않았고, 운영자가 그 사실을 모른 채 복제분을 지우다 옛 코드의
+    '같은 예약 전부 삭제'가 돌아 **예약이 통째로 소실**됐다.
+  - 옛 주소 `https://pwr-clair.github.io/housekeeping/`는 **"새 주소로 가세요" 안내 페이지**다
     (Pages 소스 = `pages-notice` 가지). 앱이 아니다.
 - **GAS(Code.gs)**: SIRVOY webhook 수신(`doPost`), 게스트 메일 자동화, 스케줄 기반 객실 상태 전환. Firebase 접근은 `fbGet/fbSet/fbUpdate/fbDelete` 4개 함수로만 하며, 이들이 `?auth=` (DB secret in `FB_AUTH`)를 자동 부착한다.
 - **네임스페이스**: 이 repo의 GAS·프론트는 **`app/*`만 사용한다.** (`cs/*` 같은 CS 엔진 네임스페이스는 이 코드에 존재하지 않음 — 아래 §9 참고.)

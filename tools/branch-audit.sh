@@ -9,7 +9,17 @@ cd "$(dirname "$0")/.."
 git fetch --all -q 2>/dev/null || true
 found=0
 # pages-notice는 옛 주소 안내 페이지 전용 고아 가지 — main과 합칠 내용이 아니다(제외)
-for b in $(git branch -r --no-merged main | grep -v HEAD | grep -v 'pages-notice'); do
+# CI(SKIP_BRANCH_AUDIT=1)에서는 원격 브랜치를 얕게 받아 판정이 무의미하므로 건너뛴다.
+# 회귀 검사는 아래에서 그대로 돌기 때문에 배포 안전장치는 유지된다.
+if [ -n "$SKIP_BRANCH_AUDIT" ]; then
+  echo "── 브랜치 점검 건너뜀 (CI) — 회귀 검사는 그대로 실행 ──"
+  BRANCHES=""
+  found=-1
+else
+  # grep이 빈 결과면 종료코드 1 → set -e로 스크립트가 죽는다. || true 필수.
+  BRANCHES=$(git branch -r --no-merged main 2>/dev/null | grep -v HEAD | grep -v 'pages-notice' || true)
+fi
+for b in $BRANCHES; do
   n=$(git rev-list --count "main..$b")
   [ "$n" -eq 0 ] && continue
   found=$((found+1))
@@ -17,7 +27,9 @@ for b in $(git branch -r --no-merged main | grep -v HEAD | grep -v 'pages-notice
   git log --format='     %h %ad %s' --date=short "main..$b" | cut -c1-140
   echo
 done
-if [ "$found" -eq 0 ]; then
+if [ "$found" -eq -1 ]; then
+  :
+elif [ "$found" -eq 0 ]; then
   echo "✅ main에 병합 안 된 브랜치 없음 — 전문 배포해도 유실될 작업이 없다."
 else
   echo "★ 브랜치 ${found}개에 main에 없는 작업이 있다."

@@ -1,0 +1,95 @@
+# ============================================================
+# 자동 배포 (2026-10-01 신설)
+# ============================================================
+# main에 push되면 앱(Firebase Hosting)과 GAS를 자동으로 배포한다.
+#
+# 왜 필요한가: 폰·클라우드 세션은 배포 자격증명이 없어 배포를 못 한다. 그래서 수리를
+# 커밋만 하고 끝내는 일이 생겼고, 배포가 안 된 줄 모른 채 운영하다 2026-10-01에
+# 예약이 통째로 소실됐다. 이제 어디서 커밋하든 배포까지 자동으로 간다.
+#
+# ★ 회귀 검사를 통과해야만 배포한다. 실패하면 배포 없이 중단된다.
+# ★ 서빙 대상은 tools/deploy-site.sh의 SERVE 화이트리스트뿐 — 여기서 중복 정의하지 말 것.
+#   (루트를 통째로 올리면 CLAUDE.md·gas/Code.gs가 웹에 공개된다)
+#
+# 필요한 GitHub Secret 2개 (Settings → Secrets and variables → Actions):
+#   FIREBASE_TOKEN  — `npx firebase-tools login:ci` 결과 토큰
+#   CLASPRC_JSON    — 맥의 ~/.clasprc.json 파일 내용 전체
+# ============================================================
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'manual.html'
+      - 'gas/**'
+      - 'firebase.json'
+      - '.clasp.json'
+      - 'tools/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:        # 수동 실행도 가능 (Actions 탭 → Run workflow)
+
+concurrency:
+  group: deploy-main        # 연달아 push돼도 한 번에 하나만 — 배포가 겹치지 않게
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── 안전장치: 과거 사고가 되살아났는지 코드 내용으로 검사 ──
+      - name: 회귀 전수 검사
+        env:
+          SKIP_BRANCH_AUDIT: '1'      # CI는 얕은 체크아웃이라 브랜치 판정이 무의미
+        run: sh tools/branch-audit.sh
+
+      # ── 앱 (Firebase Hosting) ──
+      - name: 앱 배포
+        if: ${{ hashFiles('index.html', 'manual.html', 'firebase.json') != '' }}
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error::FIREBASE_TOKEN 시크릿이 없다. 앱 배포를 건너뛴다."
+            exit 1
+          fi
+          rm -rf site && mkdir -p site
+          # SERVE 목록은 tools/deploy-site.sh가 정본 — 여기서 읽어 쓴다(중복 정의 금지)
+          SERVE=$(sed -n 's/^SERVE="\(.*\)"$/\1/p' tools/deploy-site.sh)
+          echo "서빙 대상: $SERVE"
+          for f in $SERVE; do
+            [ -f "$f" ] || { echo "::error::$f 없음"; exit 1; }
+            cp "$f" site/
+          done
+          echo "site/ 내용: $(ls site | tr '\n' ' ')"
+          npx --yes firebase-tools deploy --only hosting --non-interactive
+
+      # ── GAS ──
+      - name: GAS 배포
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "::error::CLASPRC_JSON 시크릿이 없다. GAS 배포를 건너뛴다."
+            exit 1
+          fi
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          npx --yes @google/clasp push --force
+          # ★ 기존 배포 ID를 갱신한다. 새 배포를 만들면 웹앱 URL이 바뀌어 SIRVOY 웹훅이 끊긴다.
+          DEP=$(sed -n "s/^WEBHOOK_DEPLOY_ID='\(.*\)'$/\1/p" tools/deploy-gas.sh)
+          echo "배포 ID: $DEP"
+          npx --yes @google/clasp deploy -i "$DEP" -d "auto ${GITHUB_SHA:0:7} $(date -u +%Y-%m-%dT%H:%MZ)"
+
+      - name: 결과
+        if: always()
+        run: |
+          echo "커밋: ${GITHUB_SHA}"
+          echo "앱:   https://paradise-walk-residence.web.app"
