@@ -11,7 +11,7 @@
 
 ## 1. 시스템 개요
 인천공항 인근 무인 단기임대 "Paradise Walk Residence"의 하우스키핑 운영 대시보드. (객실 수는 고정이 아니라 화면에서 추가/삭제 가능 — §5 객실 모듈 참고.)
-- repo: `pwr-clair/housekeeping` (GitHub Pages 호스팅)
+- repo: `pwr-clair/housekeeping` · **앱 서빙 = Firebase Hosting `https://paradise-walk-residence.web.app`** (2026-09-30 이전 완료)
 - **GitHub이 단일 진실 공급원(source of truth).** 작업 컨테이너는 세션마다 초기화되므로, 모든 작업은 GitHub 최신본을 읽는 것에서 시작한다.
 
 ## 2. 세션 시작 절차 (필수)
@@ -34,11 +34,20 @@
         │   app/*  = 하우스키핑 데이터 (이 repo가 쓰는 유일한 네임스페이스)
         ▲ 실시간 구독·쓰기 (로그인 후)
         │
-  [index.html  단일 파일 / GitHub Pages]  ← 운영자 대시보드 (★Firebase Hosting 이전 예정 — §6-1)
+  [index.html  단일 파일 / Firebase Hosting]  ← 운영자 대시보드
 ```
 
 - **프론트(index.html)**: 단일 HTML 파일. Firebase를 직접 실시간 구독/쓰기. 모든 UI가 이 한 파일 안에 있다. 홈화면 아이콘(apple-touch-icon)도 base64로 이 파일에 내장돼 있어 `logos/`는 서빙 대상이 아니다(원본 보관용).
-- **★앱 서빙 위치 = GitHub Pages(`https://pwr-clair.github.io/housekeeping/`).** 그래서 **이 레포를 비공개로 바꾸면 앱이 즉시 죽는다**(무료 플랜은 비공개 레포에서 Pages 불가). 2026-09-30에 실제로 20분간 다운시킨 사고가 있었다. 더 나쁜 것은 **공개로 되돌려도 자동 복구되지 않는다** — Settings→Pages에서 소스를 `main`/`(root)`로 다시 지정해야 한다. §6-1의 이전이 끝나기 전까지 **이 레포의 공개/비공개를 건드리지 말 것.**
+- **★★ 앱 서빙 = Firebase Hosting. `index.html`을 고쳤으면 `sh tools/deploy-site.sh`를 돌려야 라이브에 반영된다.**
+  **커밋·push만으로는 아무 일도 일어나지 않는다.** 옛 GitHub Pages 자동반영 시절의 감각으로 커밋만 하고 끝내면,
+  코드는 고쳐졌는데 운영자 화면은 그대로여서 "고쳤는데 왜 안 돼"로 시간을 날린다.
+  - 실제 사고 2026-10-01: 폰(클라우드) 세션이 이동 복제 수리를 커밋만 하고 끝냈고, 배포가 안 된 줄 모른 채
+    운영자가 복제분을 지우다 **예약이 통째로 소실**됐다(옛 코드의 '같은 예약 전부 삭제'가 돌았다).
+  - **폰·클라우드 세션은 배포를 할 수 없다** — 배포 자격증명(`~/.config/configstore/firebase-tools.json`,
+    `~/.clasprc.json`)이 클라라 맥에만 있다. 폰에서 작업했으면 **맥에서 배포 한 번**이 반드시 뒤따라야 하고,
+    세션 끝에 그 사실을 운영자에게 알릴 것.
+  - 옛 주소 `https://pwr-clair.github.io/housekeeping/`는 이제 **"새 주소로 가세요" 안내 페이지**다
+    (Pages 소스 = `pages-notice` 가지). 앱이 아니다.
 - **GAS(Code.gs)**: SIRVOY webhook 수신(`doPost`), 게스트 메일 자동화, 스케줄 기반 객실 상태 전환. Firebase 접근은 `fbGet/fbSet/fbUpdate/fbDelete` 4개 함수로만 하며, 이들이 `?auth=` (DB secret in `FB_AUTH`)를 자동 부착한다.
 - **네임스페이스**: 이 repo의 GAS·프론트는 **`app/*`만 사용한다.** (`cs/*` 같은 CS 엔진 네임스페이스는 이 코드에 존재하지 않음 — 아래 §9 참고.)
 - HK GAS = PWR-HK-Engine (구 ParadiseWalk-CS, 2026-07-04 개명). CS GAS = PWR-CS-Engine. 과거 문서에 ParadiseWalk-CS로 표기된 것은 전부 HK 쪽을 가리킴.
@@ -82,23 +91,22 @@ RTDB는 **이미 `auth != null`로 잠겨 있다.** 비로그인 접근은 전�
 - **컬러·4바이트(이모지 등) 문자는 GmailApp에서 깨진다. BMP 범위 기호만 사용한다.**
 - **중복발송 방지 가드 있음**: `mailLogs` 기반 dedupe로, 같은 예약 + 같은 단계는 재발송이 막힌다. "발송이 왜 안 되지?"의 흔한 원인이니, 의도적 재발송이 필요하면 이 가드를 먼저 확인할 것.
 
-## 6-1. 앱 서빙 이전 — GitHub Pages → Firebase Hosting (2026-09-30 준비, 실행 대기)
+## 6-1. 앱 배포 — Firebase Hosting (2026-09-30 이전 완료)
 
-**왜**: 레포를 비공개로 만들려면 앱 서빙을 레포에서 떼어내야 한다. Firebase Hosting은 무료이고 이미 같은 Firebase 프로젝트(`paradise-walk-residence`)를 쓰고 있다.
+**현재 상태**: 이전 완료. 앱은 `https://paradise-walk-residence.web.app`에서 서빙된다.
 
-**준비 완료(커밋됨)**: `firebase.json` · `.firebaserc` · `tools/deploy-site.sh` · `.gitignore(site/)`
+**배포 방법**: `sh tools/deploy-site.sh` — 회귀검사 통과 시에만 `site/`를 구성해 올린다.
 
-**★ `firebase.json`의 `"public"`을 절대 `"."`로 바꾸지 말 것.** 루트를 통째로 올리면 이 문서와 `gas/Code.gs`·`tools/`가 전부 웹에 공개된다. 서빙 대상은 `tools/deploy-site.sh`의 `SERVE` 화이트리스트(`index.html manual.html`)뿐이다.
+**★ `firebase.json`의 `"public"`을 절대 `"."`로 바꾸지 말 것.** 루트를 통째로 올리면 이 문서와
+`gas/Code.gs`·`tools/`가 전부 웹에 공개된다. 서빙 대상은 `tools/deploy-site.sh`의 `SERVE`
+화이트리스트(`index.html manual.html`)뿐이다. 회귀검사 [11]이 이걸 지킨다.
 
-**실행 순서 (중단 없음 — 새 주소를 먼저 띄우고 옛 주소는 맨 마지막에 죽인다)**:
-1. `npx firebase-tools login` — **대화형 입력이 필요해 실제 터미널에서만 된다**(클로드 창의 명령 통로엔 키보드 입력이 안 붙는다).
-2. `sh tools/deploy-site.sh` — 회귀검사 → `site/` 구성 → 배포.
-3. `https://paradise-walk-residence.web.app` 접속·로그인·실시간 반영 확인. (이 시점에 두 주소가 **둘 다** 살아있다.)
-4. 클라라·스텝 폰 바로가기를 새 주소로 교체.
-5. 며칠 두고 새 주소만 쓰는 것 확인.
-6. 그 뒤에야 레포 비공개 전환. 이때 Pages가 죽지만 아무도 안 쓴다.
+**아직 안 끝난 것**:
+- 레포 비공개 전환 — 스텝 폰 바로가기가 전부 새 주소로 바뀐 뒤에.
+- 비공개로 가면 `selfUpdate`(§6)가 죽는다 — `raw.githubusercontent.com`을 익명으로 읽는 구조.
+  clasp가 그 역할을 대체하므로 `selfUpdate` 폐지 또는 경로 교체를 먼저 정할 것.
+- `cs` 레포도 같은 처리 필요 — 게스트에게 나가는 셔틀 지도 이미지가 그 레포에 있어 지금 잠그면 링크가 죽는다.
 
-**비공개 전환 시 같이 끊기는 것**: `selfUpdate`(§6)가 `raw.githubusercontent.com`에서 익명으로 코드를 받아온다 — 비공개가 되면 404. 6단계 전에 이 경로를 대체해야 한다.
 
 ## 6. GAS 구조 및 배포
 - GAS 프로젝트명: PWR-HK-Engine (구 ParadiseWalk-CS, 2026-07-04 개명)

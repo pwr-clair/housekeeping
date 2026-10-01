@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-09-30e 노쇼버튼·삭제상태보존';
+var CODE_VER = '2026-10-01a findBooking';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -59,6 +59,57 @@ function noShowFix(room, date, apply, onlyKey){
 }
 
 
+
+
+// 예약 찾기 (읽기 전용) — 객실 예정목록에서 사라진 예약을 발송 원본에서 되찾을 때 쓴다.
+// app/rooms/*.nextBookings 삭제는 pendingBookings를 건드리지 않으므로 원본은 대개 남아 있다.
+// 에디터에서 findBooking 실행. 기본은 'silvertooth' 검색.
+function findBooking(q){
+  q = String(q || 'silvertooth').toLowerCase();
+  var L = ['[findBooking] 검색어: ' + q + '  (읽기 전용 — 아무것도 바꾸지 않음)', ''];
+  var pend = fbGet('app/pendingBookings') || {};
+  L.push('── 발송 원본(pendingBookings) ──');
+  var n = 0;
+  for (var k in pend) {
+    var b = pend[k]; if (!b) continue;
+    var hay = (JSON.stringify(b) || '').toLowerCase();
+    if (hay.indexOf(q) < 0) continue;
+    n++;
+    L.push('  · 키 ' + k);
+    L.push('      guest=' + (b.guest||'?') + ' | 입실 ' + (b.checkinDate||'?') + ' 퇴실 ' + (b.checkoutDate||'?')
+         + ' | assignedRoom=' + JSON.stringify(b.assignedRoom) + ' | cancelled=' + (b.cancelled===true));
+    L.push('      bookingId=' + (b.bookingId||'?') + ' | eta=' + (b.eta||'') + ' | 메일 ' + (b.guestEmail||'없음')
+         + ' | source=' + (b.source||''));
+  }
+  if (!n) L.push('  (없음)');
+
+  L.push('', '── 객실 배치 현황(app/rooms) ──');
+  var rooms = fbGet('app/rooms') || {};
+  var found = 0;
+  for (var num in rooms) {
+    var r = rooms[num] || {};
+    var cur = r.currentBooking;
+    if (cur && JSON.stringify(cur).toLowerCase().indexOf(q) >= 0) {
+      found++; L.push('  · ' + num + '호 현재예약: ' + cur.guest + ' | 입실 ' + cur.checkinDate);
+    }
+    var nx = r.nextBookings;
+    if (nx) {
+      var arr = (nx instanceof Array) ? nx : Object.keys(nx).map(function(kk){return nx[kk];});
+      for (var i = 0; i < arr.length; i++) {
+        var b2 = arr[i]; if (!b2) continue;
+        if (JSON.stringify(b2).toLowerCase().indexOf(q) >= 0) {
+          found++; L.push('  · ' + num + '호 예정[' + i + ']: ' + b2.guest + ' | 입실 ' + b2.checkinDate
+                        + ' | bookingId=' + (b2.bookingId||'?'));
+        }
+      }
+    }
+  }
+  if (!found) L.push('  ★ 어느 객실에도 배치돼 있지 않음 — 예정목록에서 사라진 상태');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
 
 function codeVersion(){
   var dep='(웹앱 미배포)';
