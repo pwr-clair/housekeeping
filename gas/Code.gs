@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-01q 상태변경 푸시';
+var CODE_VER = '2026-10-01r 푸시 1분 주기';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -670,6 +670,11 @@ function testPush(){
 // 객실 상태 변경 푸시 — 프론트가 app/pushQueue에 쌓고 여기서 비운다 (2026-10-01)
 // 바로 안 쏘고 큐를 쓰는 이유: 프론트는 FCM 서버키를 가질 수 없고(브라우저에 비밀키를 둘 수 없다),
 // GAS만 서비스 계정을 쥐고 있다. 5분 틱이라 최대 5분 지연된다 — 즉시성이 필요하면 틱을 줄일 것.
+// 1분 주기 전용 트리거 (2026-10-01) — masterTick(5분)에 얹었더니 상태 변경 알림이 최대 5분
+// 늦었다. 알림은 늦으면 의미가 없으므로 분리했다. 큐가 비어 있으면 즉시 반환하므로 비용이 거의 없다.
+// ※ 더 줄이려면 Cloud Functions(즉시 발화)가 필요한데 유료 플랜이다. 1분이 무료 범위의 한계다.
+function pushTick(){ try{ return pushQueueTick_(); }catch(e){ Logger.log('[push] 큐 처리 실패: '+e); return 0; } }
+
 function pushQueueTick_(){
   var q = fbGet('app/pushQueue') || {};
   var keys = Object.keys(q);
@@ -1097,7 +1102,6 @@ function runAuto_(auto,stage,min,fn){
   catch(err){ notifyAdmin_('auto_'+stage,'[PW] 자동발송 실패 '+stage+' — 다음 틱 재시도',String(err)); }
 }
 function masterTick(){
-  try{ pushQueueTick_(); }catch(e){ Logger.log('[push] 큐 처리 실패: '+e); }
   const min=nowMinKST();
   try{ if(min>=719) rotateDueBookings_(true); }catch(e){}   // 11:59 턴오버 누락분 자가 복구
   try{ promoteVacantArrivals_(); }catch(e){}   // 공실 방 당일예약 승격 — 매 틱, 창·시각 무관 무조건
@@ -1658,11 +1662,12 @@ function setupTriggers(){
   ScriptApp.getProjectTriggers().forEach(t=>ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('syncAllEtaToRooms').timeBased().everyMinutes(15).create();
   ScriptApp.newTrigger('masterTick').timeBased().everyMinutes(5).create();
+  ScriptApp.newTrigger('pushTick').timeBased().everyMinutes(1).create();   // 상태변경 알림 — 늦으면 의미 없다
   ScriptApp.newTrigger('t1100_checkoutConfirm').timeBased().atHour(11).nearMinute(0).everyDays(1).create();
   ScriptApp.newTrigger('t1159_moveBookings').timeBased().atHour(11).nearMinute(45).everyDays(1).create();
   ScriptApp.newTrigger('t1200_statusFix').timeBased().atHour(12).nearMinute(15).everyDays(1).create();
   // autoCheckinTick 트리거는 2026-09-18 클라라 지시로 폐지 (자동 입실중 전환 금지)
-  Logger.log('트리거 5개 설치 완료');
+  Logger.log('트리거 6개 설치 완료');
 }
 function setBcc(){fbSet('app/config/bccEmail','joi.hurricane@gmail.com');Logger.log('BCC 켜짐');}
 function clearBcc(){fbDelete('app/config/bccEmail');Logger.log('BCC 꺼짐');}
