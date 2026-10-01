@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-01n 메일막힘 감지';
+var CODE_VER = '2026-10-01o etaReport';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -502,6 +502,72 @@ function removeBookingFromRooms_(bookingId, assignedRoom, guest, checkinDate){
   }
   if (!hit) Logger.log('[cancel] 객실에 배정된 흔적 없음 — ' + (guest || bid));
   return hit;
+}
+
+
+// 특정 날짜 입실 예약의 ETA 현황 (읽기 전용) — 청소 순서·대기 계획용.
+// 에디터에서 etaReport 실행. 기본은 내일. 다른 날은 코드에서 etaReport('2026-10-05') 형태로.
+// ETA는 두 곳에 있다: 발송 원본의 eta(OTA가 준 값)와 객실 예약의 checkinTime(화면에 보이는 값).
+// 둘이 다르면 수기로 고쳤다는 뜻이므로 같이 보여준다.
+function etaReport(dateStr){
+  var day = dateStr || kstDate(1);
+  var L = ['[etaReport] ' + day + ' 입실 예약 ETA 현황  (읽기 전용)', ''];
+
+  var pend = fbGet('app/pendingBookings') || {};
+  var rooms = fbGet('app/rooms') || {};
+
+  // 객실에 배정된 것 먼저 — 방 번호 순
+  var rows = [], unassigned = [];
+  for (var k in pend) {
+    var b = pend[k];
+    if (!b || b.cancelled) continue;
+    if (b.checkinDate !== day) continue;
+    var room = String(b.assignedRoom || '');
+    var ci = '';
+    if (room && rooms[room]) {
+      var r = rooms[room];
+      var cands = [r.currentBooking].concat(
+        (r.nextBookings instanceof Array) ? r.nextBookings
+        : Object.keys(r.nextBookings || {}).map(function(x){ return r.nextBookings[x]; }));
+      for (var i = 0; i < cands.length; i++) {
+        var c = cands[i];
+        if (c && c.guest && c.checkinDate === day &&
+            (!b.bookingId || String(c.bookingId) === String(b.bookingId))) { ci = c.checkinTime || ''; break; }
+      }
+    }
+    var row = { room: room, guest: b.guest || '?', eta: b.eta || '', ci: ci,
+                src: b.source || '', nights: b.checkoutDate || '', key: k };
+    if (room && room !== 'manual') rows.push(row); else unassigned.push(row);
+  }
+  rows.sort(function(a, c){ return (+a.room) - (+c.room); });
+
+  var withEta = 0, noEta = 0;
+  L.push('── 배정된 예약 ──');
+  if (!rows.length) L.push('  (없음)');
+  for (var j = 0; j < rows.length; j++) {
+    var x = rows[j];
+    var shown = x.ci || x.eta;
+    if (shown) withEta++; else noEta++;
+    var mark = shown ? '  ' : '★ ';
+    var diff = (x.eta && x.ci && x.eta !== x.ci) ? '   (OTA ' + x.eta + ' → 수기 ' + x.ci + ')' : '';
+    L.push('  ' + mark + x.room + '호  ' + (shown || '시간미정') + '   ' + x.guest
+         + '   ~' + x.nights + '   ' + x.src + diff);
+  }
+  if (unassigned.length) {
+    L.push('', '── 아직 객실 미배정 ──');
+    for (var u = 0; u < unassigned.length; u++) {
+      var y = unassigned[u];
+      L.push('  ' + (y.eta || '시간미정') + '   ' + y.guest + '   ~' + y.nights + '   ' + y.src);
+    }
+  }
+  L.push('', '합계 ' + (rows.length + unassigned.length) + '건  ·  시간 있음 ' + withEta
+       + '  ·  시간미정 ' + (noEta + unassigned.filter(function(z){ return !z.eta; }).length)
+       + '  ·  미배정 ' + unassigned.length);
+  L.push('※ 시간미정은 입실안내 발송 시각 판단이 어렵다. OTA 채팅으로 물어보거나 기본 15:00으로 본다.');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
 }
 
 function codeVersion(){
