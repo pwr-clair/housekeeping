@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-01l 취소 자동반영';
+var CODE_VER = '2026-10-01n 메일막힘 감지';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -436,7 +436,6 @@ function badGuestMailReason_(email, source){
   }
   return '';
 }
-function isNonGuestMail_(e, source){ return badGuestMailReason_(e, source) !== ''; }
 function checkGuestMails(){
   var pend = fbGet('app/pendingBookings') || {};
   var today = todayKST();
@@ -594,11 +593,20 @@ function roomEmailFor_(bk,room){
   return '';
 }
 
-function sendMail(to, subject, body){
-  var opts = { from: SENDER };
-  var bcc = fbGet('app/config/bccEmail');
-  if(bcc) opts.bcc = bcc;
-  GmailApp.sendEmail(to, subject, body, opts);
+function sendMail(to, subject, body, opts){
+  try{
+    GmailApp.sendEmail(to, subject, body, opts);
+    // 성공했으면 '메일 막힘' 깃발을 내린다 — 할당량이 회복됐다는 뜻
+    if(fbGet('app/autoSend/mailBlocked')) fbDelete('app/autoSend/mailBlocked');
+  }catch(err){
+    // Gmail 하루 할당량 소진은 운영자가 즉시 알아야 한다. 앱 상단 배너로 띄우기 위해 깃발을 세운다.
+    // (2026-10-01 사고 — 할당량이 바닥나 입실안내가 전부 막혔는데 아무 표시가 없었다)
+    var m = String(err && err.message || err);
+    if(/too many times|너무 많이 호출|quota|Service invoked/i.test(m)){
+      fbSet('app/autoSend/mailBlocked', {at: todayKST()+' '+nowHM(), reason: m.slice(0,200)});
+    }
+    throw err;   // 호출부의 기존 오류 처리는 그대로 동작해야 한다
+  }
 }
 // 특이사항(notes) 속 추가 이메일을 수신자에 합류 (2026-09-06 클라라).
 // 동행 게스트 등 두 번째 이메일을 대시보드 특이사항에 적어두면 모든 게스트 발송이 그 주소에도 함께 나간다.
@@ -928,73 +936,7 @@ function masterTick(){
   }
 
 
-// ============================================================
-// 원탭 자동 업데이트 (2026-09-04) — 레포 최신 Code.gs를 GAS가 스스로 가져와 갱신+재배포.
-// 1회 설정(컴퓨터): ① https://script.google.com/home/usersettings 에서 Google Apps Script API 켜기
-//   ② 이 파일 붙여넣기+저장 ③ 프로젝트 설정→'appsscript.json 매니페스트 표시' 체크 후
-//      appsscript.json에 selfUpdateHelp() 로그의 oauthScopes 추가 ④ selfUpdate 1회 실행(권한 승인).
-// 이후: <웹앱URL>?action=selfupdate&token=<APPROVE_TOKEN> 호출 한 번 = 코드 갱신+버전+재배포 완료.
-// 갱신 소스는 아래 SELF_UPDATE_URL (정본 = main).
-// ============================================================
-var SELF_UPDATE_URL='https://raw.githubusercontent.com/pwr-clair/housekeeping/main/gas/Code.gs';
 
-function selfUpdateRun(){Logger.log(selfUpdate());}   // 에디터 실행용 — 결과를 로그로 (selfUpdate는 반환값이라 에디터에선 안 보임)
-function selfUpdateHelp(){
-  Logger.log([
-    '■ appsscript.json에 추가할 항목 (기존 timeZone 등은 그대로 두고 oauthScopes만 추가/교체):',
-    '"oauthScopes": [',
-    '  "https://mail.google.com/",',
-    '  "https://www.googleapis.com/auth/script.external_request",',
-    '  "https://www.googleapis.com/auth/script.scriptapp",',
-    '  "https://www.googleapis.com/auth/script.projects",',
-    '  "https://www.googleapis.com/auth/script.deployments"',
-    '],',
-    '■ 원탭 업데이트 URL: '+(ScriptApp.getService().getUrl()||'(웹앱 미배포)')+'?action=selfupdate&token=(APPROVE_TOKEN 값)'
-  ].join('\n'));
-}
-
-function selfUpdate(){
-  var sid=ScriptApp.getScriptId(), H={Authorization:'Bearer '+ScriptApp.getOAuthToken()};
-  // 1) 레포에서 새 코드 (캐시 우회) + 안전 검증 — 비정상이면 아무것도 안 바꾼다
-  var res=UrlFetchApp.fetch(SELF_UPDATE_URL+'?cb='+Date.now(),{muteHttpExceptions:true});
-  if(res.getResponseCode()>=300)return '레포에서 코드를 못 가져옴: HTTP '+res.getResponseCode();
-  var code=res.getContentText();
-  if(!code||code.length<20000||code.indexOf('function masterTick')<0||code.indexOf('function doPost')<0)
-    return '가져온 코드가 비정상(길이 '+(code?code.length:0)+') — 중단, 아무것도 안 바꿈';
-  // 2) 현재 프로젝트 파일 읽기 (appsscript.json 등 다른 파일은 그대로 보존)
-  var cur;
-  try{cur=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/content',{headers:H,muteHttpExceptions:true}).getContentText());}catch(e){cur={};}
-  if(!cur.files)return '프로젝트 읽기 실패 — script.google.com/home/usersettings 에서 Apps Script API를 켰는지, 매니페스트 oauthScopes를 넣었는지 확인 (selfUpdateHelp 참조)';
-  var found=false;
-  cur.files.forEach(function(f){if(f.type==='SERVER_JS'&&f.name==='Code'){f.source=code;found=true;}});
-  if(!found)return 'Code 파일을 못 찾음 — 중단';
-  // 3) 코드 반영
-  var up=UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/content',
-    {method:'put',contentType:'application/json',headers:H,payload:JSON.stringify({files:cur.files}),muteHttpExceptions:true});
-  if(up.getResponseCode()>=300)return '코드 갱신 실패: '+up.getContentText().slice(0,300);
-  // 4) 새 버전 생성 + 웹앱 배포 갱신 (URL 유지). 실패해도 트리거 함수는 이미 최신 — doGet/doPost만 수동 배포 필요.
-  try{
-    var ver=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/versions',
-      {method:'post',contentType:'application/json',headers:H,
-       payload:JSON.stringify({description:'selfUpdate '+todayKST()+' '+nowHM()}),muteHttpExceptions:true}).getContentText());
-    if(!ver.versionNumber)throw new Error(JSON.stringify(ver).slice(0,200));
-    var deps=JSON.parse(UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/deployments',{headers:H,muteHttpExceptions:true}).getContentText());
-    var n=0;
-    (deps.deployments||[]).forEach(function(d){
-      var cfg=d.deploymentConfig||{};
-      if(cfg.versionNumber==null)return;   // HEAD(테스트) 배포 제외
-      var r2=UrlFetchApp.fetch('https://script.googleapis.com/v1/projects/'+sid+'/deployments/'+d.deploymentId,
-        {method:'put',contentType:'application/json',headers:H,
-         payload:JSON.stringify({deploymentConfig:{scriptId:sid,versionNumber:ver.versionNumber,
-           manifestFileName:cfg.manifestFileName||'appsscript',description:cfg.description||'selfUpdate'}}),
-         muteHttpExceptions:true});
-      if(r2.getResponseCode()<300)n++;
-    });
-    return '✅ 코드 갱신 + v'+ver.versionNumber+' 배포 '+n+'건 갱신 완료 ('+todayKST()+' '+nowHM()+')';
-  }catch(e){
-    return '✅ 코드는 갱신됨 / ⚠ 재배포 실패: '+String(e).slice(0,150)+' — doGet/doPost 변경분이 있으면 수동 배포 필요';
-  }
-}
 
 // ============================================================
 // 늦은 객실준비 안내 (2026-08-25 클라라) — 15:10에도 입실안내(s3)가 못 나간
@@ -1184,9 +1126,6 @@ function doGet(e){
   if(p.token!==APPROVE_TOKEN)return ContentService.createTextOutput('Paradise Walk GAS 작동 중');
   if(p.action==='approve'){
     return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
-  }
-  if(p.action==='selfupdate'){   // 원탭 자동 업데이트 (2026-09-04) — 레포 최신 코드로 갱신+재배포
-    return ContentService.createTextOutput(selfUpdate());
   }
   if(p.action==='sendRoom'&&p.room){
     const num=String(p.room),today=todayKST();
@@ -1538,42 +1477,6 @@ function setupTriggers(){
 function setBcc(){fbSet('app/config/bccEmail','joi.hurricane@gmail.com');Logger.log('BCC 켜짐');}
 function clearBcc(){fbDelete('app/config/bccEmail');Logger.log('BCC 꺼짐');}
 
-// ============================================================
-// 자동 입실중 전환 — 2026-09-18 클라라 지시로 폐지 (2026-09-21 main 복구)
-// ============================================================
-// 예전엔 21:00 이후 매시간, 오늘 체크인 + 입실안내 발송완료된 clean_done 객실을 checkin으로
-// 자동 전환했다. 사람이 객실 상태를 확인하기 전에 전부 '입실중'으로 바꿔버려 폐지.
-// 함수 본체는 비워 둔다 — GAS에 기존 트리거가 남아 있어도 아무 일도 하지 않게.
-// setupTriggers()에서도 제외했다. 에디터 트리거 목록의 autoCheckinTick은 삭제할 것.
-// ★ 이 폐지는 004e586(옆 브랜치)에만 있어 main 전문 배포 때마다 되살아났다. 같은 경로의 3번째 사고.
-function autoCheckinTick(){
-  return; // 폐지 — 아무 것도 하지 않음
-}
-
-// 폐지 전 마지막 실행이 바꿔 놓은 객실을 되돌리는 일회성 함수.
-// 조건은 autoCheckinTick이 전환했던 것과 동일: 정비중 아님 + 그 날 체크인 + 입실안내 발송완료
-// + status가 'checkin' → 'clean_done'으로 복원. 에디터에서 revertAutoCheckin 실행.
-// date를 안 주면 오늘. 다른 날을 되돌리려면 revertAutoCheckin('2026-09-20') 형태로.
-function revertAutoCheckin(date){
-  date = (typeof date === 'string' && date) ? date : todayKST();
-  const rooms=fbGet('app/rooms')||{};
-  const sent=fbGet('app/sentChecks')||{};
-  const reverted=[];
-  for(const num of Object.keys(rooms)){
-    const r=rooms[num];
-    if(!r||r.blocked)continue;
-    const cb=r.currentBooking;
-    if(!cb||!cb.guest)continue;
-    if(cb.checkinDate!==date)continue;
-    if(!sent[num+'_'+date])continue;
-    if(r.status!=='checkin')continue;
-    fbUpdate('app/rooms/'+num,{status:'clean_done'});
-    reverted.push(num);
-  }
-  const out='revertAutoCheckin('+date+'): '+reverted.length+'개 객실 checkin→clean_done: '+reverted.join(', ');
-  Logger.log(out);
-  return out;
-}
 
 // ============================================================
 // 금액 동기화 — SIRVOY 알림메일에서 Total 추출해 pendingBookings에 저장

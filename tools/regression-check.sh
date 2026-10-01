@@ -98,6 +98,16 @@ if grep -q "fbUpdate('app/rooms/' + num, upd);   // status는 포함하지 않�
   ok "취소 반영이 청소 상태를 보존"
 else bad "removeBookingFromRooms_가 status를 함께 쓰고 있을 수 있다 — 예약 제거로 청소가 되살아난다 (920호 사고 재발)"; fi
 
+# [17] 죽은 selfUpdate가 되살아났는지 (2026-10-01 폐지 — 자동배포가 대체, 비공개 전환 시 작동 불가)
+if grep -q "SELF_UPDATE_URL\|function selfUpdate" gas/Code.gs; then
+  bad "selfUpdate가 되살아났다 — raw.githubusercontent.com 익명 읽기라 레포 비공개 시 죽는다. 자동배포(.github/workflows/deploy.yml)가 대체한다"
+else ok "selfUpdate 폐지 유지"; fi
+
+# [18] 메일 막힘 감지·배너 (사고 2026-10-01 — 할당량 소진이 아무 표시 없이 지나갔다)
+if grep -q "mailBlocked" gas/Code.gs && grep -q "mail-blocked-banner" index.html; then
+  ok "메일 막힘 감지+배너"
+else bad "메일 막힘 깃발(app/autoSend/mailBlocked)이나 배너가 빠졌다 — 할당량이 바닥나도 운영자가 모른다"; fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ 회귀 검사 전 항목 통과 (${FAIL} 실패)"
 else
