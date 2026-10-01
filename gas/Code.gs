@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-01a findBooking';
+var CODE_VER = '2026-10-01f testSend';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -105,6 +105,304 @@ function findBooking(q){
     }
   }
   if (!found) L.push('  ★ 어느 객실에도 배치돼 있지 않음 — 예정목록에서 사라진 상태');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+
+// 사라진 예정예약 복구 (2026-10-01) — 발송 원본(pendingBookings)의 예약을 객실 예정목록에 되꽂는다.
+// 배경: 2026-09-30 이동 복제 → 복제분 한 장을 지웠는데 옛 코드가 '같은 예약 전부 삭제'라 둘 다 날아갔다.
+// 삭제는 app/rooms/*.nextBookings만 건드리므로 원본은 남아 있다.
+// 기본은 점검만. 실제 반영은 restoreNextBooking('sv_26329', true).
+function restoreNextBooking(pendKey, apply){
+  pendKey = pendKey || 'sv_26329';
+  var b = fbGet('app/pendingBookings/' + pendKey);
+  var L = ['[restoreNextBooking] ' + pendKey + ' / ' + (apply ? '★실제 반영' : '점검만 (아무것도 안 바꿈)')];
+  if (!b) { L.push('  ★ 발송 원본에 그 키가 없다 — 중단'); Logger.log(L.join('\n')); return L.join('\n'); }
+
+  var room = String(b.assignedRoom || '');
+  if (!room) { L.push('  ★ assignedRoom이 비어 있어 어느 방인지 알 수 없다 — 중단'); Logger.log(L.join('\n')); return L.join('\n'); }
+
+  // 프론트 saveBooking과 같은 필드 구성. bookingId가 있어야 메일·이동·중복판정이 연결된다.
+  var entry = {
+    guest: b.guest || '',
+    checkinDate: b.checkinDate || '',
+    checkoutDate: b.checkoutDate || '',
+    checkinTime: b.eta || '',
+    checkoutTime: '',
+    notes: b.notes || '',
+    source: b.source || '',
+    guestEmail: b.guestEmail || '',
+    guestPhone: b.guestPhone || '',
+    bookingId: b.bookingId || ''
+  };
+  if (b.amount != null && b.amount !== '') entry.amount = b.amount;
+
+  var r = fbGet('app/rooms/' + room) || {};
+  var nx = r.nextBookings;
+  var arr = (nx instanceof Array) ? nx.slice() : (nx ? Object.keys(nx).map(function(k){return nx[k];}) : []);
+  arr = arr.filter(function(x){ return x; });
+
+  // 이미 있으면 중복으로 또 넣지 않는다(이번 사고가 복제였으므로 특히 조심)
+  var bid = String(entry.bookingId);
+  var dup = 0;
+  for (var i = 0; i < arr.length; i++) {
+    var x = arr[i];
+    if ((bid && String(x.bookingId) === bid) ||
+        (!bid && x.guest === entry.guest && x.checkinDate === entry.checkinDate)) dup++;
+  }
+  L.push('  대상 방: ' + room + '호 | 현재 예정 ' + arr.length + '건 | 같은 예약 이미 있음: ' + dup + '건');
+  L.push('  꽂을 예약: ' + entry.guest + ' | 입실 ' + entry.checkinDate + ' 퇴실 ' + entry.checkoutDate
+       + ' | bookingId=' + entry.bookingId + ' | ' + entry.source);
+  if (dup > 0) { L.push('  ★ 이미 들어 있다 — 복구 불필요. 중단(또 넣으면 복제가 된다)'); Logger.log(L.join('\n')); return L.join('\n'); }
+
+  arr.push(entry);
+  arr.sort(function(a, c){ return String(a.checkinDate||'').localeCompare(String(c.checkinDate||'')); });
+  L.push('  반영 후 예정 ' + arr.length + '건: ' + arr.map(function(x){ return (x.checkinDate||'?') + ' ' + (x.guest||'?'); }).join(' / '));
+
+  if (apply) { fbSet('app/rooms/' + room + '/nextBookings', arr); L.push('      → 복구 완료'); }
+  else L.push('  (점검만 — 반영하려면 apply=true)');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+// 10/8 Silvertooth 복구 — 실제 반영 (일회성)
+function restoreSilvertooth(){
+  return restoreNextBooking('sv_26329', true);
+}
+
+
+// 관리자 알림 — 하루 같은 건으로 1통만 (2026-10-01 사고 수리)
+// 배경: 자동발송이 실패하면 lastRun 도장이 안 찍혀 5분 틱마다 재시도하고, 그때마다 오류 메일이 1통씩 나갔다.
+// 발송창이 2시간이면 한 단계당 하루 24통, 건별 알림까지 겹쳐 Gmail 하루 할당량(일반계정 100통)을 태웠다.
+// 그 결과 정작 게스트 입실안내가 "하루에 email 서비스를 너무 많이 호출했습니다"로 막혔다.
+// 이제 같은 키는 하루 1통만 보내고 나머지는 로그로만 남긴다. 실패 내역은 app/autoSend/errors에 쌓인다.
+function notifyAdmin_(key, subject, body){
+  var day = todayKST();
+  var stampPath = 'app/autoSend/notified/' + day + '/' + String(key).replace(/[.#$\[\]\/]/g, '_');
+  try {
+    fbSet('app/autoSend/errors/' + day + '/' + String(key).replace(/[.#$\[\]\/]/g, '_') + '/' + nowHM().replace(':', ''),
+          String(body).slice(0, 500));
+  } catch (e) {}
+  Logger.log('[notifyAdmin_] ' + key + ' :: ' + subject + ' :: ' + String(body).slice(0, 300));
+  if (fbGet(stampPath)) return false;          // 오늘 이미 보냈다 — 로그만
+  try {
+    if (MailApp.getRemainingDailyQuota() < 5) { Logger.log('[notifyAdmin_] 할당량 부족 — 메일 생략'); return false; }
+    GmailApp.sendEmail(ADMIN_EMAIL, subject, body + '\n\n※ 같은 건은 오늘 더 보내지 않습니다. 전체 내역: app/autoSend/errors/' + day);
+    fbSet(stampPath, nowHM());
+    return true;
+  } catch (e) { Logger.log('[notifyAdmin_] 알림 발송 실패: ' + e); return false; }
+}
+
+// 메일 할당량·자동발송 상태 점검 (읽기 전용)
+function checkMailQuota(){
+  var L = ['[checkMailQuota] ' + todayKST() + ' ' + nowHM() + '  (읽기 전용)'];
+  var q = -1;
+  try { q = MailApp.getRemainingDailyQuota(); } catch (e) { L.push('  할당량 조회 실패: ' + e); }
+  L.push('  ■ 남은 하루 메일 할당량: ' + q + ' 통');
+  L.push('    (일반 Gmail 계정 기준 하루 100통. 수신자 수로 계산되며 BCC도 1통으로 친다)');
+
+  var day = todayKST();
+  var errs = fbGet('app/autoSend/errors/' + day) || {};
+  var ekeys = Object.keys(errs);
+  L.push('  ■ 오늘 기록된 실패: ' + ekeys.length + '종');
+  for (var i = 0; i < ekeys.length && i < 8; i++) {
+    var sub = errs[ekeys[i]] || {};
+    var times = Object.keys(sub);
+    L.push('    · ' + ekeys[i] + ' — ' + times.length + '회  최근: ' + String(sub[times[times.length-1]]).slice(0, 160));
+  }
+
+  var lr = fbGet('app/autoSend/lastRun') || {};
+  L.push('  ■ 오늘 발송 도장(lastRun): ' + JSON.stringify(lr));
+  L.push('    (오늘 날짜가 찍힌 단계는 이미 돌았다는 뜻. 안 찍힌 단계는 5분마다 재시도 중일 수 있다)');
+
+  var cfg = fbGet('app/mailConfig') || {};
+  L.push('  ■ 단계 토글: ' + JSON.stringify(cfg.stages || {}));
+  L.push('  ■ BCC: ' + (fbGet('app/config/bccEmail') || '꺼짐') + '   (켜져 있으면 게스트 1통당 할당량 2통 소모)');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+
+// ★ 2026-10-01 아침 일괄 처리 — 에디터에서 morningFix 한 번만 실행하면 된다.
+//   ①10/8 Silvertooth 예약 복구  ②메일 할당량·자동발송 상태 점검  ③오늘 3시 입실안내 가능 여부 판정
+//   할당량이 모자라면 BCC를 자동으로 꺼서 게스트 발송분을 확보한다(게스트 1통당 2통 → 1통).
+function morningFix(){
+  var L = ['════ morningFix ' + todayKST() + ' ' + nowHM() + ' ════', ''];
+
+  L.push('── ① 10/8 Silvertooth 예약 복구 ──');
+  try { L.push(restoreNextBooking('sv_26329', true)); } catch (e) { L.push('  실패: ' + e); }
+
+  L.push('', '── ② 메일 할당량 ──');
+  var q = -1;
+  try { q = MailApp.getRemainingDailyQuota(); } catch (e) {}
+  L.push('  남은 할당량: ' + q + ' 통  (일반 Gmail 하루 100통, 수신자 수 기준·BCC도 1통)');
+
+  var bcc = fbGet('app/config/bccEmail');
+  L.push('  BCC: ' + (bcc || '꺼짐'));
+
+  var day = todayKST();
+  var errs = fbGet('app/autoSend/errors/' + day) || {};
+  var ek = Object.keys(errs);
+  L.push('  오늘 기록된 실패: ' + ek.length + '종');
+  for (var i = 0; i < ek.length && i < 6; i++) {
+    var sub = errs[ek[i]] || {}, t = Object.keys(sub);
+    L.push('    · ' + ek[i] + ' ' + t.length + '회 — ' + String(sub[t[t.length-1]]).slice(0, 150));
+  }
+  L.push('  발송 도장(lastRun): ' + JSON.stringify(fbGet('app/autoSend/lastRun') || {}));
+  var cfg = fbGet('app/mailConfig') || {};
+  L.push('  단계 토글: ' + JSON.stringify(cfg.stages || {}));
+
+  L.push('', '── ③ 오늘 입실안내 판정 ──');
+  // 오늘 입실안내 대상 수 세기(발송은 하지 않는다)
+  var need = 0;
+  try {
+    var rooms = fbGet('app/rooms') || {}, today = todayKST(), sent = fbGet('app/sentChecks') || {};
+    for (var num in rooms) {
+      var r = rooms[num] || {}; if (r.blocked) continue;
+      var cands = [r.currentBooking].concat(
+        (r.nextBookings instanceof Array) ? r.nextBookings
+        : Object.keys(r.nextBookings || {}).map(function(k){ return r.nextBookings[k]; }));
+      for (var j = 0; j < cands.length; j++) {
+        var b = cands[j];
+        if (b && b.guest && b.checkinDate === today) { need++; break; }
+      }
+    }
+  } catch (e) { L.push('  대상 집계 실패: ' + e); }
+  var perGuest = bcc ? 2 : 1;
+  var willNeed = need * perGuest + 1;   // +1 = 승인요청 메일
+  L.push('  오늘 체크인 객실: ' + need + '곳 → 필요 할당량 약 ' + willNeed + '통 (승인요청 1통 포함)');
+
+  if (q >= 0 && q < willNeed && bcc) {
+    fbDelete('app/config/bccEmail');
+    L.push('  ★ 할당량 부족 → BCC를 껐다. 필요 할당량 ' + (need + 1) + '통으로 줄었다.');
+    L.push('    (되돌리려면 에디터에서 setBcc 실행)');
+    willNeed = need + 1;
+  }
+  if (q < 0)            L.push('  판정 불가 — 할당량을 못 읽었다.');
+  else if (q >= willNeed) L.push('  ✅ 발송 가능 — 남은 ' + q + '통으로 충분하다.');
+  else                  L.push('  ❌ 부족 — 남은 ' + q + '통 < 필요 ' + willNeed + '통. 손으로 보내야 한다.');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+
+// ★ 2026-10-01 할당량 확인 + 수동발송 준비 — 에디터에서 quotaAndPrep 실행
+//   ①할당량 조회(실패하면 예외 전문을 찍는다 — 삼키지 않는다)
+//   ②BCC를 꺼서 게스트 발송분 확보(되돌리기: setBcc)
+//   ③오늘 체크인 게스트 명단·이메일을 뽑아 둔다 — 자동발송이 막히면 손으로 보낼 수 있게
+function quotaAndPrep(){
+  var L = ['════ quotaAndPrep ' + todayKST() + ' ' + nowHM() + ' ════', ''];
+
+  L.push('── ① 메일 할당량 ──');
+  try {
+    var q = MailApp.getRemainingDailyQuota();
+    L.push('  남은 할당량: ' + q + ' 통');
+  } catch (e) {
+    L.push('  ★ 조회 실패 — 예외 전문:');
+    L.push('    ' + String(e));
+    L.push('    (권한 재승인이 필요하면 에디터 실행 시 승인창이 뜬다)');
+  }
+
+  L.push('', '── ①-2 오늘 실제로 나간 메일 (보낸편지함 집계 — 할당량을 뭐가 먹었나) ──');
+  try {
+    var th = GmailApp.search('in:sent newer_than:1d', 0, 120);
+    var cnt = {}, tot = 0;
+    for (var ti = 0; ti < th.length; ti++) {
+      var msgs = th[ti].getMessages();
+      for (var mi = 0; mi < msgs.length; mi++) {
+        var m = msgs[mi];
+        if (m.getDate().getTime() < Date.now() - 24 * 3600 * 1000) continue;
+        tot++;
+        var subj = String(m.getSubject() || '(제목없음)');
+        var key = subj.indexOf('[PW]') === 0 ? subj.split('—')[0].split(':')[0].trim() : subj.slice(0, 40);
+        cnt[key] = (cnt[key] || 0) + 1;
+      }
+    }
+    L.push('  최근 24시간 보낸 메일: 약 ' + tot + '통 (스레드 120개까지 조사)');
+    var ks = Object.keys(cnt).sort(function(a, c){ return cnt[c] - cnt[a]; });
+    for (var i = 0; i < ks.length && i < 12; i++) L.push('    ' + cnt[ks[i]] + '통  ' + ks[i]);
+  } catch (e) { L.push('  집계 실패: ' + e); }
+
+  L.push('', '── ② BCC ──');
+  var bcc = fbGet('app/config/bccEmail');
+  if (bcc) {
+    fbDelete('app/config/bccEmail');
+    L.push('  껐다 (' + bcc + '). 게스트 1통당 2통 → 1통으로 절반 절약.');
+    L.push('  되돌리려면 에디터에서 setBcc 실행.');
+  } else L.push('  이미 꺼져 있음');
+
+  L.push('', '── ③ 오늘 체크인 명단 (자동발송 막히면 손으로 보낼 것) ──');
+  var rooms = fbGet('app/rooms') || {}, today = todayKST();
+  var sent = fbGet('app/sentChecks') || {};
+  var nums = Object.keys(rooms).sort(function(a,c){ return (+a) - (+c); });
+  var n = 0;
+  for (var i = 0; i < nums.length; i++) {
+    var num = nums[i], r = rooms[num] || {};
+    if (r.blocked) continue;
+    var cands = [r.currentBooking].concat(
+      (r.nextBookings instanceof Array) ? r.nextBookings
+      : Object.keys(r.nextBookings || {}).map(function(k){ return r.nextBookings[k]; }));
+    for (var j = 0; j < cands.length; j++) {
+      var b = cands[j];
+      if (!b || !b.guest || b.checkinDate !== today) continue;
+      n++;
+      var mark = sent[num] && sent[num][today] ? ' [발송마크 있음]' : '';
+      L.push('  ' + num + '호 | ' + b.guest + ' | ' + (b.checkinTime || '시간미정')
+           + ' | ' + (b.guestEmail || '★이메일 없음') + ' | 상태=' + (r.status || '?') + mark);
+      break;
+    }
+  }
+  L.push('  합계 ' + n + '곳');
+  L.push('  ※ 입실안내는 "청소완료"된 방만 나간다. 상태가 clean_done이 아닌 방은 자동발송 대상이 아니다.');
+
+  var out = L.join('\n');
+  Logger.log(out);
+  return out;
+}
+
+
+// ★ 2026-10-01 발송 가능 여부 실측 — 에디터에서 testSend 실행
+// 할당량 숫자를 못 읽으니(권한 누락) 실제로 1통 보내 본다. 성공하면 오늘 자동발송도 나간다는 뜻.
+// 1통만 쓴다. 수신자는 관리자 본인.
+function testSend(){
+  var L = ['════ testSend ' + todayKST() + ' ' + nowHM() + ' ════'];
+  try {
+    GmailApp.sendEmail(ADMIN_EMAIL, '[PW] 발송 테스트 ' + nowHM(),
+      '이 메일이 도착했다면 Gmail 할당량이 남아 있고 오늘 자동발송도 나갑니다.\n(BCC는 꺼진 상태)');
+    L.push('  ✅ 발송 성공 — 할당량 남아 있음. 오늘 입실안내 자동발송 가능.');
+  } catch (e) {
+    L.push('  ❌ 발송 실패 — 예외 전문:');
+    L.push('     ' + String(e));
+    L.push('     → 할당량 소진. CS 계정 경유 우회가 필요하다.');
+  }
+
+  L.push('', '── 오늘 입실안내 대상 (청소완료된 방만 나간다) ──');
+  var rooms = fbGet('app/rooms') || {}, today = todayKST();
+  var ready = 0, waiting = 0;
+  var nums = Object.keys(rooms).sort(function(a, c){ return (+a) - (+c); });
+  for (var i = 0; i < nums.length; i++) {
+    var num = nums[i], r = rooms[num] || {}; if (r.blocked) continue;
+    var cands = [r.currentBooking].concat(
+      (r.nextBookings instanceof Array) ? r.nextBookings
+      : Object.keys(r.nextBookings || {}).map(function(k){ return r.nextBookings[k]; }));
+    for (var j = 0; j < cands.length; j++) {
+      var b = cands[j]; if (!b || !b.guest || b.checkinDate !== today) continue;
+      if (r.status === 'clean_done') { ready++; L.push('  ✅ ' + num + '호 ' + b.guest + ' — 청소완료, 발송 대상'); }
+      else { waiting++; L.push('  ⏳ ' + num + '호 ' + b.guest + ' — 상태 ' + r.status + ', 청소완료돼야 나감'); }
+      break;
+    }
+  }
+  L.push('  → 지금 당장 대상 ' + ready + '곳 / 청소 대기 ' + waiting + '곳');
+  L.push('  → 청소가 끝나는 대로 순차 발송된다. 필요 할당량은 BCC 끈 지금 기준 방 수만큼.');
 
   var out = L.join('\n');
   Logger.log(out);
@@ -421,7 +719,7 @@ function sendStageMail(stage,bk,room,force,tplKey){
     fbSet('app/mailLogs/'+logKey,{stage,time:todayKST()+' '+nowHM(),email:__to,guest:bk.guest,room:roomList.join(',')});
     return true;
   }catch(err){
-    GmailApp.sendEmail(ADMIN_EMAIL,'[PW] '+stage+' 발송 실패: '+bk.guest,String(err));
+    notifyAdmin_('send_'+stage,'[PW] '+stage+' 발송 실패: '+bk.guest,String(err));
     return false;
   }
 }
@@ -488,7 +786,7 @@ function autoSendWin_(auto,stage,min){      // 발송창 판정만 — 도장은
 function runAuto_(auto,stage,min,fn){
   if(!autoSendWin_(auto,stage,min))return;
   try{ fn(); fbSet('app/autoSend/lastRun/'+stage,todayKST()); }
-  catch(err){ GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 자동발송 실패 '+stage+' — 다음 틱 재시도',String(err)); }
+  catch(err){ notifyAdmin_('auto_'+stage,'[PW] 자동발송 실패 '+stage+' — 다음 틱 재시도',String(err)); }
 }
 function masterTick(){
   const min=nowMinKST();
@@ -631,7 +929,7 @@ function latePrepTick_(){
       fbSet('app/mailLogs/'+logKey,{stage:'late_prep',time:today+' '+nowHM(),email:g.to,guest:g.guest,room:roomLabel});
       Logger.log('latePrepTick_: '+roomLabel+'호 '+g.guest+' 지연 안내 발송');
     }catch(e){
-      GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 지연안내 발송 실패: '+g.guest,String(e));
+      notifyAdmin_('latePrep','[PW] 지연안내 발송 실패: '+g.guest,String(e));
     }
   });
 }
@@ -883,7 +1181,7 @@ function doGet(e){
       fbDelete('app/sendOverrides/'+num+'_'+today);
       return ContentService.createTextOutput('✅ '+markNums.join('·')+'호 '+cb.guest+'님께 발송 완료 (편집본)');
     }catch(err){
-      GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 편집발송 실패: '+cb.guest,String(err));
+      notifyAdmin_('editSend','[PW] 편집발송 실패: '+cb.guest,String(err));
       return ContentService.createTextOutput(num+'호: 발송 실패');
     }
     }finally{lock.releaseLock();}
@@ -968,7 +1266,7 @@ function doGet(e){
       fbDelete('app/sendOverrides/'+ovKey);
       return ContentService.createTextOutput('✅ '+bk.guest+'님께 ['+(label||p.stage)+'] 발송 완료 (편집본)');
     }catch(err){
-      GmailApp.sendEmail(ADMIN_EMAIL,'[PW] 편집발송 실패('+p.stage+'): '+bk.guest,String(err));
+      notifyAdmin_('editSend_'+p.stage,'[PW] 편집발송 실패('+p.stage+'): '+bk.guest,String(err));
       return ContentService.createTextOutput('발송 실패');
     }
     }finally{lock.releaseLock();}
