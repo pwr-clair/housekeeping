@@ -82,14 +82,6 @@ input,select,button,textarea{font-family:inherit;}
 .section-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;letter-spacing:.03em;}
 .mgmt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .mgmt-btn{font-size:11px;padding:5px 10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);background:#fff;color:var(--text2);cursor:pointer;}
-.clean-item{background:#fff;border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;}
-.clean-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
-.clean-room{font-size:13px;font-weight:600;color:var(--text);}
-.clean-badge{font-size:10px;padding:3px 8px;border-radius:100px;font-weight:600;}
-.clean-badge.pending{background:#FAEEDA;color:#854F0B;}.clean-badge.done{background:#EAF3DE;color:#3B6D11;}.clean-badge.inprog{background:#EEEDFE;color:#534AB7;}
-.clean-checks{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;}
-.check-item{font-size:10px;padding:3px 7px;border-radius:100px;border:0.5px solid var(--border);color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:3px;background:#fff;}
-.check-item.checked{background:#EAF3DE;border-color:#C0DD97;color:#27500A;}
 .empty-msg{text-align:center;padding:24px;color:var(--text2);font-size:13px;}
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:20px 12px 12px;}
 .modal-overlay.open{display:flex;}
@@ -399,11 +391,6 @@ input,select,button,textarea{font-family:inherit;}
         <div id="send-checkout-list"></div>
       </details>
     </div>
-  </div>
-
-  <div class="page" id="page-cleaning">
-    <div class="section-title" style="margin-bottom:10px;" id="clean-tab-title">청소 배정 현황</div>
-    <div id="clean-list"></div>
   </div>
 
   <!-- 비품 탭 -->
@@ -786,8 +773,6 @@ function floorGroups(){
   Object.keys(g).sort((a,b)=>(+a)-(+b)).forEach(f=>{ sorted[f]=g[f]; });
   return sorted;
 }
-const CHECK_ITEMS_KO = ['침구 교체','욕실 청소','진공 청소','쓰레기 수거','미니바 보충'];
-function getCheckItems(){ return t('check_items') || CHECK_ITEMS_KO; }
 const STATUS_OPTS = ['need_clean','cleaning','clean_done','checkout_confirm','checkout_done','checkin'];
 const STATUS_LABEL = {checkin:'입실중',checkout_confirm:'퇴실확인중',checkout_done:'퇴실완료',cleaning:'청소중',clean_done:'청소완료',need_clean:'청소필요'};
 const STATUS_ICON = {checkin:'ti-user',checkout_confirm:'ti-clock',checkout_done:'ti-door-exit',cleaning:'ti-sparkles',clean_done:'ti-check',need_clean:'ti-wash'};
@@ -801,7 +786,7 @@ const COLOR_MAP = {
   blocked:'background:#F5F4F2;color:#4A4845'
 };
 
-let rooms={}, cleanTasks={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
+let rooms={}, bookingHistory={}, changeLogs={}, roomSupplies={}, todayNotice=null, workLogs={};
 let dateBlocks={};   // 방·날짜 단위 차단 (app/dateBlocks/{방}/{YYYY-MM-DD}=true) — 배정 캘린더 빈 칸 탭으로 토글 (2026-08-24 클라라)
 let currentUser=null;
 let currentRoomNum=null, currentStatus=null, originalStatus=null, currentBookingType=null, currentNextBookingIdx=0;
@@ -1121,7 +1106,7 @@ async function initFirebaseData(){
     });
     await set(ref(db,'app'),{
       password:'1234',
-      rooms:initRooms,cleanTasks:{},schedules:{},bookingHistory:{},changeLogs:{}
+      rooms:initRooms,schedules:{},bookingHistory:{},changeLogs:{}
     });
   } else {
     const d=snap.val();
@@ -1149,7 +1134,6 @@ function startListeners(){
     const all=snap.exists()?(snap.val()||{}):{};
     detectSendFailures(all[todayStr()]||{});
   });
-  onValue(ref(db,'app/cleanTasks'),snap=>{cleanTasks=snap.exists()?snap.val():{};if(isLoggedIn)renderCleaning();});
   onValue(ref(db,'app/dateBlocks'),snap=>{dateBlocks=snap.exists()?snap.val():{};if(isLoggedIn)renderAssignCalendar();});
   onValue(ref(db,'app/bookingHistory'),snap=>{bookingHistory=snap.exists()?snap.val():{};if(isLoggedIn)renderHistory();});
   onValue(ref(db,'app/changeLogs'),snap=>{
@@ -1327,7 +1311,7 @@ function adjFont(d){
 window.adjFont=adjFont;
 applyFontScale();
 
-function renderAll(){renderRooms();renderCleaning();renderSupplies();renderHistory();renderNotice();renderUpcoming();renderCsNoticeBoard();if(canSendMail)renderSendTab();}
+function renderAll(){renderRooms();renderSupplies();renderHistory();renderNotice();renderUpcoming();renderCsNoticeBoard();if(canSendMail)renderSendTab();}
 // 11:00 경계(카드 금액 줄·'현' 칩 게이트)를 페이지 열어둔 채 넘겨도 자동 재렌더 — 새로고침 불필요
 let _gate11=null;
 setInterval(()=>{
@@ -2220,21 +2204,7 @@ async function applyRoomChanges(){
     // 입실중으로 바뀌면 처리
   }
 
-  // 청소 태스크 관리
-  const needsTask=['need_clean','checkout_confirm','checkout_done','cleaning'].includes(effectiveStatus)&&!updates.blocked;
-  const existing=cleanTasks[currentRoomNum];
-  if(needsTask&&!existing){
-    await set(ref(db,`app/cleanTasks/${currentRoomNum}`),{
-      room:currentRoomNum,status:effectiveStatus==='cleaning'?'inprog':'pending',
-      items:CHECK_ITEMS_KO,checked:CHECK_ITEMS_KO.map(()=>false),time:t('wait_assign')
-    });
-  } else if(!needsTask&&existing){
-    if(effectiveStatus==='clean_done'){
-      const hKey='h_'+Date.now();
-      await set(ref(db,`app/bookingHistory/${hKey}`),{room:currentRoomNum,name:currentUser||'',time:nowTime()+' 완료',type:'청소완료',id:hKey});
-    }
-    await set(ref(db,`app/cleanTasks/${currentRoomNum}`),null);
-  }
+  // (청소 체크리스트 폐지 — 2026-10-02 정리. 청소완료는 상태 버튼으로만 바뀌고, 기록은 addChangeLog가 남긴다.)
   // 비품 저장
   const supplyItems=getSupplyItemsFromModal();
   await saveRoomSupplies(currentRoomNum, supplyItems);
@@ -2242,37 +2212,6 @@ async function applyRoomChanges(){
 }
 window.applyRoomChanges=applyRoomChanges;
 
-// ── 청소 ──
-function renderCleaning(){
-  const bl=t('clean_status');
-  const list=Object.values(cleanTasks);
-  document.getElementById('clean-list').innerHTML=list.length?list.map((t,ti)=>`
-    <div class="clean-item">
-      <div class="clean-top">
-        <div class="clean-room"><i class="ti ti-door" style="font-size:12px;margin-right:4px;"></i>${t.room}${currentLang==='ko'?'호':''}${rooms[t.room]&&rooms[t.room].currentBooking&&rooms[t.room].currentBooking.guest?` <span style="font-size:10px;color:var(--text2);">(${rooms[t.room].currentBooking.guest})</span>`:''}</div>
-        <span class="clean-badge ${t.status}">${bl[t.status]||'대기'}</span>
-      </div>
-      <div class="clean-checks">${(t.items||CHECK_ITEMS_KO).map((item,i)=>`<div class="check-item${(t.checked||[])[i]?' checked':''}" onclick="toggleCheck('${t.room}',${i})"><i class="ti ${(t.checked||[])[i]?'ti-check':'ti-circle'}"></i>${item}</div>`).join('')}</div>
-      <div style="font-size:10px;color:var(--text3);margin-top:5px;"><i class="ti ti-clock" style="font-size:10px;margin-right:2px;"></i>${t.time||''}</div>
-    </div>`).join(''):`<div class="empty-msg">${t("empty_clean")}</div>`;
-}
-
-async function toggleCheck(room,i){
-  const t=cleanTasks[room];if(!t)return;
-  const checked=[...(t.checked||getCheckItems().map(()=>false))];
-  checked[i]=!checked[i];
-  if(checked.every(c=>c)){
-    const r=rooms[room];
-    if(r)await update(ref(db,`app/rooms/${room}`),{status:'clean_done'});
-    const hKey='h_'+Date.now();
-    await set(ref(db,`app/bookingHistory/${hKey}`),{room,name:currentUser||'',time:nowTime()+' 완료',type:'청소완료',id:hKey});
-    await set(ref(db,`app/cleanTasks/${room}`),null);
-    announceStatusChange(room,'clean_done');   // 청소완료도 다른 사람에게 즉시 알린다(예전엔 큐에 안 넣어 안 갔다)
-    addChangeLog(room,'clean_done');
-  } else {
-    await update(ref(db,`app/cleanTasks/${room}`),{checked,status:'inprog'});
-  }
-}
 async function deleteCurrentBooking(){
   if(!confirm(t('confirm_del_cur')))return;
   // 상태 보존 (2026-09-30 클라라) — 예전엔 무조건 need_clean으로 덮어서, 청소완료된 방의
@@ -4356,7 +4295,7 @@ const TEXTS = {
     notice_title: '📢 공지', notice_sub: '팀 전체에게 공유할 내용을 입력하세요.',
     notice_save: '등록', notice_del: '삭제',
     past_notices: '지난 공지',
-    empty_clean: '배정된 청소 없음', empty_supply: '등록된 비품 요청이 없습니다',
+    empty_supply: '등록된 비품 요청이 없습니다',
     log_title: '변경 로그', log_empty: '변경 이력이 없습니다',
     move_title_cur: '현재 예약 방 이동', move_title_nxt: '다음 예약 방 이동',
     move_cancel: '취소',
@@ -4370,17 +4309,14 @@ const TEXTS = {
     notif_allow: '허용하기', notif_allowed: '✓ 허용됨',
     pw_label: '비밀번호', pw_enter: '입장', pw_error: '비밀번호가 맞지 않습니다.',
     pw_connecting: '연결 중...',
-    check_items: ['침구 교체','욕실 청소','진공 청소','쓰레기 수거','미니바 보충'],
     days: ['일','월','화','수','목','금','토'],
     date_fmt: (y,m,d,day) => `${y}년 ${m}월 ${d}일 (${day})`,
-    clean_status: {pending:'대기',inprog:'진행중',done:'완료'},
     blocked_lbl: '정비중', repair_lbl: '준비중',
     confirm_del_cur: '현재 예약을 삭제할까요?',
     confirm_del_nxt: '이 예약을 삭제할까요?',
     supply_placeholder: '예) 샴푸, 수건 2장',
     unknown_user: '알 수 없음',
     notif_activated: '알림이 활성화됐어요!',
-    wait_assign: '대기',
   },
   en: {
     logout: 'Exit', notice_label: '📢 Notice', notice_add: '📣 Post Notice',
@@ -4399,7 +4335,7 @@ const TEXTS = {
     notice_title: '📢 Notice', notice_sub: 'Share important info with the team.',
     notice_save: 'Post', notice_del: 'Delete',
     past_notices: 'Past Notices',
-    empty_clean: 'No cleaning tasks', empty_supply: 'No supply requests',
+    empty_supply: 'No supply requests',
     log_title: 'Change Log', log_empty: 'No changes yet',
     move_title_cur: 'Move Current Booking', move_title_nxt: 'Move Next Booking',
     move_cancel: 'Cancel',
@@ -4413,17 +4349,14 @@ const TEXTS = {
     notif_allow: 'Allow', notif_allowed: '✓ Allowed',
     pw_label: 'Password', pw_enter: 'Enter', pw_error: 'Wrong password.',
     pw_connecting: 'Connecting...',
-    check_items: ['Bedding','Bathroom','Vacuum','Trash','Minibar'],
     days: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],
     date_fmt: (y,m,d,day) => `${day}, ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1]} ${d}, ${y}`,
-    clean_status: {pending:'Pending',inprog:'In Progress',done:'Done'},
     blocked_lbl: 'Repair', repair_lbl: 'Repair',
     confirm_del_cur: 'Delete current booking?',
     confirm_del_nxt: 'Delete this booking?',
     supply_placeholder: 'e.g. Shampoo x2, Towels',
     unknown_user: 'Unknown',
     notif_activated: 'Alerts are now on!',
-    wait_assign: 'Pending',
   }
 };
 
