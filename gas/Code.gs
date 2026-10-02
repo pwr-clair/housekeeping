@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-01r 푸시 1분 주기';
+var CODE_VER = '2026-10-02a 푸시 즉시(pushNow)+알림종류 필터';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -186,7 +186,7 @@ function notifyAdmin_(key, subject, body){
   } catch (e) {}
   Logger.log('[notifyAdmin_] ' + key + ' :: ' + subject + ' :: ' + String(body).slice(0, 300));
   // 푸시는 Gmail 할당량과 무관하다 — 메일이 막혔을 때도 이건 간다. 그래서 하루 1통 제한과 별개로 보낸다.
-  try{ pushNotify_('clara', '⚠️ ' + subject, String(body).slice(0,120), key); }catch(e){}
+  try{ pushNotify_('clara', '⚠️ ' + subject, String(body).slice(0,120), key, 'fail'); }catch(e){}
   if (fbGet(stampPath)) return false;          // 오늘 이미 보냈다 — 로그만
   try {
     if (MailApp.getRemainingDailyQuota() < 5) { Logger.log('[notifyAdmin_] 할당량 부족 — 메일 생략'); return false; }
@@ -611,10 +611,15 @@ function fcmAccessToken_(){
 }
 
 // 대상: 'all' = 전원, 'clara' 등 사용자명 = 그 사람 기기만
-function pushNotify_(target, title, body, tag){
-  var at = fcmAccessToken_();
+// kind: 'room'(객실 상태) / 'fail'(발송 실패) — 기기가 토큰 기록에 그 종류를 false로 꺼놨으면 건너뛴다.
+//   (프론트가 알림 토글 상태를 app/pushTokens/{사용자}/{기기}/room·fail에 같이 적는다. 2026-10-02)
+//   값이 없으면(옛 기록) 보낸다.
+// opts: {at: 액세스토큰, all: 토큰 목록} — 큐를 비울 때 건마다 다시 읽지 않도록 밖에서 넘길 수 있다.
+function pushNotify_(target, title, body, tag, kind, opts){
+  opts = opts || {};
+  var at = opts.at || fcmAccessToken_();
   if (!at) return 0;                      // FCM 미설정 — 조용히 건너뛴다
-  var all = fbGet('app/pushTokens') || {};
+  var all = opts.all || fbGet('app/pushTokens') || {};
   var users = (target === 'all') ? Object.keys(all) : [String(target)];
   var sent = 0;
   for (var u = 0; u < users.length; u++) {
@@ -622,6 +627,7 @@ function pushNotify_(target, title, body, tag){
     for (var k in devs) {
       var tok = (devs[k] || {}).token;
       if (!tok) continue;
+      if (kind && devs[k][kind] === false) continue;   // 이 기기는 이 종류의 알림을 꺼놨다
       var res = UrlFetchApp.fetch(
         'https://fcm.googleapis.com/v1/projects/paradise-walk-residence/messages:send', {
         method:'post', contentType:'application/json', muteHttpExceptions:true,
@@ -669,32 +675,40 @@ function testPush(){
 
 // 객실 상태 변경 푸시 — 프론트가 app/pushQueue에 쌓고 여기서 비운다 (2026-10-01)
 // 바로 안 쏘고 큐를 쓰는 이유: 프론트는 FCM 서버키를 가질 수 없고(브라우저에 비밀키를 둘 수 없다),
-// GAS만 서비스 계정을 쥐고 있다. 5분 틱이라 최대 5분 지연된다 — 즉시성이 필요하면 틱을 줄일 것.
-// 1분 주기 전용 트리거 (2026-10-01) — masterTick(5분)에 얹었더니 상태 변경 알림이 최대 5분
-// 늦었다. 알림은 늦으면 의미가 없으므로 분리했다. 큐가 비어 있으면 즉시 반환하므로 비용이 거의 없다.
-// ※ 더 줄이려면 Cloud Functions(즉시 발화)가 필요한데 유료 플랜이다. 1분이 무료 범위의 한계다.
+// GAS만 서비스 계정을 쥐고 있다.
+// ★ 즉시 발송 (2026-10-02 클라라 — "틱 돌 때 가니까 쓸모가 없다"): 프론트가 큐에 넣은 직후
+//   웹앱 `?action=pushNow`를 불러 이 함수를 그 자리에서 돌린다. 그래서 보통은 바꾼 지 1~2초 안에 간다.
+//   1분 트리거(pushTick)는 그 호출이 실패했을 때의 안전망으로만 남는다.
+//   둘이 동시에 돌면 같은 알림이 두 번 갈 수 있어 스크립트 락으로 한 번에 하나만 돌린다.
+// ※ 웹앱(doGet)이 바뀐 건 아니지만 action이 새로 생겼으니 "배포 관리 → 새 버전 → 배포"가 필요하다.
 function pushTick(){ try{ return pushQueueTick_(); }catch(e){ Logger.log('[push] 큐 처리 실패: '+e); return 0; } }
 
 function pushQueueTick_(){
-  var q = fbGet('app/pushQueue') || {};
-  var keys = Object.keys(q);
-  if (!keys.length) return 0;
-  var LBL = {need_clean:'청소필요', cleaning:'청소중', clean_done:'청소완료',
-             checkin:'입실중', checkout_confirm:'퇴실확인', checkout_done:'퇴실완료', blocked:'정비중'};
-  var n = 0;
-  for (var i = 0; i < keys.length && i < 30; i++) {   // 한 틱에 30건까지 — 밀려도 다음 틱에 이어서
-    var e = q[keys[i]] || {};
-    fbDelete('app/pushQueue/' + keys[i]);             // 먼저 지운다 — 실패해도 같은 알림이 반복되지 않게
-    if (!e.room) continue;
-    // 바꾼 사람 본인에게는 안 보낸다(그 기기는 이미 화면에서 봤다)
-    var all = fbGet('app/pushTokens') || {};
-    for (var u in all) {
-      if (String(u).toLowerCase() === String(e.by || '').toLowerCase()) continue;
-      n += pushNotify_(u, e.room + '호 → ' + (LBL[e.status] || e.status),
-                       (e.by ? e.by + ' · ' : '') + (e.at || ''), 'room_' + e.room);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(8000)) { Logger.log('[push] 다른 실행이 큐를 비우는 중 — 건너뜀'); return 0; }
+  try {
+    var q = fbGet('app/pushQueue') || {};
+    var keys = Object.keys(q).sort();
+    if (!keys.length) return 0;
+    var at = fcmAccessToken_();
+    if (!at) { for (var d = 0; d < keys.length; d++) fbDelete('app/pushQueue/' + keys[d]); return 0; }  // FCM 미설정 — 큐만 비운다
+    var all = fbGet('app/pushTokens') || {};   // 건마다 다시 읽지 않는다
+    var LBL = {need_clean:'청소필요', cleaning:'청소중', clean_done:'청소완료',
+               checkin:'입실중', checkout_confirm:'퇴실확인', checkout_done:'퇴실완료', blocked:'정비중'};
+    var n = 0;
+    for (var i = 0; i < keys.length && i < 30; i++) {   // 한 번에 30건까지 — 밀려도 다음에 이어서
+      var e = q[keys[i]] || {};
+      fbDelete('app/pushQueue/' + keys[i]);             // 먼저 지운다 — 실패해도 같은 알림이 반복되지 않게
+      if (!e.room) continue;
+      // 바꾼 사람 본인에게는 안 보낸다(그 기기는 이미 화면에서 봤다)
+      for (var u in all) {
+        if (String(u).toLowerCase() === String(e.by || '').toLowerCase()) continue;
+        n += pushNotify_(u, e.room + '호 → ' + (LBL[e.status] || e.status),
+                         (e.by ? e.by + ' · ' : '') + (e.at || ''), 'room_' + e.room, 'room', {at: at, all: all});
+      }
     }
-  }
-  return n;
+    return n;
+  } finally { lock.releaseLock(); }
 }
 function codeVersion(){
   var dep='(웹앱 미배포)';
@@ -797,7 +811,7 @@ function sendMail(to, subject, body, opts){
     if(/too many times|너무 많이 호출|quota|Service invoked/i.test(m)){
       fbSet('app/autoSend/mailBlocked', {at: todayKST()+' '+nowHM(), reason: m.slice(0,200)});
       // 메일이 막힌 상황이므로 메일로는 알릴 수 없다. 푸시가 유일한 경로다.
-      try{ pushNotify_('clara', '⚠️ 메일 발송이 막혔습니다', '하루 한도 초과 — 게스트 안내가 자동으로 나가지 않습니다', 'mailBlocked'); }catch(e){}
+      try{ pushNotify_('clara', '⚠️ 메일 발송이 막혔습니다', '하루 한도 초과 — 게스트 안내가 자동으로 나가지 않습니다', 'mailBlocked', 'fail'); }catch(e){}
     }
     throw err;   // 호출부의 기존 오류 처리는 그대로 동작해야 한다
   }
@@ -1320,6 +1334,11 @@ function doGet(e){
   if(p.token!==APPROVE_TOKEN)return ContentService.createTextOutput('Paradise Walk GAS 작동 중');
   if(p.action==='approve'){
     return ContentService.createTextOutput('발송 완료: '+sendEligible()+'건');
+  }
+  // 객실 상태 변경 즉시 푸시 (2026-10-02) — 프론트가 app/pushQueue에 넣은 직후 부른다. 큐를 그 자리에서 비운다.
+  if(p.action==='pushNow'){
+    let n=0; try{ n=pushQueueTick_(); }catch(e){ Logger.log('[pushNow] '+e); }
+    return ContentService.createTextOutput('push '+n);
   }
   if(p.action==='sendRoom'&&p.room){
     const num=String(p.room),today=todayKST();
