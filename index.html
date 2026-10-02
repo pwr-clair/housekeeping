@@ -1549,9 +1549,11 @@ function renderRooms(){
       const sentChecked=checkedSentSet.has(ckId2);
       const sentBadge=sendBlocks[ckId2]?`<div style="position:absolute;top:28px;left:50%;transform:translateX(-50%);background:#EEF0F2;color:#6E6B67;font-size:9px;font-weight:700;padding:2px 6px;white-space:nowrap;z-index:3;">입실안내 차단</div>`
         :(sentChecked&&cls==='clean_done'?`<div style="position:absolute;top:28px;left:50%;transform:translateX(-50%);background:#F4F8F0;color:#c0392b;font-size:9px;font-weight:700;padding:2px 6px;white-space:nowrap;z-index:3;">입실안내완</div>`:'');
-      // 체크인/아웃 시간 배지 - 청소필요/청소중 상태면 숨김
+      // 체크인 시간 배지 — 오늘 입실 예정이 있고 아직 입실 전이면 상태와 무관하게 보인다 (2026-10-02 클라라).
+      // 예전엔 청소필요/청소중/청소완료에서만 보여서, 전 손님이 막 나간 '퇴실확인중/퇴실완료' 방은
+      // 오늘 18시 입실이 잡혀 있어도 배지가 사라졌다(1037호 Sugimoto 건). 그 방이야말로 시각이 제일 급하다.
       const today3=todayStr();
-      const showTimeBadge=['need_clean','cleaning','clean_done'].includes(cls);
+      const showTimeBadge=cls!=='checkin';
       const todayBk=showTimeBadge?[cur,...getNextBookings(r)].find(b=>b&&b.guest&&b.checkinDate===today3):null;
       let ciTime=todayBk&&todayBk.checkinTime?todayBk.checkinTime:'';
       if(todayBk){ // 묶음 통일 시각 우선 (같은 예약의 다른 방에만 시간이 있어도 이 카드에 표시)
