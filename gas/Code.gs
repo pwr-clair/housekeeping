@@ -10,7 +10,7 @@
 // 지금 GAS 에디터에 붙어 있는 코드가 어느 버전인지 확인하는 도장. 커밋할 때마다 갱신한다.
 // 에디터에서 codeVersion 실행 → 로그에 찍힌다. 웹훅(doPost) 반영 여부는 재배포까지 해야 바뀐다.
 // ★ 붙여넣기·재배포를 했는지 눈으로 확인할 수단이 없어서 매번 추측했다 (2026-09-21 신설).
-var CODE_VER = '2026-10-03a 지연안내 템플릿 이름 수정(늦은 객실준비 안내)+미발견 알림';
+var CODE_VER = '2026-10-03b 취소 경로 기록(cancelledBy ota/noshow)+객실 자동제거 결과';
 // ============================================================
 // 노쇼 수습 — 예약 카드를 이미 지워버린 노쇼 건을 뒤늦게 정리 (2026-09-30 클라라)
 // ============================================================
@@ -41,7 +41,7 @@ function noShowFix(room, date, apply, onlyKey){
          + ' | 매칭이유=' + (rn === room ? 'assignedRoom' : '') + (keyHasRoom ? '키' : '')
          + ' | cancelled=' + (b.cancelled === true));
     if (apply && b.cancelled !== true) {
-      fbUpdate('app/pendingBookings/' + k, {cancelled: true});
+      fbUpdate('app/pendingBookings/' + k, {cancelled: true, cancelledBy: 'noshow', cancelledAt: todayKST() + ' ' + nowHM()});
       L.push('      → cancelled=true 처리 (게스트 메일 중단)');
     }
   }
@@ -884,12 +884,16 @@ function doPost(e){
     const prev=pend[targetKey]||{};
 
     if(b.event==='cancelled'||b.cancelled===true){
-      fbUpdate('app/pendingBookings/'+targetKey,{cancelled:true});
+      // cancelledBy: 'ota'(웹훅) / 'noshow'(노쇼 버튼·noShowFix) — 배정탭 배너가 경로별로 다르게 쓴다 (2026-10-03 클라라)
+      fbUpdate('app/pendingBookings/'+targetKey,{cancelled:true,cancelledBy:'ota',cancelledAt:todayKST()+' '+nowHM()});
       // 배정된 객실에서도 뺀다 (2026-10-01 클라라). 예전엔 발송 원본에 '취소' 도장만 찍어서
       // 메일은 멈췄지만 화면에는 그대로 남았고, 운영자가 빨간 알림을 보고 손으로 지워야 했다.
       // 놓치면 없어진 예약이 자리를 차지한 채 새 예약을 받지 못한다(10/3 1236호 Aoi, Sasaki 건).
-      try{ removeBookingFromRooms_(prev.bookingId||b.bookingId, prev.assignedRoom, prev.guest, prev.checkinDate); }
+      var cleared=0;
+      try{ cleared=removeBookingFromRooms_(prev.bookingId||b.bookingId, prev.assignedRoom, prev.guest, prev.checkinDate); }
       catch(e){ Logger.log('[cancel] 객실 반영 실패: '+e); }
+      // roomCleared: 객실 카드까지 자동으로 지웠는지. 배너가 '자동 제거됨' / '객실에서 삭제 필요'를 가른다.
+      try{ fbUpdate('app/pendingBookings/'+targetKey,{roomCleared:cleared>0}); }catch(e){}
       return ContentService.createTextOutput('OK');
     }
 

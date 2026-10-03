@@ -2246,7 +2246,7 @@ async function markNoShow(){
       const b=pend[k]; if(!b||b.cancelled===true)continue;
       const sameId=cur.bookingId&&String(b.bookingId)===String(cur.bookingId);
       const sameGuest=!cur.bookingId&&b.guest===cur.guest&&b.checkinDate===cur.checkinDate;
-      if(sameId||sameGuest){ await update(ref(db,`app/pendingBookings/${k}`),{cancelled:true}); n++; }
+      if(sameId||sameGuest){ await update(ref(db,`app/pendingBookings/${k}`),{cancelled:true,cancelledBy:'noshow',cancelledAt:todayStr()+' '+nowTime()}); n++; }
     }
     if(!n)console.warn('[노쇼] 발송 원본에서 해당 예약을 못 찾음 — 메일이 계속 나갈 수 있음');
   }catch(e){ alert('메일 중단 처리에 실패했어요. 다시 시도해주세요.'); return; }
@@ -3724,7 +3724,20 @@ function renderSendTab(){
         +'<div style="padding-top:8px;">'+arr.map(cardHtml).join('')+'</div></details>';
     }).join(''):'<div class="empty-msg">새 예약이 들어오면 여기에 표시됩니다</div>';
     if(cancelled.length){
-      const cancelHtml=cancelled.map(([key,b])=>'<div style="border:0.5px solid #E74C3C;border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:6px;background:#FDEDEC;font-size:11px;color:#7B241C;">❌ 취소됨: '+b.guest+' ('+b.assignedRoom+'호 배정됨) — 객실에서 예약 삭제 필요 <span style="float:right;cursor:pointer;font-weight:700;" onclick="dismissCancelled(\''+key+'\')">확인</span></div>').join('');
+      // 경로별 문구 (2026-10-03 클라라): 노쇼 버튼과 OTA 취소가 같은 배너로 떠서 구분이 안 됐다.
+      //   noshow → 클라라가 직접 처리한 것. 객실 카드는 노쇼 버튼이 이미 비웠다.
+      //   ota + roomCleared → 웹훅이 객실 카드까지 자동으로 지웠다. 할 일은 '확인'뿐.
+      //   ota + !roomCleared → 객실에서 못 찾아 자동 제거 실패. 손으로 지워야 한다.
+      //   표시 없음 → 10/3 이전 기록(경로 미기록). 옛 문구 유지.
+      const cancelHtml=cancelled.map(([key,b])=>{
+        const when=b.cancelledAt?' · '+b.cancelledAt:'';
+        let icon='❌',msg;
+        if(b.cancelledBy==='noshow'){icon='⛔';msg='노쇼 처리: '+b.guest+' ('+b.assignedRoom+'호) — 자동 메일 중단됨'+when+' · 확인 눌러 정리';}
+        else if(b.cancelledBy==='ota'&&b.roomCleared){msg='OTA 취소: '+b.guest+' ('+b.assignedRoom+'호에서 자동 제거됨)'+when+' · 확인 눌러 정리';}
+        else if(b.cancelledBy==='ota'){msg='OTA 취소: '+b.guest+' ('+b.assignedRoom+'호 배정됨) — 객실에서 자동 제거 실패, 예약 삭제 필요'+when;}
+        else{msg='취소됨: '+b.guest+' ('+b.assignedRoom+'호 배정됨) — 객실에서 예약 삭제 필요';}
+        return '<div style="border:0.5px solid #E74C3C;border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:6px;background:#FDEDEC;font-size:11px;color:#7B241C;">'+icon+' '+msg+' <span style="float:right;cursor:pointer;font-weight:700;" onclick="dismissCancelled(\''+key+'\')">확인</span></div>';
+      }).join('');
       html=cancelHtml+html;
     }
     pl.innerHTML=html;
